@@ -386,6 +386,8 @@ typedef struct _state State;
 // ------------------------------------------------------------
 typedef double Value;
 
+void ValuePrint(State *S, Value value);
+
 typedef struct {
   int capacity;
   int count;
@@ -403,13 +405,22 @@ typedef struct {
   const char *name;
 } Type;
 
+typedef struct _Types {
+  int count;
+  int capacity;
+  Type *types;
+} Types;
+
+void TypesInit(State *S, Types *t);
+void TypesAdd(State *S, Types *t, const char *name);
+void TypesFree(State *S, Types *t);
+
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
+
 typedef struct _state {
-  int tcount;
-  int tcap;
-  Type *types;
+  Types types;
   
   bool stop;
   int allocated;
@@ -431,6 +442,7 @@ char *MemAlloc(State *S, void *ptr, size_t old, size_t nsize);
 // ------------------------------------------------------------
 typedef enum {
   OP_NOP,
+  OP_CONST,
 } k_op;
 
 // ------------------------------------------------------------
