@@ -7,53 +7,53 @@
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
-void k_regtype(k_state *K, const char *name) {
-  if (K->tcap < K->tcount + 1) {
-    int newcap = K->tcap * 2;
-    size_t newsize = newcap * sizeof(k_type);
-    size_t oldsize = K->tcap * sizeof(k_type);
-    K->types = (k_type*) km_alloc(K, K->types, oldsize, newsize);
-    STOP_RET(K, K->types)
-    K->tcap = newcap;
-    K->types[K->tcount].name = name;
-    K->tcount++;
+void k_regtype(State *S, const char *name) {
+  if (S->tcap < S->tcount + 1) {
+    int newcap = S->tcap * 2;
+    size_t newsize = newcap * sizeof(Type);
+    size_t oldsize = S->tcap * sizeof(Type);
+    S->types = (Type*) MemAlloc(S, S->types, oldsize, newsize);
+    STOP_RET(S, S->types)
+    S->tcap = newcap;
+    S->types[S->tcount].name = name;
+    S->tcount++;
   }
 }
 
-k_state *k_new(void) {
-  k_state *K = malloc(sizeof(k_state));
-  K->allocated = sizeof(k_state);
+State *StateNew(void) {
+  State *S = malloc(sizeof(State));
+  S->allocated = sizeof(State);
 
-  if (!K) {
+  if (!S) {
     return NULL;
   }
 
-  K->tcap = 8;
-  K->types = (k_type*) km_alloc(K, NULL, 0, K->tcap * sizeof(k_type));
-  STOP_NULL(K, K->types)
-  k_regtype(K, "Int");
-  k_regtype(K, "String");
-  k_regtype(K, "Double");
-  K->tcount = 3;
-  K->freed = 0;
-  K->stop = false;
-  return K;
+  S->tcap = 8;
+  S->types = (Type*) MemAlloc(S, NULL, 0, S->tcap * sizeof(Type));
+  STOP_NULL(S, S->types)
+  k_regtype(S, "Int");
+  k_regtype(S, "String");
+  k_regtype(S, "Double");
+  S->tcount = 3;
+  S->freed = 0;
+  S->stop = false;
+  return S;
 }
 
-void k_close(k_state *K) {
-  K->freed += sizeof(k_state);
-  km_alloc(K, K->types, K->tcap * sizeof(k_type), 0);
-  assert(K->allocated - K->freed == 0);
-  free(K);
+void StateFree(State *S) {
+  S->freed += sizeof(State);
+  MemAlloc(S, S->types, S->tcap * sizeof(Type), 0);
+  assert(S->allocated - S->freed == 0);
+  free(S);
 }
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
-char *km_alloc(k_state *K, void *ptr, size_t oldsize, size_t nsize) {
+char *MemAlloc(State *S, void *ptr, size_t oldsize, size_t nsize) {
   
-  K->allocated += nsize;
-  K->freed += oldsize;
+  S->allocated += nsize;
+  S->freed += oldsize;
   
   if (nsize == 0) {
     free(ptr);
@@ -67,79 +67,85 @@ char *km_alloc(k_state *K, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 #define GROW_CAP(cap)  ((cap) < 8 ? 8 : (cap) * 2)
 #define GROW(k, type, ptr, old, new)\
-(type*)km_alloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
+(type*)MemAlloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
 
 
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void kc_init(k_state *K, k_chunk *chunk) {
+void ChunkInit(State *S, Chunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
+  ValueArrayInit(S, &chunk->constants);
 }
 
-void kc_write(k_state *K, k_chunk *chunk, uint8_t byte) {
+void ChunkWrite(State *S, Chunk *chunk, uint8_t byte) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = GROW_CAP(cap);
-    chunk->code = GROW(K, uint8_t, chunk->code, cap, chunk->capacity);
+    chunk->code = GROW(S, uint8_t, chunk->code, cap, chunk->capacity);
     if (chunk->code == NULL) {
-      K->stop = true;
+      S->stop = true;
     }
   }
   chunk->code[chunk->count] = byte;
   chunk->count++;
 }
 
-void kc_free(k_state *K, k_chunk *chunk) {
-  km_alloc(K, chunk->code, chunk->capacity, 0);
+void ChunkFree(State *S, Chunk *chunk) {
+  MemAlloc(S, chunk->code, chunk->capacity, 0);
+}
+
+int ConstantAdd(State *S, Chunk *chunk, Value value) {
+  ValueArrayWrite(S, &chunk->constants, value);
+  return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-void kva_init(k_state* K, k_val_array *array) {
+void ValueArrayInit(State* S, ValueArray *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void kva_write(k_state* K, k_val_array *array, k_val value) {
+void ValueArrayWrite(State* S, ValueArray *array, Value value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = GROW_CAP(old);
-    array->values = GROW(K, k_val, array->values, old, array->capacity);
+    array->values = GROW(S, Value, array->values, old, array->capacity);
   }
   array->values[array->count] = value;
   array->count++;
 }
 
-void kva_free(k_state* K, k_val_array *array) {
-  km_alloc(K, array->values, array->capacity, 0);
-  kva_init(K, array);
+void ValueArrayFree(State* S, ValueArray *array) {
+  MemAlloc(S, array->values, array->capacity, 0);
+  ValueArrayInit(S, array);
 }
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void kc_dis_chunk(k_state *K, k_chunk *chunk, const char * name) {
+void ChunkDisassemble(State *S, Chunk *chunk, const char * name) {
   printf("== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; offset++) {
-    kc_dis_op(K, chunk, offset);
+    OpDisassemble(S, chunk, offset);
   }
 }
-static int kc_dis_simple(const char *name, int offset) {
+static int OpSimpleDisassemble(const char *name, int offset) {
   printf("%s\n", name);
   return offset + 1;
 }
 
-int kc_dis_op(k_state *K, k_chunk *chunk, int offset) {
+int OpDisassemble(State *S, Chunk *chunk, int offset) {
   printf("%04d ", offset);
   uint8_t op = chunk->code[offset];
   switch (op) {
     case OP_NOP:
-      return kc_dis_simple("OP_NOP", offset);
+      return OpSimpleDisassemble("OP_NOP", offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
@@ -151,20 +157,20 @@ int kc_dis_op(k_state *K, k_chunk *chunk, int offset) {
 // REPL
 // ------------------------------------------------------------
 #ifdef KUMU_REPL
-int k_main(int argc, const char * argv[]) {
-  k_state *K = k_new();
+int Main(int argc, const char * argv[]) {
+  State *S = StateNew();
   printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
-  k_close(K);
+  StateFree(S);
   
-  k_chunk chunk;
-  kc_init(K, &chunk);
-  kc_write(K, &chunk, OP_NOP);
+  Chunk chunk;
+  ChunkInit(S, &chunk);
+  ChunkWrite(S, &chunk, OP_NOP);
   
-  kc_dis_chunk(K, &chunk, "test");
-  kc_free(K, &chunk);
+  ChunkDisassemble(S, &chunk, "test");
+  ChunkFree(S, &chunk);
   
-  printf(">> allocated: %d, freed: %d, delta: %d\n", K->allocated,
-         K->freed, K->allocated - K->freed);
+  printf(">> allocated: %d, freed: %d, delta: %d\n", S->allocated,
+         S->freed, S->allocated - S->freed);
   return 0;
 }
 #endif

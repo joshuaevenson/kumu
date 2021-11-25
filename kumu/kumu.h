@@ -285,10 +285,10 @@
  * 100% code coverage (how?)
  * Cross platform compile day 1
 
- ku_state *K = ku_new();
- ku_getglobal(K, "x");
- ku_pushinteger(K, 20);
- ku_setglobal(K);
+ ku_state *S = ku_new();
+ ku_getglobal(S, "x");
+ ku_pushinteger(S, 20);
+ ku_setglobal(S);
 
  // ------------------------------------------------------------
  // Native class libraries
@@ -378,62 +378,53 @@
 // ------------------------------------------------------------
 // Forward
 // ------------------------------------------------------------
-struct _ks;
+struct _state;
+typedef struct _state State;
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-typedef double k_val;
+typedef double Value;
 
 typedef struct {
   int capacity;
   int count;
-  k_val *values;
-} k_val_array;
+  Value *values;
+} ValueArray;
 
-void kva_init(struct _ks* K, k_val_array *array);
-void kva_write(struct _ks* K, k_val_array *array, k_val value);
-void kva_free(struct _ks* K, k_val_array *array);
+void ValueArrayInit(State* S, ValueArray *array);
+void ValueArrayWrite(State* S, ValueArray *array, Value value);
+void ValueArrayFree(State* S, ValueArray *array);
 
 // ------------------------------------------------------------
 // Type
 // ------------------------------------------------------------
 typedef struct {
   const char *name;
-} k_type;
+} Type;
 
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
-typedef struct _ks {
+typedef struct _state {
   int tcount;
   int tcap;
-  k_type *types;
+  Type *types;
   
   bool stop;
   int allocated;
   int freed;
-} k_state;
+} State;
 
-typedef struct {
-  int type;
-  bool is_const;
-  union {
-    int i;
-    float f;
-    double d;
-  };
-} k_var;
-
-k_state *k_new(void);
-void k_close(k_state *K);
+State *StateNew(void);
+void StateFree(State *S);
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
 // 0,N => malloc, N,0 => free, N,M => realloc
-char *km_alloc(k_state *K, void *ptr, size_t old, size_t nsize);
+char *MemAlloc(State *S, void *ptr, size_t old, size_t nsize);
 
 // ------------------------------------------------------------
 // OP codes
@@ -449,17 +440,19 @@ typedef struct {
   int count;
   int capacity;
   uint8_t *code;
-} k_chunk;
+  ValueArray constants;
+} Chunk;
 
-void kc_init(k_state *K, k_chunk *chunk);
-void kc_write(k_state *K, k_chunk *chunk, uint8_t byte);
-void kc_free(k_state *K, k_chunk *chunk);
+void ChunkInit(State *S, Chunk *chunk);
+void ChunkWrite(State *S, Chunk *chunk, uint8_t byte);
+void ChunkFree(State *S, Chunk *chunk);
+int ConstantAdd(State *S, Chunk *chunk, Value value);
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void kc_dis_chunk(k_state *K, k_chunk *chunk, const char * name);
-int kc_dis_op(k_state *K, k_chunk *chunk, int offset);
+void ChunkDisassemble(State *S, Chunk *chunk, const char * name);
+int OpDisassemble(State *S, Chunk *chunk, int offset);
 
 // ------------------------------------------------------------
 // REPL
@@ -467,7 +460,7 @@ int kc_dis_op(k_state *K, k_chunk *chunk, int offset);
 #ifdef KUMU_REPL
 #include <stdio.h>
 
-int k_main(int argc, const char * argv[]);
+int Main(int argc, const char * argv[]);
 #endif
 
 #endif /* KUMU_H */
