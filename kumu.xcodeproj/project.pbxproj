@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		82EE3AF2274EE08100D6B09E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF1274EE08100D6B09E /* main.c */; };
+		82EE3AFA274EE0B600D6B09E /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +26,8 @@
 /* Begin PBXFileReference section */
 		82EE3AEE274EE08100D6B09E /* kumu */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kumu; sourceTree = BUILT_PRODUCTS_DIR; };
 		82EE3AF1274EE08100D6B09E /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		82EE3AF8274EE0B600D6B09E /* kumu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kumu.h; sourceTree = "<group>"; };
+		82EE3AF9274EE0B600D6B09E /* kumu.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kumu.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +61,8 @@
 			isa = PBXGroup;
 			children = (
 				82EE3AF1274EE08100D6B09E /* main.c */,
+				82EE3AF8274EE0B600D6B09E /* kumu.h */,
+				82EE3AF9274EE0B600D6B09E /* kumu.c */,
 			);
 			path = kumu;
 			sourceTree = "<group>";
@@ -120,6 +125,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82EE3AF2274EE08100D6B09E /* main.c in Sources */,
+				82EE3AFA274EE0B600D6B09E /* kumu.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
