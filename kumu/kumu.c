@@ -181,12 +181,27 @@ static ktoktype klex_identype(kvm *vm) {
     case 'a': return klex_checkkey(vm, 1,2,"nd", TOK_AND);
     case 'c': return klex_checkkey(vm, 1,4,"lass", TOK_CLASS);
     case 'e': return klex_checkkey(vm, 1,3,"lse", TOK_ELSE);
+    case 'f':
+      if (vm->scanner.curr - vm->scanner.start > 1) {
+        switch (vm->scanner.start[1]) {
+          case 'a': return klex_checkkey(vm, 2, 3, "lse", TOK_FALSE);
+          case 'o': return klex_checkkey(vm, 2, 1, "r", TOK_FOR);
+          case 'u': return klex_checkkey(vm, 2, 1, "n", TOK_FUN);
+        }
+      }
     case 'i': return klex_checkkey(vm, 1,1,"f", TOK_IF);
     case 'n': return klex_checkkey(vm, 1,2,"il", TOK_NIL);
     case 'o': return klex_checkkey(vm, 1,1,"r", TOK_OR);
     case 'p': return klex_checkkey(vm, 1,4,"rint", TOK_PRINT);
     case 'r': return klex_checkkey(vm, 1,5,"eturn", TOK_RETURN);
     case 's': return klex_checkkey(vm, 1,4,"uper", TOK_SUPER);
+    case 't':
+      if (vm->scanner.curr - vm->scanner.start > 1) {
+        switch(vm->scanner.start[1]) {
+          case 'h': return klex_checkkey(vm, 2, 2, "is", TOK_THIS);
+          case 'r': return klex_checkkey(vm, 2, 2, "ue", TOK_TRUE);
+        }
+      }
     case 'v': return klex_checkkey(vm, 1,2,"ar", TOK_VAR);
     case 'w': return klex_checkkey(vm, 1,4,"hile", TOK_WHILE);
   }
