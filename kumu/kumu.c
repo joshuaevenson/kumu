@@ -293,13 +293,11 @@ static void _kchunk_writeconst(kvm *vm, int cons, int line) {
 }
 
 // ------------------------------------------------------------
-// REPL
+// TEST
 // ------------------------------------------------------------
-#ifdef KUMU_REPL
-int kmain(int argc, const char * argv[]) {
+#ifdef KUMU_TEST
+static void _kvm_test() {
   kvm *vm = kvm_new();
-  printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
-  
   kchunk chunk;
   kchunk_init(vm, &chunk);
   vm->chunk = &chunk;
@@ -326,6 +324,18 @@ int kmain(int argc, const char * argv[]) {
   printf("%sres=%d\n", DEBUG_PREFIX, res);
   kchunk_free(vm, &chunk);
   kvm_free(vm);
+}
+#endif
+
+// ------------------------------------------------------------
+// REPL
+// ------------------------------------------------------------
+#ifdef KUMU_REPL
+int kmain(int argc, const char * argv[]) {
+  printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
+#ifdef KUMU_TEST
+  _kvm_test();
+#endif
   return 0;
 }
 #endif
