@@ -414,20 +414,6 @@ void TypesAdd(VM *vm, Types *t, const char *name);
 void TypesFree(VM *vm, Types *t);
 
 // ------------------------------------------------------------
-// VM
-// ------------------------------------------------------------
-typedef struct _vm {
-  Types types;
-  
-  bool stop;
-  int allocated;
-  int freed;
-} VM;
-
-VM *VMNew(void);
-void VMFree(VM *vm);
-
-// ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
@@ -440,6 +426,7 @@ char *MemAlloc(VM *vm, void *ptr, size_t old, size_t nsize);
 typedef enum {
   OP_NOP,
   OP_CONST,
+  OP_RET,
 } k_op;
 
 // ------------------------------------------------------------
@@ -457,6 +444,31 @@ void ChunkInit(VM *vm, Chunk *chunk);
 void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line);
 void ChunkFree(VM *vm, Chunk *chunk);
 int ConstantAdd(VM *vm, Chunk *chunk, Value value);
+
+// ------------------------------------------------------------
+// VM
+// ------------------------------------------------------------
+typedef enum {
+  VM_OK,
+  VM_ERR_SYNTAX,
+  VM_ERR_RUNTIME,
+} VMResult;
+
+typedef struct _vm {
+  Types types;
+  
+  bool stop;
+  int allocated;
+  int freed;
+  
+  Chunk *chunk;
+  uint8_t *ip;
+} VM;
+
+VM *VMNew(void);
+void VMFree(VM *vm);
+VMResult VMRun(VM *vm, Chunk *chunk);
+
 
 // ------------------------------------------------------------
 // Debug

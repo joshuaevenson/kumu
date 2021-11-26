@@ -14,7 +14,7 @@
 #define STOP_RET(k,v) if (!v) { k->stop = true; return; }
 
 #define DEBUG_PREFIX  ""
-
+#define DEBUG_TRACE_EXEC
 // ------------------------------------------------------------
 // Types
 // ------------------------------------------------------------
@@ -51,7 +51,8 @@ VM *VMNew(void) {
 
   vm->freed = 0;
   vm->stop = false;
-
+  vm->chunk = NULL;
+  
   TypesInit(vm, &vm->types);
   TypesAdd(vm, &vm->types, "Int");
   TypesAdd(vm, &vm->types, "String");
@@ -70,6 +71,40 @@ void VMFree(VM *vm) {
   free(vm);
 }
 
+static VMResult _VMRun(VM *vm) {
+#define BYTE_READ(vm) (*(vm->ip++))
+#define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
+
+ for (;;) {
+#ifdef DEBUG_TRACE_EXEC
+   OpDisassemble(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+#endif
+   
+    uint8_t op;
+    
+    switch(op = BYTE_READ(vm)) {
+      case OP_NOP:
+        continue;
+      case OP_RET:
+        return VM_OK;
+      case OP_CONST: {
+        Value con = CONST_READ(vm);
+        ValuePrint(vm, con);
+        printf("\n");
+        break;
+      }
+    }
+  }
+  return VM_OK;
+#undef BYTE_READ
+#undef CONST_READ
+}
+
+VMResult VMRun(VM *vm, Chunk *chunk) {
+  vm->chunk = chunk;
+  vm->ip = vm->chunk->code;
+  return _VMRun(vm);
+}
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
@@ -188,6 +223,8 @@ int OpDisassemble(VM *vm, Chunk *chunk, int offset) {
   switch (op) {
     case OP_NOP:
       return OpSimpleDisassemble("OP_NOP", offset);
+    case OP_RET:
+      return OpSimpleDisassemble("OP_RET", offset);
     case OP_CONST:
       return OpConstDisassemble(vm, "OP_CONST", chunk, offset);
     default:
@@ -210,10 +247,11 @@ int Main(int argc, const char * argv[]) {
   ChunkWrite(vm, &chunk, OP_NOP, 120);
   ChunkWrite(vm, &chunk, OP_CONST, 121);
   ChunkWrite(vm, &chunk, con, 121);
+  ChunkWrite(vm, &chunk, OP_RET, 122);
   
-  
-  
-  ChunkDisassemble(vm, &chunk, "test");
+  VMResult res = VMRun(vm, &chunk);
+  printf("%sres=%d\n", DEBUG_PREFIX, res);
+//  ChunkDisassemble(vm, &chunk, "test");
   ChunkFree(vm, &chunk);
   VMFree(vm);
   return 0;
