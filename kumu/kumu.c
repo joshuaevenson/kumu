@@ -2,6 +2,11 @@
 
 #include "kumu.h"
 
+void error(const char *msg) {
+  fprintf(stderr, "error %s\n", msg);
+  exit(-1);
+}
+
 // ------------------------------------------------------------
 // Macros
 // ------------------------------------------------------------
@@ -287,6 +292,24 @@ static void pend(kvm *vm) {
 static void pemitbytes(kvm *vm, uint8_t b1, uint8_t b2) {
   pemitbyte(vm, b1);
   pemitbyte(vm, b2);
+}
+
+
+static uint8_t pmakeconst(kvm *vm, kval val) {
+  int cons = kchunk_addconst(vm, ccurr(vm), val);
+  if (cons > UINT8_MAX) {
+    error("out of constant space");
+    return 0;
+  }
+  return (uint8_t)cons;
+}
+static void pemitconst(kvm *vm, kval val) {
+  pemitbyte(vm, pmakeconst(vm, val));
+}
+
+static void pnumber(kvm *vm) {
+  double val = strtod(vm->parser.prev.start, NULL);
+  pemitconst(vm, val);
 }
 
 static void pexpression(kvm *vm) {
