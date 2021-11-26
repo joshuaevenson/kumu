@@ -350,7 +350,7 @@ typedef struct _vm kvm;
 // ------------------------------------------------------------
 typedef double kval;
 
-void kval_print(kvm *vm, kval value);
+void vprint(kvm *vm, kval value);
 
 typedef struct {
   int capacity;
@@ -358,9 +358,9 @@ typedef struct {
   kval *values;
 } kvalarr;
 
-void kvalarr_init(kvm* vm, kvalarr *array);
-void kvalarr_write(kvm* vm, kvalarr *array, kval value);
-void kvalarr_free(kvm* vm, kvalarr *array);
+void vainit(kvm* vm, kvalarr *array);
+void vawrite(kvm* vm, kvalarr *array, kval value);
+void vafree(kvm* vm, kvalarr *array);
 
 // ------------------------------------------------------------
 // Type
@@ -375,9 +375,9 @@ typedef struct  {
   ktype *types;
 } ktypearr;
 
-void ktypearr_init(kvm *vm, ktypearr *t);
-void ktypearr_write(kvm *vm, ktypearr *t, const char *name);
-void ktypearr_free(kvm *vm, ktypearr *t);
+void tainit(kvm *vm, ktypearr *t);
+void tawrite(kvm *vm, ktypearr *t, const char *name);
+void tafree(kvm *vm, ktypearr *t);
 
 // ------------------------------------------------------------
 // Memory
@@ -411,19 +411,51 @@ typedef struct {
   kvalarr constants;
 } kchunk;
 
-void kchunk_init(kvm *vm, kchunk *chunk);
-void kchunk_write(kvm *vm, kchunk *chunk, uint8_t byte, int line);
+void cinit(kvm *vm, kchunk *chunk);
+void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line);
 void kchunk_free(kvm *vm, kchunk *chunk);
 int kchunk_addconst(kvm *vm, kchunk *chunk, kval value);
 
 // ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
+typedef enum {
+// Single-character tokens.
+  TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
+  TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
+  // One or two character tokens.
+  TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
+  TOK_LE,
+  // Literals.
+  TOK_IDENT, TOK_STR, TOK_NUM,
+  // Keywords.
+  TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
+  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
+  TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
+} ltype;
+
+typedef struct {
+  ltype type;
+  const char *start;
+  int len;
+  int line;
+} ktok;
+
 typedef struct {
   const char *start;
   const char *curr;
   int line;
 } klex;
+
+// ------------------------------------------------------------
+// Parser
+// ------------------------------------------------------------
+typedef struct {
+  ktok curr;
+  ktok prev;
+  bool err;
+  bool panic;
+} kparser;
 
 // ------------------------------------------------------------
 // VM
@@ -435,7 +467,7 @@ typedef enum {
   KVM_ERR_SYNTAX,
   KVM_ERR_RUNTIME,
   KVM_FILE_NOTFOUND,
-} kvmres;
+} kres;
 
 typedef struct _vm {
   ktypearr types;
@@ -445,23 +477,25 @@ typedef struct _vm {
   int freed;
   
   kchunk *chunk;
+  kchunk *compiling;
   uint8_t *ip;
   
   kval stack[STACK_MAX];
   kval *sp;
   
   klex scanner;
+  kparser parser;
 } kvm;
 
-kvm *kvm_new(void);
-void kvm_free(kvm *vm);
-kvmres kvm_run(kvm *vm, kchunk *chunk);
-kvmres kvm_runfile(kvm *vm, const char *file);
+kvm *knew(void);
+void kfree(kvm *vm);
+kres krun(kvm *vm, kchunk *chunk);
+kres krunfile(kvm *vm, const char *file);
 
 // ------------------------------------------------------------
 // Stack
 // ------------------------------------------------------------
-void kvm_resetstack(kvm *vm);
+void kresetstack(kvm *vm);
 void kpush(kvm *vm, kval val);
 kval kpop(kvm *vm);
 
@@ -469,8 +503,8 @@ kval kpop(kvm *vm);
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void kchunk_print(kvm *vm, kchunk *chunk, const char * name);
-int kop_print(kvm *vm, kchunk *chunk, int offset);
+void cprint(kvm *vm, kchunk *chunk, const char * name);
+int oprint(kvm *vm, kchunk *chunk, int offset);
 
 // ------------------------------------------------------------
 // REPL

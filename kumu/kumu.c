@@ -2,8 +2,6 @@
 
 #include "kumu.h"
 
-// #define KVM_TEST
-
 // ------------------------------------------------------------
 // Macros
 // ------------------------------------------------------------
@@ -16,13 +14,13 @@
 // ------------------------------------------------------------
 // ktypearr
 // ------------------------------------------------------------
-void ktypearr_init(kvm *vm, ktypearr *t) {
+void tainit(kvm *vm, ktypearr *t) {
   t->count = 0;
   t->capacity = 0;
   t->types = NULL;
 }
 
-void ktypearr_write(kvm *vm, ktypearr *t, const char *name) {
+void tawrite(kvm *vm, ktypearr *t, const char *name) {
   if (t->capacity < t->count + 1) {
     int old = t->capacity;
     t->capacity = CAPACITY_GROW(old);
@@ -32,86 +30,64 @@ void ktypearr_write(kvm *vm, ktypearr *t, const char *name) {
   t->count++;
 }
 
-void ktypearr_free(kvm *vm, ktypearr *t) {
+void tafree(kvm *vm, ktypearr *t) {
   ARRAY_FREE(vm, ktype, vm->types.types, vm->types.capacity);
 }
 
 // ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
-typedef enum {
-// Single-character tokens.
-  TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
-  TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
-  // One or two character tokens.
-  TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
-  TOK_LE,
-  // Literals.
-  TOK_IDENT, TOK_STR, TOK_NUM,
-  // Keywords.
-  TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
-  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
-  TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
-} ktoktype;
-
-typedef struct {
-  ktoktype type;
-  const char *start;
-  int len;
-  int line;
-} ktok;
-
-static char klex_advance(kvm *vm) {
+static char ladvance(kvm *vm) {
   vm->scanner.curr++;
   return vm->scanner.curr[-1];
 }
 
-static void klex_init(kvm *vm, const char *source) {
+static void linit(kvm *vm, const char *source) {
   vm->scanner.start = source;
   vm->scanner.curr = source;
   vm->scanner.line = 1;
 }
 
-static bool klex_isend(kvm *vm) {
+static bool lisend(kvm *vm) {
   return (*(vm->scanner.curr) == '\0');
 }
 
-static bool kisdigit(char c) {
+static bool lisdigit(char c) {
   return (c >= '0' && c <= '9');
 }
 
-static bool kisalpha(char c) {
+static bool lisalpha(char c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c == '_');
 }
 
-static char klex_peeknext(kvm *vm) {
-  if (klex_isend(vm)) return '\0';
+static char lpeeknext(kvm *vm) {
+  if (lisend(vm)) return '\0';
   return vm->scanner.curr[1];
 }
 
-static char kpeek(kvm *vm) {
+static char lpeek(kvm *vm) {
   return *vm->scanner.curr;
 }
 
-static void klex_skipspace(kvm *vm) {
+static void lskipspace(kvm *vm) {
   while (true) {
-    char c = kpeek(vm);
+    char c = lpeek(vm);
     switch (c) {
       case ' ':
       case '\r':
       case '\t':
-        klex_advance(vm);
+        ladvance(vm);
         break;
       case '\n':
         vm->scanner.line++;
-        klex_advance(vm);
+        ladvance(vm);
         break;
       case '/':
-        if (klex_peeknext(vm) == '/') {
-          while (kpeek(vm) != '\n' && !klex_isend(vm))
-            klex_advance(vm);
+        if (lpeeknext(vm) == '/') {
+          while (lpeek(vm) != '\n' && !lisend(vm))
+            ladvance(vm);
         } else {
           return;
         }
@@ -122,7 +98,7 @@ static void klex_skipspace(kvm *vm) {
   }
 }
 
-static ktok klex_make(kvm *vm, ktoktype type) {
+static ktok lmake(kvm *vm, ltype type) {
   ktok token;
   token.type = type;
   token.start = vm->scanner.start;
@@ -131,7 +107,7 @@ static ktok klex_make(kvm *vm, ktoktype type) {
   return token;
 }
 
-static ktok klex_err(kvm *vm, const char *msg) {
+static ktok lerror(kvm *vm, const char *msg) {
   ktok token;
   token.type = TOK_ERR;
   token.start = msg;
@@ -140,35 +116,35 @@ static ktok klex_err(kvm *vm, const char *msg) {
   return token;
 }
 
-static bool klex_match(kvm *vm, char expected) {
-  if (klex_isend(vm)) return false;
+static bool lmatch(kvm *vm, char expected) {
+  if (lisend(vm)) return false;
   if (*vm->scanner.curr != expected) return false;
   vm->scanner.curr++;
   return true;
 }
 
-static ktok klex_num(kvm *vm) {
-  while(kisdigit(kpeek(vm))) klex_advance(vm);
+static ktok lnumber(kvm *vm) {
+  while(lisdigit(lpeek(vm))) ladvance(vm);
   
-  if (kpeek(vm) == '.' && kisdigit(klex_peeknext(vm))) {
-    klex_advance(vm);
+  if (lpeek(vm) == '.' && lisdigit(lpeeknext(vm))) {
+    ladvance(vm);
   }
-  while(kisdigit(kpeek(vm))) klex_advance(vm);
-  return klex_make(vm, TOK_NUM);
+  while(lisdigit(lpeek(vm))) ladvance(vm);
+  return lmake(vm, TOK_NUM);
 }
 
-static ktok klex_str(kvm *vm) {
-  while(kpeek(vm) != '"' && !klex_isend(vm)) {
-    if (kpeek(vm) == '\n') vm->scanner.line++;
-    klex_advance(vm);
+static ktok lstring(kvm *vm) {
+  while(lpeek(vm) != '"' && !lisend(vm)) {
+    if (lpeek(vm) == '\n') vm->scanner.line++;
+    ladvance(vm);
   }
-  if (klex_isend(vm)) return klex_err(vm, "unterminated string");
-  klex_advance(vm);
-  return klex_make(vm, TOK_STR);
+  if (lisend(vm)) return lerror(vm, "unterminated string");
+  ladvance(vm);
+  return lmake(vm, TOK_STR);
 }
 
-static ktoktype klex_checkkey(kvm *vm, int start, int len,
-                        const char *rest, ktoktype type) {
+static ltype lkeyword(kvm *vm, int start, int len,
+                        const char *rest, ltype type) {
   if (vm->scanner.curr - vm->scanner.start == start + len &&
       memcmp(vm->scanner.start + start, rest, len) == 0) {
     return type;
@@ -176,86 +152,151 @@ static ktoktype klex_checkkey(kvm *vm, int start, int len,
   return TOK_IDENT;
 }
 
-static ktoktype klex_identype(kvm *vm) {
+static ltype lidentitytype(kvm *vm) {
   switch(vm->scanner.start[0]) {
-    case 'a': return klex_checkkey(vm, 1,2,"nd", TOK_AND);
-    case 'c': return klex_checkkey(vm, 1,4,"lass", TOK_CLASS);
-    case 'e': return klex_checkkey(vm, 1,3,"lse", TOK_ELSE);
+    case 'a': return lkeyword(vm, 1,2,"nd", TOK_AND);
+    case 'c': return lkeyword(vm, 1,4,"lass", TOK_CLASS);
+    case 'e': return lkeyword(vm, 1,3,"lse", TOK_ELSE);
     case 'f':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch (vm->scanner.start[1]) {
-          case 'a': return klex_checkkey(vm, 2, 3, "lse", TOK_FALSE);
-          case 'o': return klex_checkkey(vm, 2, 1, "r", TOK_FOR);
-          case 'u': return klex_checkkey(vm, 2, 1, "n", TOK_FUN);
+          case 'a': return lkeyword(vm, 2, 3, "lse", TOK_FALSE);
+          case 'o': return lkeyword(vm, 2, 1, "r", TOK_FOR);
+          case 'u': return lkeyword(vm, 2, 1, "n", TOK_FUN);
         }
       }
-    case 'i': return klex_checkkey(vm, 1,1,"f", TOK_IF);
-    case 'n': return klex_checkkey(vm, 1,2,"il", TOK_NIL);
-    case 'o': return klex_checkkey(vm, 1,1,"r", TOK_OR);
-    case 'p': return klex_checkkey(vm, 1,4,"rint", TOK_PRINT);
-    case 'r': return klex_checkkey(vm, 1,5,"eturn", TOK_RETURN);
-    case 's': return klex_checkkey(vm, 1,4,"uper", TOK_SUPER);
+    case 'i': return lkeyword(vm, 1,1,"f", TOK_IF);
+    case 'n': return lkeyword(vm, 1,2,"il", TOK_NIL);
+    case 'o': return lkeyword(vm, 1,1,"r", TOK_OR);
+    case 'p': return lkeyword(vm, 1,4,"rint", TOK_PRINT);
+    case 'r': return lkeyword(vm, 1,5,"eturn", TOK_RETURN);
+    case 's': return lkeyword(vm, 1,4,"uper", TOK_SUPER);
     case 't':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch(vm->scanner.start[1]) {
-          case 'h': return klex_checkkey(vm, 2, 2, "is", TOK_THIS);
-          case 'r': return klex_checkkey(vm, 2, 2, "ue", TOK_TRUE);
+          case 'h': return lkeyword(vm, 2, 2, "is", TOK_THIS);
+          case 'r': return lkeyword(vm, 2, 2, "ue", TOK_TRUE);
         }
       }
-    case 'v': return klex_checkkey(vm, 1,2,"ar", TOK_VAR);
-    case 'w': return klex_checkkey(vm, 1,4,"hile", TOK_WHILE);
+    case 'v': return lkeyword(vm, 1,2,"ar", TOK_VAR);
+    case 'w': return lkeyword(vm, 1,4,"hile", TOK_WHILE);
   }
   return TOK_IDENT;
 }
 
-static ktok klex_ident(kvm *vm) {
-  while (kisalpha(kpeek(vm)) || kisdigit(kpeek(vm))) {
-    klex_advance(vm);
+static ktok lidentifier(kvm *vm) {
+  while (lisalpha(lpeek(vm)) || lisdigit(lpeek(vm))) {
+    ladvance(vm);
   }
-  return klex_make(vm, klex_identype(vm));
+  return lmake(vm, lidentitytype(vm));
 }
 
-static ktok klex_scan(kvm *vm) {
-  klex_skipspace(vm);
+static ktok lscan(kvm *vm) {
+  lskipspace(vm);
   vm->scanner.start = vm->scanner.curr;
   
-  if (klex_isend(vm)) {
-    return klex_make(vm, TOK_EOF);
+  if (lisend(vm)) {
+    return lmake(vm, TOK_EOF);
   }
   
-  char c = klex_advance(vm);
-  if (kisalpha(c)) return klex_ident(vm);
-  if (kisdigit(c)) return klex_num(vm);
+  char c = ladvance(vm);
+  if (lisalpha(c)) return lidentifier(vm);
+  if (lisdigit(c)) return lnumber(vm);
   switch (c) {
-    case '(': return klex_make(vm, TOK_LPAR);
-    case ')': return klex_make(vm, TOK_RPAR);
-    case '{': return klex_make(vm, TOK_LBRACE);
-    case '}': return klex_make(vm, TOK_RBRACE);
-    case ';': return klex_make(vm, TOK_SEMI);
-    case ',': return klex_make(vm, TOK_COMMA);
-    case '.': return klex_make(vm, TOK_DOT);
-    case '+': return klex_make(vm, TOK_PLUS);
-    case '-': return klex_make(vm, TOK_MINUS);
-    case '*': return klex_make(vm, TOK_STAR);
+    case '(': return lmake(vm, TOK_LPAR);
+    case ')': return lmake(vm, TOK_RPAR);
+    case '{': return lmake(vm, TOK_LBRACE);
+    case '}': return lmake(vm, TOK_RBRACE);
+    case ';': return lmake(vm, TOK_SEMI);
+    case ',': return lmake(vm, TOK_COMMA);
+    case '.': return lmake(vm, TOK_DOT);
+    case '+': return lmake(vm, TOK_PLUS);
+    case '-': return lmake(vm, TOK_MINUS);
+    case '*': return lmake(vm, TOK_STAR);
     case '/':
-      return klex_make(vm, TOK_SLASH);
+      return lmake(vm, TOK_SLASH);
     case '!':
-      return klex_make(vm, klex_match(vm, '=') ? TOK_NE : TOK_BANG);
+      return lmake(vm, lmatch(vm, '=') ? TOK_NE : TOK_BANG);
     case '=':
-      return klex_make(vm, klex_match(vm, '=') ? TOK_EQ : TOK_EQEQ);
+      return lmake(vm, lmatch(vm, '=') ? TOK_EQ : TOK_EQEQ);
     case '<':
-      return klex_make(vm, klex_match(vm, '=') ? TOK_LE : TOK_LT);
+      return lmake(vm, lmatch(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
-      return klex_make(vm, klex_match(vm, '=') ? TOK_GE : TOK_GT);
+      return lmake(vm, lmatch(vm, '=') ? TOK_GE : TOK_GT);
     case '"':
-      return klex_str(vm);
+      return lstring(vm);
   }
-  return klex_err(vm, "Unexpected character");
+  return lerror(vm, "Unexpected character");
 }
+
+// ------------------------------------------------------------
+// Parser
+// ------------------------------------------------------------
+static void perrorat(kvm *vm, ktok *tok, const char *msg) {
+  if (vm->parser.panic) return;
+  vm->parser.panic = true;
+  
+  fprintf(stderr, "[line %d] error", tok->line);
+  
+  if (tok->type == TOK_EOF) {
+    fprintf(stderr, " at end");
+  } else if (tok->type == TOK_ERR) {
+    // nothing
+  } else {
+    fprintf(stderr, " at '%.*s'", tok->len, tok->start);
+  }
+  
+  fprintf(stderr, ": %s\n", msg);
+  vm->parser.err = true;
+}
+
+static void perrorcur(kvm *vm, const char *msg) {
+  perrorat(vm, &vm->parser.curr, msg);
+}
+
+static void padvance(kvm *vm) {
+  vm->parser.prev = vm->parser.curr;
+  
+  while (true) {
+    vm->parser.curr = lscan(vm);
+    if (vm->parser.curr.type != TOK_ERR) break;
+    perrorcur(vm, vm->parser.curr.start);
+  }
+}
+
+static void pconsume(kvm *vm, ltype type, const char *msg) {
+  if (vm->parser.curr.type == type) {
+    padvance(vm);
+    return;
+  }
+  perrorcur(vm, msg);
+}
+
+static void pemitbyte(kvm *vm, uint8_t byte) {
+  cwrite(vm, vm->chunk, byte, vm->parser.prev.line);
+}
+
+kchunk *ccurr(kvm *vm) {
+  return vm->compiling;
+}
+
+static void pend(kvm *vm) {
+  pemitbyte(vm, OP_RET);
+}
+
+static void pemitbytes(kvm *vm, uint8_t b1, uint8_t b2) {
+  pemitbyte(vm, b1);
+  pemitbyte(vm, b2);
+}
+
+static void pexpression(kvm *vm) {
+  
+}
+
 // ------------------------------------------------------------
 // Virtual machine
 // ------------------------------------------------------------
-void kvm_resetstack(kvm *vm) {
+void kresetstack(kvm *vm) {
   vm->sp = vm->stack;
 }
 
@@ -270,7 +311,7 @@ kval kpop(kvm *vm) {
 }
 
 
-kvm *kvm_new(void) {
+kvm *knew(void) {
   kvm *vm = malloc(sizeof(kvm));
   vm->allocated = sizeof(kvm);
 
@@ -282,17 +323,17 @@ kvm *kvm_new(void) {
   vm->stop = false;
   vm->chunk = NULL;
 
-  kvm_resetstack(vm);
-  ktypearr_init(vm, &vm->types);
-  ktypearr_write(vm, &vm->types, "Int");
-  ktypearr_write(vm, &vm->types, "String");
-  ktypearr_write(vm, &vm->types, "Double");
+  kresetstack(vm);
+  tainit(vm, &vm->types);
+  tawrite(vm, &vm->types, "Int");
+  tawrite(vm, &vm->types, "String");
+  tawrite(vm, &vm->types, "Double");
   return vm;
 }
 
-void kvm_free(kvm *vm) {
+void kfree(kvm *vm) {
   vm->freed += sizeof(kvm);
-  ktypearr_free(vm, &vm->types);
+  tafree(vm, &vm->types);
   printf("allocated: %d, freed: %d, delta: %d\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
@@ -300,10 +341,10 @@ void kvm_free(kvm *vm) {
   free(vm);
 }
 
-static void _kvm_printstack(kvm *vm) {
+static void kprintstack(kvm *vm) {
   printf(" [");
   for (kval* vp = vm->stack; vp < vm->sp; vp++) {
-    kval_print(vm, *vp);
+    vprint(vm, *vp);
     if (vp < vm->sp - 1) {
       printf(",");
     }
@@ -314,7 +355,7 @@ static void _kvm_printstack(kvm *vm) {
 
 
 
-static kvmres _kvm_run(kvm *vm) {
+static kres krunloop(kvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
 #define BIN_OP(v,op) \
@@ -324,11 +365,11 @@ static kvmres _kvm_run(kvm *vm) {
     kpush(v, a op b); \
   } while (false)
 
-  kvmres res = KVM_CONT;
+  kres res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
 #ifdef DEBUG_TRACE_EXEC
-   kop_print(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+   oprint(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
 #endif
 
     switch(op = BYTE_READ(vm)) {
@@ -351,7 +392,7 @@ static kvmres _kvm_run(kvm *vm) {
       case OP_DIV: BIN_OP(vm,/); break;
     }
 #ifdef DEBUG_TRACE_EXEC
-   _kvm_printstack(vm);
+   kprintstack(vm);
 #endif
   }
   return KVM_OK;
@@ -360,19 +401,27 @@ static kvmres _kvm_run(kvm *vm) {
 #undef BIN_OP
 }
 
-kvmres kvm_run(kvm *vm, kchunk *chunk) {
+kres krun(kvm *vm, kchunk *chunk) {
   vm->chunk = chunk;
   vm->ip = vm->chunk->code;
-  return _kvm_run(vm);
+  return krunloop(vm);
 }
 
-static kvmres _kvm_compile(kvm *vm, char *source) {
-  klex_init(vm, source);
+static kres kcompile(kvm *vm, char *source, kchunk *chunk) {
+  linit(vm, source);
+  vm->parser.err = false;
+  vm->parser.panic = false;
+  vm->compiling = chunk;
+  padvance(vm);
+  pexpression(vm);
+  pconsume(vm, TOK_EOF, "expected expression end");
+  pend(vm);
+  return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
   
   int line = -1;
   
   while (true) {
-    ktok token = klex_scan(vm);
+    ktok token = lscan(vm);
     if (token.line != line) {
       printf("%4d ", token.line);
     } else {
@@ -387,11 +436,24 @@ static kvmres _kvm_compile(kvm *vm, char *source) {
   return KVM_OK;
 }
 
-static kvmres _kvm_interpret(kvm *vm, char *source) {
-  return _kvm_compile(vm, source);
+static kres kexec(kvm *vm, char *source) {
+  kchunk chunk;
+  
+  cinit(vm, &chunk);
+  
+  if (kcompile(vm, source, &chunk) != KVM_OK) {
+    kchunk_free(vm, &chunk);
+    return KVM_ERR_SYNTAX;
+  }
+  
+  vm->chunk = &chunk;
+  vm->ip = chunk.code;
+  kres res = krun(vm, &chunk);
+  kchunk_free(vm, &chunk);
+  return res;
 }
 
-static char *_kvm_readfile(kvm *vm, const char *path) {
+static char *kreadfile(kvm *vm, const char *path) {
   FILE * file = fopen(path , "rb");
   
   if (file == NULL) {
@@ -412,19 +474,19 @@ static char *_kvm_readfile(kvm *vm, const char *path) {
   return buffer ;
 }
 
-kvmres kvm_runfile(kvm *vm, const char *file) {
-  char *source = _kvm_readfile(vm, file);
+kres krunfile(kvm *vm, const char *file) {
+  char *source = kreadfile(vm, file);
   
   if (source == NULL) {
     return KVM_FILE_NOTFOUND;
   }
-  kvmres res = _kvm_interpret(vm, source);
+  kres res = kexec(vm, source);
   free(source);
   return res;
 }
+static void ktest(kvm *vm);
 
-#ifndef KVM_TEST
-static void _kvm_repl(kvm *vm) {
+static void krepl(kvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
   char line[1024];
   
@@ -436,11 +498,19 @@ static void _kvm_repl(kvm *vm) {
       break;
     }
     
-    _kvm_interpret(vm, line);
+    if (strcmp(line, ".quit\n") == 0) {
+      break;
+    }
+
+    if (strcmp(line, ".test\n") == 0) {
+      ktest(vm);
+      continue;
+    }
+
+    kexec(vm, line);
   }
 }
 
-#endif
 
 // ------------------------------------------------------------
 // Memory
@@ -464,15 +534,15 @@ char *kalloc(kvm *vm, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void kchunk_init(kvm *vm, kchunk *chunk) {
+void cinit(kvm *vm, kchunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  kvalarr_init(vm, &chunk->constants);
+  vainit(vm, &chunk->constants);
 }
 
-void kchunk_write(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
+void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
@@ -494,24 +564,24 @@ void kchunk_free(kvm *vm, kchunk *chunk) {
 }
 
 int kchunk_addconst(kvm *vm, kchunk *chunk, kval value) {
-  kvalarr_write(vm, &chunk->constants, value);
+  vawrite(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-void kval_print(kvm *vm, kval value) {
+void vprint(kvm *vm, kval value) {
   printf("%g", value);
 }
 
-void kvalarr_init(kvm* vm, kvalarr *array) {
+void vainit(kvm* vm, kvalarr *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void kvalarr_write(kvm* vm, kvalarr *array, kval value) {
+void vawrite(kvm* vm, kvalarr *array, kval value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = CAPACITY_GROW(old);
@@ -521,37 +591,37 @@ void kvalarr_write(kvm* vm, kvalarr *array, kval value) {
   array->count++;
 }
 
-void kvalarr_free(kvm* vm, kvalarr *array) {
+void vafree(kvm* vm, kvalarr *array) {
   kalloc(vm, array->values, array->capacity, 0);
-  kvalarr_init(vm, array);
+  vainit(vm, array);
 }
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void kchunk_print(kvm *vm, kchunk *chunk, const char * name) {
+void cprint(kvm *vm, kchunk *chunk, const char * name) {
   printf("== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; offset++) {
-    kop_print(vm, chunk, offset);
+    oprint(vm, chunk, offset);
   }
 }
-static int kop_printsimple(const char *name, int offset) {
+static int oprintsimple(const char *name, int offset) {
   printf("%-17s", name);
   return offset + 1;
 }
 
-static int kop_printconst(kvm *vm, const char *name, kchunk *chunk, int offset) {
+static int oprintconst(kvm *vm, const char *name, kchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-6s %4d '", name, con);
-  kval_print(vm, chunk->constants.values[con]);
+  vprint(vm, chunk->constants.values[con]);
   printf("'");
   return offset+2;
 }
 
-int kop_print(kvm *vm, kchunk *chunk, int offset) {
+int oprint(kvm *vm, kchunk *chunk, int offset) {
 #define OP_DEF1(o) \
 case o:\
-return kop_printsimple(#o, offset);
+return oprintsimple(#o, offset);
   
   printf("%04d ", offset);
 
@@ -570,7 +640,7 @@ return kop_printsimple(#o, offset);
       OP_DEF1(OP_MUL)
       OP_DEF1(OP_DIV)
     case OP_CONST:
-      return kop_printconst(vm, "OP_CONST", chunk, offset);
+      return oprintconst(vm, "OP_CONST", chunk, offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
@@ -578,81 +648,75 @@ return kop_printsimple(#o, offset);
 #undef OP_DEF1
 }
 
-
-// ------------------------------------------------------------
-// TEST
-// ------------------------------------------------------------
-#ifdef KVM_TEST
-static void _kchunk_writeconst(kvm *vm, int cons, int line) {
-  int index = kchunk_addconst(vm, vm->chunk, cons);
-  kchunk_write(vm, vm->chunk, OP_CONST, line);
-  kchunk_write(vm, vm->chunk, index, line);
-}
-
-static void _kvm_test(kvm *vm) {
-  kchunk chunk;
-  kchunk_init(vm, &chunk);
-  vm->chunk = &chunk;
-
-  int line = 1;
-  kchunk_write(vm, &chunk, OP_NOP, line++);
-  _kchunk_writeconst(vm, 1, line);
-  _kchunk_writeconst(vm, 2, line);
-  kchunk_write(vm, &chunk, OP_ADD, line);
-  kchunk_write(vm, &chunk, OP_NEG, line++);
-
-  _kchunk_writeconst(vm, 4, line);
-  kchunk_write(vm, &chunk, OP_SUB, line++);
-
-  _kchunk_writeconst(vm, 5, line);
-  kchunk_write(vm, &chunk, OP_MUL, line++);
-
-  _kchunk_writeconst(vm, 6, line);
-  kchunk_write(vm, &chunk, OP_DIV, line++);
-
-  kchunk_write(vm, &chunk, OP_RET, line);
-  
-  kvmres res = kvm_run(vm, &chunk);
-  printf("res=%d\n", res);
-  kchunk_free(vm, &chunk);
-}
-#endif
-
 // ------------------------------------------------------------
 // REPL
 // ------------------------------------------------------------
-#ifdef KVM_MAIN
 int kmain(int argc, const char * argv[]) {
-  kvm *vm = kvm_new();
+  kvm *vm = knew();
   
-#ifdef KVM_TEST
-  _kvm_test(vm);
-#else
   if (argc == 1) {
-    _kvm_repl(vm);
+    krepl(vm);
   } else if (argc == 2) {
-    kvmres res = kvm_runfile(vm, argv[1]);
+    kres res = krunfile(vm, argv[1]);
     if (res == KVM_ERR_RUNTIME) {
-      kvm_free(vm);
+      kfree(vm);
       exit(70);
     }
     if (res == KVM_ERR_SYNTAX)  {
-      kvm_free(vm);
+      kfree(vm);
       exit(65);
     }
     if (res == KVM_FILE_NOTFOUND) {
       fprintf(stderr, "file error '%s'\n", argv[1]);
-      kvm_free(vm);
+      kfree(vm);
       exit(74);
     }
     
   } else {
-    kvm_free(vm);
+    kfree(vm);
     fprintf(stderr, "usage kumu [file]\n");
     exit(64);
   }
-#endif
-  kvm_free(vm);
+  kfree(vm);
   return 0;
 }
-#endif
+
+// ------------------------------------------------------------
+// TEST
+// ------------------------------------------------------------
+static void cwriteconst(kvm *vm, int cons, int line) {
+  int index = kchunk_addconst(vm, vm->chunk, cons);
+  cwrite(vm, vm->chunk, OP_CONST, line);
+  cwrite(vm, vm->chunk, index, line);
+}
+
+static void ktest(kvm *vm) {
+  kchunk chunk;
+  cinit(vm, &chunk);
+  vm->chunk = &chunk;
+
+  int line = 1;
+  cwrite(vm, &chunk, OP_NOP, line++);
+  cwriteconst(vm, 1, line);
+  cwriteconst(vm, 2, line);
+  cwrite(vm, &chunk, OP_ADD, line);
+  cwrite(vm, &chunk, OP_NEG, line++);
+
+  cwriteconst(vm, 4, line);
+  cwrite(vm, &chunk, OP_SUB, line++);
+
+  cwriteconst(vm, 5, line);
+  cwrite(vm, &chunk, OP_MUL, line++);
+
+  cwriteconst(vm, 6, line);
+  cwrite(vm, &chunk, OP_DIV, line++);
+
+  cwrite(vm, &chunk, OP_RET, line);
+  
+  kres res = krun(vm, &chunk);
+  assert(res == KVM_OK);
+  kchunk_free(vm, &chunk);
+  
+  res = kexec(vm, "x=20");
+  assert(res == KVM_OK);
+}
