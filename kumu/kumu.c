@@ -37,7 +37,141 @@ void ktypearr_free(kvm *vm, ktypearr *t) {
 }
 
 // ------------------------------------------------------------
-// State
+// Scanner
+// ------------------------------------------------------------
+typedef enum {
+// Single-character tokens.
+  TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
+  TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
+  // One or two character tokens.
+  TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
+  TOK_LE,
+  // Literals.
+  TOK_IDENT, TOK_STR, TOK_NUM,
+  // Keywords.
+  TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
+  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
+  TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
+} ktoktype;
+
+typedef struct {
+  ktoktype type;
+  const char *start;
+  int len;
+  int line;
+} ktok;
+
+static char klex_advance(kvm *vm) {
+  vm->scanner.curr++;
+  return vm->scanner.curr[-1];
+}
+
+static void klex_init(kvm *vm, const char *source) {
+  vm->scanner.start = source;
+  vm->scanner.curr = source;
+  vm->scanner.line = 1;
+}
+
+static bool klex_isend(kvm *vm) {
+  return (*(vm->scanner.curr) == '\0');
+}
+
+
+static char klex_peeknext(kvm *vm) {
+  if (klex_isend(vm)) return '\0';
+  return vm->scanner.curr[1];
+}
+
+static char klex_peek(kvm *vm) {
+  return *vm->scanner.curr;
+}
+
+static void klex_skipspace(kvm *vm) {
+  while (true) {
+    char c = klex_peek(vm);
+    switch (c) {
+      case ' ':
+      case '\r':
+      case '\t':
+        klex_advance(vm);
+        break;
+      case '\n':
+        vm->scanner.line++;
+        klex_advance(vm);
+        break;
+      case '/':
+        if (klex_peeknext(vm) == '/') {
+          while (klex_peek(vm) != '\n' && !klex_isend(vm))
+            klex_advance(vm);
+        } else {
+          return;
+        }
+        break;
+      default:
+        return;
+    }
+  }
+}
+static ktok klex_maketok(kvm *vm, ktoktype type) {
+  ktok token;
+  token.type = type;
+  token.start = vm->scanner.start;
+  token.len = (int) (vm->scanner.curr - vm->scanner.start);
+  token.line = vm->scanner.line;
+  return token;
+}
+
+static ktok klex_errtok(kvm *vm, const char *msg) {
+  ktok token;
+  token.type = TOK_ERR;
+  token.start = msg;
+  token.len = (int)strlen(msg);
+  token.line = vm->scanner.line;
+  return token;
+}
+
+static bool klex_match(kvm *vm, char expected) {
+  if (klex_isend(vm)) return false;
+  if (*vm->scanner.curr != expected) return false;
+  vm->scanner.curr++;
+  return true;
+}
+
+static ktok klex_scan(kvm *vm) {
+  klex_skipspace(vm);
+  vm->scanner.start = vm->scanner.curr;
+  
+  if (klex_isend(vm)) {
+    return klex_maketok(vm, TOK_EOF);
+  }
+  
+  char c = klex_advance(vm);
+  switch (c) {
+    case '(': return klex_maketok(vm, TOK_LPAR);
+    case ')': return klex_maketok(vm, TOK_RPAR);
+    case '{': return klex_maketok(vm, TOK_LBRACE);
+    case '}': return klex_maketok(vm, TOK_RBRACE);
+    case ';': return klex_maketok(vm, TOK_SEMI);
+    case ',': return klex_maketok(vm, TOK_COMMA);
+    case '.': return klex_maketok(vm, TOK_DOT);
+    case '+': return klex_maketok(vm, TOK_PLUS);
+    case '-': return klex_maketok(vm, TOK_MINUS);
+    case '*': return klex_maketok(vm, TOK_STAR);
+    case '/':
+      return klex_maketok(vm, TOK_SLASH);
+    case '!':
+      return klex_maketok(vm, klex_match(vm, '=') ? TOK_NE : TOK_BANG);
+    case '=':
+      return klex_maketok(vm, klex_match(vm, '=') ? TOK_EQ : TOK_EQEQ);
+    case '<':
+      return klex_maketok(vm, klex_match(vm, '=') ? TOK_LE : TOK_LT);
+    case '>':
+      return klex_maketok(vm, klex_match(vm, '=') ? TOK_GE : TOK_GT);
+  }
+  return klex_errtok(vm, "Unexpected character");
+}
+// ------------------------------------------------------------
+// Virtual machine
 // ------------------------------------------------------------
 void kvm_resetstack(kvm *vm) {
   vm->sp = vm->stack;
@@ -150,9 +284,29 @@ kvmres kvm_run(kvm *vm, kchunk *chunk) {
   return _kvm_run(vm);
 }
 
-
-static kvmres _kvm_interpret(kvm *vm, char *data) {
+static kvmres _kvm_compile(kvm *vm, char *source) {
+  klex_init(vm, source);
+  
+  int line = -1;
+  
+  while (true) {
+    ktok token = klex_scan(vm);
+    if (token.line != line) {
+      printf("%4d ", token.line);
+    } else {
+      printf("  |  ");
+    }
+    printf("%2d '%.*s'\n", token.type, token.len, token.start);
+    
+    if (token.type == TOK_EOF) {
+      break;
+    }
+  }
   return KVM_OK;
+}
+
+static kvmres _kvm_interpret(kvm *vm, char *source) {
+  return _kvm_compile(vm, source);
 }
 
 static char *_kvm_readfile(kvm *vm, const char *path) {

@@ -417,6 +417,15 @@ void kchunk_free(kvm *vm, kchunk *chunk);
 int kchunk_addconst(kvm *vm, kchunk *chunk, kval value);
 
 // ------------------------------------------------------------
+// Scanner
+// ------------------------------------------------------------
+typedef struct {
+  const char *start;
+  const char *curr;
+  int line;
+} klex;
+
+// ------------------------------------------------------------
 // VM
 // ------------------------------------------------------------
 #define STACK_MAX 256
@@ -440,6 +449,8 @@ typedef struct _vm {
   
   kval stack[STACK_MAX];
   kval *sp;
+  
+  klex scanner;
 } kvm;
 
 kvm *kvm_new(void);
