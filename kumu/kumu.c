@@ -121,6 +121,7 @@ static void klex_skipspace(kvm *vm) {
     }
   }
 }
+
 static ktok klex_make(kvm *vm, ktoktype type) {
   ktok token;
   token.type = type;
@@ -166,7 +167,29 @@ static ktok klex_str(kvm *vm) {
   return klex_make(vm, TOK_STR);
 }
 
+static ktoktype klex_checkkey(kvm *vm, int start, int len,
+                        const char *rest, ktoktype type) {
+  if (vm->scanner.curr - vm->scanner.start == start + len &&
+      memcmp(vm->scanner.start + start, rest, len) == 0) {
+    return type;
+  }
+  return TOK_IDENT;
+}
+
 static ktoktype klex_identype(kvm *vm) {
+  switch(vm->scanner.start[0]) {
+    case 'a': return klex_checkkey(vm, 1,2,"nd", TOK_AND);
+    case 'c': return klex_checkkey(vm, 1,4,"lass", TOK_CLASS);
+    case 'e': return klex_checkkey(vm, 1,3,"lse", TOK_ELSE);
+    case 'i': return klex_checkkey(vm, 1,1,"f", TOK_IF);
+    case 'n': return klex_checkkey(vm, 1,2,"il", TOK_NIL);
+    case 'o': return klex_checkkey(vm, 1,1,"r", TOK_OR);
+    case 'p': return klex_checkkey(vm, 1,4,"rint", TOK_PRINT);
+    case 'r': return klex_checkkey(vm, 1,5,"eturn", TOK_RETURN);
+    case 's': return klex_checkkey(vm, 1,4,"uper", TOK_SUPER);
+    case 'v': return klex_checkkey(vm, 1,2,"ar", TOK_VAR);
+    case 'w': return klex_checkkey(vm, 1,4,"hile", TOK_WHILE);
+  }
   return TOK_IDENT;
 }
 
