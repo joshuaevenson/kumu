@@ -316,37 +316,6 @@
  --lex                     -s  Scan only
  --parse                   -p  Parse only
  --verbose                 -v  Verbose output
-
- // ------------------------------------------------------------
- // Future Plans
- // ------------------------------------------------------------
-
- // Coroutines / multiple execution stacks / tasks
-
- // ------------------------------------------------------------
- // Development Notes
- // ------------------------------------------------------------
-
- Notes
- =====
- o Visitor for parser, resolver, interpreter, code-gen
- o Parser typed parse nodes not universal binary tree
- o Class is a callable function for construction
- o All callable functions have arity and call method
- o Native classes as the universal extensibility mechanism
- o Chained assignment process as Expr.Get until '=' then
-   convert last expression to Expr.Set
- o Bound methods captures this with method value
-
-
-
- Grammar
- =======
- ; method syntax can avoid func keyword for methods
- function := IDENTIFIER "(" parameters? ")" block ;
-       
- call := primary ( "(" arguments? ")" | "." IDENTIFIER )*
-
 ---------------------------------------------------------------------- */
 
 #ifndef KUMU_H
@@ -427,6 +396,11 @@ typedef enum {
   OP_NOP,
   OP_CONST,
   OP_RET,
+  OP_NEG,
+  OP_ADD,
+  OP_SUB,
+  OP_MUL,
+  OP_DIV,
 } k_op;
 
 // ------------------------------------------------------------
@@ -448,8 +422,10 @@ int ConstantAdd(VM *vm, Chunk *chunk, Value value);
 // ------------------------------------------------------------
 // VM
 // ------------------------------------------------------------
+#define STACK_MAX 256
 typedef enum {
   VM_OK,
+  VM_CONT,
   VM_ERR_SYNTAX,
   VM_ERR_RUNTIME,
 } VMResult;
@@ -463,11 +439,21 @@ typedef struct _vm {
   
   Chunk *chunk;
   uint8_t *ip;
+  
+  Value stack[STACK_MAX];
+  Value *sp;
 } VM;
 
 VM *VMNew(void);
 void VMFree(VM *vm);
 VMResult VMRun(VM *vm, Chunk *chunk);
+
+// ------------------------------------------------------------
+// Stack
+// ------------------------------------------------------------
+void StackReset(VM *vm);
+void push(VM *vm, Value val);
+Value pop(VM *vm);
 
 
 // ------------------------------------------------------------

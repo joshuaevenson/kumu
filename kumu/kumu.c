@@ -10,9 +10,6 @@
 (type*)MemAlloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
 #define ARRAY_FREE(vm, type, ptr, old) MemAlloc(vm, ptr, sizeof(type) * (old), 0)
 
-#define STOP_NULL(k,v) if (!v) { k->stop = true; return NULL; }
-#define STOP_RET(k,v) if (!v) { k->stop = true; return; }
-
 #define DEBUG_PREFIX  ""
 #define DEBUG_TRACE_EXEC
 // ------------------------------------------------------------
@@ -41,6 +38,21 @@ void TypesFree(VM *vm, Types *t) {
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
+void StackReset(VM *vm) {
+  vm->sp = vm->stack;
+}
+
+void push(VM *vm, Value val) {
+  *(vm->sp) = val;
+  vm->sp++;
+}
+
+Value pop(VM *vm) {
+  vm->sp--;
+  return *(vm->sp);
+}
+
+
 VM *VMNew(void) {
   VM *vm = malloc(sizeof(VM));
   vm->allocated = sizeof(VM);
@@ -52,7 +64,8 @@ VM *VMNew(void) {
   vm->freed = 0;
   vm->stop = false;
   vm->chunk = NULL;
-  
+
+  StackReset(vm);
   TypesInit(vm, &vm->types);
   TypesAdd(vm, &vm->types, "Int");
   TypesAdd(vm, &vm->types, "String");
@@ -71,33 +84,65 @@ void VMFree(VM *vm) {
   free(vm);
 }
 
+static void StackPrint(VM *vm) {
+  printf("%s", DEBUG_PREFIX);
+  printf(" [");
+  for (Value* vp = vm->stack; vp < vm->sp; vp++) {
+    ValuePrint(vm, *vp);
+    if (vp < vm->sp - 1) {
+      printf(",");
+    }
+  }
+  printf("]");
+  printf("\n");
+}
+
+
+
 static VMResult _VMRun(VM *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
+#define BIN_OP(v,op) \
+  do { \
+    Value b = pop(v); \
+    Value a = pop(v); \
+    push(v, a op b); \
+  } while (false)
 
- for (;;) {
+  VMResult res = VM_CONT;
+  while (res == VM_CONT) {
+    uint8_t op;
 #ifdef DEBUG_TRACE_EXEC
    OpDisassemble(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
 #endif
-   
-    uint8_t op;
-    
+
     switch(op = BYTE_READ(vm)) {
       case OP_NOP:
-        continue;
-      case OP_RET:
-        return VM_OK;
-      case OP_CONST: {
-        Value con = CONST_READ(vm);
-        ValuePrint(vm, con);
-        printf("\n");
+        break;
+      case OP_RET: {
+        pop(vm);
+        res = VM_OK;
         break;
       }
+      case OP_CONST: {
+        Value con = CONST_READ(vm);
+        push(vm, con);
+        break;
+      }
+      case OP_NEG: push(vm, -pop(vm)); break;
+      case OP_ADD: BIN_OP(vm,+); break;
+      case OP_SUB: BIN_OP(vm,-); break;
+      case OP_MUL: BIN_OP(vm,*); break;
+      case OP_DIV: BIN_OP(vm,/); break;
     }
+#ifdef DEBUG_TRACE_EXEC
+   StackPrint(vm);
+#endif
   }
   return VM_OK;
 #undef BYTE_READ
 #undef CONST_READ
+#undef BIN_OP
 }
 
 VMResult VMRun(VM *vm, Chunk *chunk) {
@@ -199,19 +244,23 @@ void ChunkDisassemble(VM *vm, Chunk *chunk, const char * name) {
   }
 }
 static int OpSimpleDisassemble(const char *name, int offset) {
-  printf("%s\n", name);
+  printf("%-17s", name);
   return offset + 1;
 }
 
 static int OpConstDisassemble(VM *vm, const char *name, Chunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
-  printf("%-16s %4d '", name, con);
+  printf("%-6s %4d '", name, con);
   ValuePrint(vm, chunk->constants.values[con]);
-  printf("'\n");
+  printf("'");
   return offset+2;
 }
 
 int OpDisassemble(VM *vm, Chunk *chunk, int offset) {
+#define OP_DEF1(o) \
+case o:\
+return OpSimpleDisassemble(#o, offset);
+  
   printf("%s%04d ", DEBUG_PREFIX, offset);
 
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
@@ -221,16 +270,20 @@ int OpDisassemble(VM *vm, Chunk *chunk, int offset) {
   }
   uint8_t op = chunk->code[offset];
   switch (op) {
-    case OP_NOP:
-      return OpSimpleDisassemble("OP_NOP", offset);
-    case OP_RET:
-      return OpSimpleDisassemble("OP_RET", offset);
+      OP_DEF1(OP_NOP)
+      OP_DEF1(OP_RET)
+      OP_DEF1(OP_NEG)
+      OP_DEF1(OP_ADD)
+      OP_DEF1(OP_SUB)
+      OP_DEF1(OP_MUL)
+      OP_DEF1(OP_DIV)
     case OP_CONST:
       return OpConstDisassemble(vm, "OP_CONST", chunk, offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
   }
+#undef OP_DEF1
 }
 
 // ------------------------------------------------------------
@@ -243,10 +296,34 @@ int Main(int argc, const char * argv[]) {
   
   Chunk chunk;
   ChunkInit(vm, &chunk);
-  int con = ConstantAdd(vm, &chunk, 3.14);
-  ChunkWrite(vm, &chunk, OP_NOP, 120);
-  ChunkWrite(vm, &chunk, OP_CONST, 121);
-  ChunkWrite(vm, &chunk, con, 121);
+  int c1 = ConstantAdd(vm, &chunk, 1);
+  int c2 = ConstantAdd(vm, &chunk, 2);
+
+  int line = 1;
+  ChunkWrite(vm, &chunk, OP_NOP, line);
+  ChunkWrite(vm, &chunk, OP_CONST, ++line);
+  ChunkWrite(vm, &chunk, c1, line);
+  ChunkWrite(vm, &chunk, OP_CONST, line);
+  ChunkWrite(vm, &chunk, c2, line);
+  ChunkWrite(vm, &chunk, OP_ADD, line);
+  ChunkWrite(vm, &chunk, OP_NEG, 122);
+  
+  int c3 = ConstantAdd(vm, &chunk, 4);
+  ChunkWrite(vm, &chunk, OP_CONST, ++line);
+  ChunkWrite(vm, &chunk, c3, line);
+  ChunkWrite(vm, &chunk, OP_SUB, line);
+
+  int c4 = ConstantAdd(vm, &chunk, 5);
+  ChunkWrite(vm, &chunk, OP_CONST, ++line);
+  ChunkWrite(vm, &chunk, c4, line);
+  ChunkWrite(vm, &chunk, OP_MUL, line);
+
+  int c5 = ConstantAdd(vm, &chunk, 6);
+  ChunkWrite(vm, &chunk, OP_CONST, ++line);
+  ChunkWrite(vm, &chunk, c5, line);
+  ChunkWrite(vm, &chunk, OP_DIV, line);
+
+
   ChunkWrite(vm, &chunk, OP_RET, 122);
   
   VMResult res = VMRun(vm, &chunk);
