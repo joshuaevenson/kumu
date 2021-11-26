@@ -285,10 +285,10 @@
  * 100% code coverage (how?)
  * Cross platform compile day 1
 
- ku_state *S = ku_new();
- ku_getglobal(S, "x");
- ku_pushinteger(S, 20);
- ku_setglobal(S);
+ ku_state *vm = ku_new();
+ ku_getglobal(vm, "x");
+ ku_pushinteger(vm, 20);
+ ku_setglobal(vm);
 
  // ------------------------------------------------------------
  // Native class libraries
@@ -379,14 +379,14 @@
 // Forward
 // ------------------------------------------------------------
 struct _state;
-typedef struct _state State;
+typedef struct _state VM;
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
 typedef double Value;
 
-void ValuePrint(State *S, Value value);
+void ValuePrint(VM *vm, Value value);
 
 typedef struct {
   int capacity;
@@ -394,9 +394,9 @@ typedef struct {
   Value *values;
 } ValueArray;
 
-void ValueArrayInit(State* S, ValueArray *array);
-void ValueArrayWrite(State* S, ValueArray *array, Value value);
-void ValueArrayFree(State* S, ValueArray *array);
+void ValueArrayInit(VM* vm, ValueArray *array);
+void ValueArrayWrite(VM* vm, ValueArray *array, Value value);
+void ValueArrayFree(VM* vm, ValueArray *array);
 
 // ------------------------------------------------------------
 // Type
@@ -411,9 +411,9 @@ typedef struct _Types {
   Type *types;
 } Types;
 
-void TypesInit(State *S, Types *t);
-void TypesAdd(State *S, Types *t, const char *name);
-void TypesFree(State *S, Types *t);
+void TypesInit(VM *vm, Types *t);
+void TypesAdd(VM *vm, Types *t, const char *name);
+void TypesFree(VM *vm, Types *t);
 
 // ------------------------------------------------------------
 // State
@@ -425,17 +425,17 @@ typedef struct _state {
   bool stop;
   int allocated;
   int freed;
-} State;
+} VM;
 
-State *StateNew(void);
-void StateFree(State *S);
+VM *VMNew(void);
+void VMFree(VM *vm);
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
 // 0,N => malloc, N,0 => free, N,M => realloc
-char *MemAlloc(State *S, void *ptr, size_t old, size_t nsize);
+char *MemAlloc(VM *vm, void *ptr, size_t old, size_t nsize);
 
 // ------------------------------------------------------------
 // OP codes
@@ -456,16 +456,16 @@ typedef struct {
   ValueArray constants;
 } Chunk;
 
-void ChunkInit(State *S, Chunk *chunk);
-void ChunkWrite(State *S, Chunk *chunk, uint8_t byte, int line);
-void ChunkFree(State *S, Chunk *chunk);
-int ConstantAdd(State *S, Chunk *chunk, Value value);
+void ChunkInit(VM *vm, Chunk *chunk);
+void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line);
+void ChunkFree(VM *vm, Chunk *chunk);
+int ConstantAdd(VM *vm, Chunk *chunk, Value value);
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void ChunkDisassemble(State *S, Chunk *chunk, const char * name);
-int OpDisassemble(State *S, Chunk *chunk, int offset);
+void ChunkDisassemble(VM *vm, Chunk *chunk, const char * name);
+int OpDisassemble(VM *vm, Chunk *chunk, int offset);
 
 // ------------------------------------------------------------
 // REPL

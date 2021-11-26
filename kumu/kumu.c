@@ -8,7 +8,7 @@
 #define CAPACITY_GROW(cap)  ((cap) < 8 ? 8 : (cap) * 2)
 #define ARRAY_GROW(k, type, ptr, old, new)\
 (type*)MemAlloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
-#define ARRAY_FREE(S, type, ptr, old) MemAlloc(S, ptr, sizeof(type) * (old), 0)
+#define ARRAY_FREE(vm, type, ptr, old) MemAlloc(vm, ptr, sizeof(type) * (old), 0)
 
 #define STOP_NULL(k,v) if (!v) { k->stop = true; return NULL; }
 #define STOP_RET(k,v) if (!v) { k->stop = true; return; }
@@ -18,69 +18,69 @@
 // ------------------------------------------------------------
 // Types
 // ------------------------------------------------------------
-void TypesInit(State *S, Types *t) {
+void TypesInit(VM *vm, Types *t) {
   t->count = 0;
   t->capacity = 0;
   t->types = NULL;
 }
 
-void TypesAdd(State *S, Types *t, const char *name) {
+void TypesAdd(VM *vm, Types *t, const char *name) {
   if (t->capacity < t->count + 1) {
     int old = t->capacity;
     t->capacity = CAPACITY_GROW(old);
-    t->types = ARRAY_GROW(S, Type, t->types, old, t->capacity);
+    t->types = ARRAY_GROW(vm, Type, t->types, old, t->capacity);
   }
   t->types[t->count].name = name;
   t->count++;
 }
 
-void TypesFree(State *S, Types *t) {
-  ARRAY_FREE(S, Type, S->types.types, S->types.capacity);
+void TypesFree(VM *vm, Types *t) {
+  ARRAY_FREE(vm, Type, vm->types.types, vm->types.capacity);
 }
 
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
-State *StateNew(void) {
-  State *S = malloc(sizeof(State));
-  S->allocated = sizeof(State);
+VM *VMNew(void) {
+  VM *vm = malloc(sizeof(VM));
+  vm->allocated = sizeof(VM);
 
-  if (!S) {
+  if (!vm) {
     return NULL;
   }
 
-  S->freed = 0;
-  S->stop = false;
+  vm->freed = 0;
+  vm->stop = false;
 
-  TypesInit(S, &S->types);
-  TypesAdd(S, &S->types, "Int");
-  TypesAdd(S, &S->types, "String");
-  TypesAdd(S, &S->types, "Double");
-  return S;
+  TypesInit(vm, &vm->types);
+  TypesAdd(vm, &vm->types, "Int");
+  TypesAdd(vm, &vm->types, "String");
+  TypesAdd(vm, &vm->types, "Double");
+  return vm;
 }
 
-void StateFree(State *S) {
-  S->freed += sizeof(State);
-  TypesFree(S, &S->types);
+void VMFree(VM *vm) {
+  vm->freed += sizeof(VM);
+  TypesFree(vm, &vm->types);
   printf("%sallocated: %d, freed: %d, delta: %d\n",
          DEBUG_PREFIX,
-         S->allocated,
-         S->freed, S->allocated - S->freed);
-  assert(S->allocated - S->freed == 0);
-  free(S);
+         vm->allocated,
+         vm->freed, vm->allocated - vm->freed);
+  assert(vm->allocated - vm->freed == 0);
+  free(vm);
 }
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
-char *MemAlloc(State *S, void *ptr, size_t oldsize, size_t nsize) {
+char *MemAlloc(VM *vm, void *ptr, size_t oldsize, size_t nsize) {
   
 #ifdef MEMORY_TRACE
   printf("%smalloc %d -> %d\n", DEBUG_PREFIX, (int)oldsize, (int)nsize);
 #endif
   
-  S->allocated += nsize;
-  S->freed += oldsize;
+  vm->allocated += nsize;
+  vm->freed += oldsize;
   
   if (nsize == 0) {
     free(ptr);
@@ -92,22 +92,22 @@ char *MemAlloc(State *S, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void ChunkInit(State *S, Chunk *chunk) {
+void ChunkInit(VM *vm, Chunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  ValueArrayInit(S, &chunk->constants);
+  ValueArrayInit(vm, &chunk->constants);
 }
 
-void ChunkWrite(State *S, Chunk *chunk, uint8_t byte, int line) {
+void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
-    chunk->code = ARRAY_GROW(S, uint8_t, chunk->code, cap, chunk->capacity);
-    chunk->lines = ARRAY_GROW(S, int, chunk->lines, cap, chunk->capacity);
+    chunk->code = ARRAY_GROW(vm, uint8_t, chunk->code, cap, chunk->capacity);
+    chunk->lines = ARRAY_GROW(vm, int, chunk->lines, cap, chunk->capacity);
     if (chunk->code == NULL) {
-      S->stop = true;
+      vm->stop = true;
     }
   }
   chunk->code[chunk->count] = byte;
@@ -115,52 +115,52 @@ void ChunkWrite(State *S, Chunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 }
 
-void ChunkFree(State *S, Chunk *chunk) {
-  ARRAY_FREE(S, uint8_t, chunk->code, chunk->capacity);
-  ARRAY_FREE(S, int, chunk->lines, chunk->capacity);
-  ARRAY_FREE(S, Value, chunk->constants.values, chunk->constants.capacity);
+void ChunkFree(VM *vm, Chunk *chunk) {
+  ARRAY_FREE(vm, uint8_t, chunk->code, chunk->capacity);
+  ARRAY_FREE(vm, int, chunk->lines, chunk->capacity);
+  ARRAY_FREE(vm, Value, chunk->constants.values, chunk->constants.capacity);
 }
 
-int ConstantAdd(State *S, Chunk *chunk, Value value) {
-  ValueArrayWrite(S, &chunk->constants, value);
+int ConstantAdd(VM *vm, Chunk *chunk, Value value) {
+  ValueArrayWrite(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-void ValuePrint(State *S, Value value) {
+void ValuePrint(VM *vm, Value value) {
   printf("%g", value);
 }
 
-void ValueArrayInit(State* S, ValueArray *array) {
+void ValueArrayInit(VM* vm, ValueArray *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void ValueArrayWrite(State* S, ValueArray *array, Value value) {
+void ValueArrayWrite(VM* vm, ValueArray *array, Value value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = CAPACITY_GROW(old);
-    array->values = ARRAY_GROW(S, Value, array->values, old, array->capacity);
+    array->values = ARRAY_GROW(vm, Value, array->values, old, array->capacity);
   }
   array->values[array->count] = value;
   array->count++;
 }
 
-void ValueArrayFree(State* S, ValueArray *array) {
-  MemAlloc(S, array->values, array->capacity, 0);
-  ValueArrayInit(S, array);
+void ValueArrayFree(VM* vm, ValueArray *array) {
+  MemAlloc(vm, array->values, array->capacity, 0);
+  ValueArrayInit(vm, array);
 }
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void ChunkDisassemble(State *S, Chunk *chunk, const char * name) {
+void ChunkDisassemble(VM *vm, Chunk *chunk, const char * name) {
   printf("%s== %s ==\n", DEBUG_PREFIX, name);
   for (int offset = 0; offset < chunk->count; offset++) {
-    OpDisassemble(S, chunk, offset);
+    OpDisassemble(vm, chunk, offset);
   }
 }
 static int OpSimpleDisassemble(const char *name, int offset) {
@@ -168,15 +168,15 @@ static int OpSimpleDisassemble(const char *name, int offset) {
   return offset + 1;
 }
 
-static int OpConstDisassemble(State *S, const char *name, Chunk *chunk, int offset) {
+static int OpConstDisassemble(VM *vm, const char *name, Chunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-16s %4d '", name, con);
-  ValuePrint(S, chunk->constants.values[con]);
+  ValuePrint(vm, chunk->constants.values[con]);
   printf("'\n");
   return offset+2;
 }
 
-int OpDisassemble(State *S, Chunk *chunk, int offset) {
+int OpDisassemble(VM *vm, Chunk *chunk, int offset) {
   printf("%s%04d ", DEBUG_PREFIX, offset);
 
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
@@ -189,7 +189,7 @@ int OpDisassemble(State *S, Chunk *chunk, int offset) {
     case OP_NOP:
       return OpSimpleDisassemble("OP_NOP", offset);
     case OP_CONST:
-      return OpConstDisassemble(S, "OP_CONST", chunk, offset);
+      return OpConstDisassemble(vm, "OP_CONST", chunk, offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
@@ -201,21 +201,21 @@ int OpDisassemble(State *S, Chunk *chunk, int offset) {
 // ------------------------------------------------------------
 #ifdef KUMU_REPL
 int Main(int argc, const char * argv[]) {
-  State *S = StateNew();
+  VM *vm = VMNew();
   printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
   
   Chunk chunk;
-  ChunkInit(S, &chunk);
-  int con = ConstantAdd(S, &chunk, 3.14);
-  ChunkWrite(S, &chunk, OP_NOP, 120);
-  ChunkWrite(S, &chunk, OP_CONST, 121);
-  ChunkWrite(S, &chunk, con, 121);
+  ChunkInit(vm, &chunk);
+  int con = ConstantAdd(vm, &chunk, 3.14);
+  ChunkWrite(vm, &chunk, OP_NOP, 120);
+  ChunkWrite(vm, &chunk, OP_CONST, 121);
+  ChunkWrite(vm, &chunk, con, 121);
   
   
   
-  ChunkDisassemble(S, &chunk, "test");
-  ChunkFree(S, &chunk);
-  StateFree(S);
+  ChunkDisassemble(vm, &chunk, "test");
+  ChunkFree(vm, &chunk);
+  VMFree(vm);
   return 0;
 }
 #endif
