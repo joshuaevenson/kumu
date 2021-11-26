@@ -87,24 +87,28 @@ void ChunkInit(State *S, Chunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
+  chunk->lines = NULL;
   ValueArrayInit(S, &chunk->constants);
 }
 
-void ChunkWrite(State *S, Chunk *chunk, uint8_t byte) {
+void ChunkWrite(State *S, Chunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
     chunk->code = ARRAY_GROW(S, uint8_t, chunk->code, cap, chunk->capacity);
+    chunk->lines = ARRAY_GROW(S, int, chunk->lines, cap, chunk->capacity);
     if (chunk->code == NULL) {
       S->stop = true;
     }
   }
   chunk->code[chunk->count] = byte;
+  chunk->lines[chunk->count] = line;
   chunk->count++;
 }
 
 void ChunkFree(State *S, Chunk *chunk) {
   ARRAY_FREE(S, uint8_t, chunk->code, chunk->capacity);
+  ARRAY_FREE(S, int, chunk->lines, chunk->capacity);
   ARRAY_FREE(S, Value, chunk->constants.values, chunk->constants.capacity);
 }
 
@@ -165,6 +169,12 @@ static int OpConstDisassemble(State *S, const char *name, Chunk *chunk, int offs
 
 int OpDisassemble(State *S, Chunk *chunk, int offset) {
   printf("%s%04d ", DEBUG_PREFIX, offset);
+
+  if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
+    printf("   | ");
+  } else {
+    printf("%4d ", chunk->lines[offset]);
+  }
   uint8_t op = chunk->code[offset];
   switch (op) {
     case OP_NOP:
@@ -188,9 +198,9 @@ int Main(int argc, const char * argv[]) {
   Chunk chunk;
   ChunkInit(S, &chunk);
   int con = ConstantAdd(S, &chunk, 3.14);
-  ChunkWrite(S, &chunk, OP_NOP);
-  ChunkWrite(S, &chunk, OP_CONST);
-  ChunkWrite(S, &chunk, con);
+  ChunkWrite(S, &chunk, OP_NOP, 120);
+  ChunkWrite(S, &chunk, OP_CONST, 121);
+  ChunkWrite(S, &chunk, con, 121);
   
   
   

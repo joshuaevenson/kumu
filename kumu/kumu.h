@@ -452,11 +452,12 @@ typedef struct {
   int count;
   int capacity;
   uint8_t *code;
+  int *lines;
   ValueArray constants;
 } Chunk;
 
 void ChunkInit(State *S, Chunk *chunk);
-void ChunkWrite(State *S, Chunk *chunk, uint8_t byte);
+void ChunkWrite(State *S, Chunk *chunk, uint8_t byte, int line);
 void ChunkFree(State *S, Chunk *chunk);
 int ConstantAdd(State *S, Chunk *chunk, Value value);
 
