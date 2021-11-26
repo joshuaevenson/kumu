@@ -7,55 +7,55 @@
 // ------------------------------------------------------------
 #define CAPACITY_GROW(cap)  ((cap) < 8 ? 8 : (cap) * 2)
 #define ARRAY_GROW(k, type, ptr, old, new)\
-(type*)MemAlloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
-#define ARRAY_FREE(vm, type, ptr, old) MemAlloc(vm, ptr, sizeof(type) * (old), 0)
+(type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
+#define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
 
 #define DEBUG_PREFIX  ""
 #define DEBUG_TRACE_EXEC
 // ------------------------------------------------------------
-// Types
+// ktypearr
 // ------------------------------------------------------------
-void TypesInit(VM *vm, Types *t) {
+void ktypearr_init(kvm *vm, ktypearr *t) {
   t->count = 0;
   t->capacity = 0;
   t->types = NULL;
 }
 
-void TypesAdd(VM *vm, Types *t, const char *name) {
+void ktypearr_write(kvm *vm, ktypearr *t, const char *name) {
   if (t->capacity < t->count + 1) {
     int old = t->capacity;
     t->capacity = CAPACITY_GROW(old);
-    t->types = ARRAY_GROW(vm, Type, t->types, old, t->capacity);
+    t->types = ARRAY_GROW(vm, ktype, t->types, old, t->capacity);
   }
   t->types[t->count].name = name;
   t->count++;
 }
 
-void TypesFree(VM *vm, Types *t) {
-  ARRAY_FREE(vm, Type, vm->types.types, vm->types.capacity);
+void ktypearr_free(kvm *vm, ktypearr *t) {
+  ARRAY_FREE(vm, ktype, vm->types.types, vm->types.capacity);
 }
 
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
-void StackReset(VM *vm) {
+void kvm_resetstack(kvm *vm) {
   vm->sp = vm->stack;
 }
 
-void push(VM *vm, Value val) {
+void kpush(kvm *vm, kval val) {
   *(vm->sp) = val;
   vm->sp++;
 }
 
-Value pop(VM *vm) {
+kval kpop(kvm *vm) {
   vm->sp--;
   return *(vm->sp);
 }
 
 
-VM *VMNew(void) {
-  VM *vm = malloc(sizeof(VM));
-  vm->allocated = sizeof(VM);
+kvm *kvm_new(void) {
+  kvm *vm = malloc(sizeof(kvm));
+  vm->allocated = sizeof(kvm);
 
   if (!vm) {
     return NULL;
@@ -65,17 +65,17 @@ VM *VMNew(void) {
   vm->stop = false;
   vm->chunk = NULL;
 
-  StackReset(vm);
-  TypesInit(vm, &vm->types);
-  TypesAdd(vm, &vm->types, "Int");
-  TypesAdd(vm, &vm->types, "String");
-  TypesAdd(vm, &vm->types, "Double");
+  kvm_resetstack(vm);
+  ktypearr_init(vm, &vm->types);
+  ktypearr_write(vm, &vm->types, "Int");
+  ktypearr_write(vm, &vm->types, "String");
+  ktypearr_write(vm, &vm->types, "Double");
   return vm;
 }
 
-void VMFree(VM *vm) {
-  vm->freed += sizeof(VM);
-  TypesFree(vm, &vm->types);
+void kvm_free(kvm *vm) {
+  vm->freed += sizeof(kvm);
+  ktypearr_free(vm, &vm->types);
   printf("%sallocated: %d, freed: %d, delta: %d\n",
          DEBUG_PREFIX,
          vm->allocated,
@@ -84,11 +84,11 @@ void VMFree(VM *vm) {
   free(vm);
 }
 
-static void StackPrint(VM *vm) {
+static void _kvm_printstack(kvm *vm) {
   printf("%s", DEBUG_PREFIX);
   printf(" [");
-  for (Value* vp = vm->stack; vp < vm->sp; vp++) {
-    ValuePrint(vm, *vp);
+  for (kval* vp = vm->stack; vp < vm->sp; vp++) {
+    kval_print(vm, *vp);
     if (vp < vm->sp - 1) {
       printf(",");
     }
@@ -99,61 +99,61 @@ static void StackPrint(VM *vm) {
 
 
 
-static VMResult _VMRun(VM *vm) {
+static kvmres _kvm_run(kvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
 #define BIN_OP(v,op) \
   do { \
-    Value b = pop(v); \
-    Value a = pop(v); \
-    push(v, a op b); \
+    kval b = kpop(v); \
+    kval a = kpop(v); \
+    kpush(v, a op b); \
   } while (false)
 
-  VMResult res = VM_CONT;
-  while (res == VM_CONT) {
+  kvmres res = KVM_CONT;
+  while (res == KVM_CONT) {
     uint8_t op;
 #ifdef DEBUG_TRACE_EXEC
-   OpDisassemble(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+   kop_print(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
 #endif
 
     switch(op = BYTE_READ(vm)) {
       case OP_NOP:
         break;
       case OP_RET: {
-        pop(vm);
-        res = VM_OK;
+        kpop(vm);
+        res = KVM_OK;
         break;
       }
       case OP_CONST: {
-        Value con = CONST_READ(vm);
-        push(vm, con);
+        kval con = CONST_READ(vm);
+        kpush(vm, con);
         break;
       }
-      case OP_NEG: push(vm, -pop(vm)); break;
+      case OP_NEG: kpush(vm, -kpop(vm)); break;
       case OP_ADD: BIN_OP(vm,+); break;
       case OP_SUB: BIN_OP(vm,-); break;
       case OP_MUL: BIN_OP(vm,*); break;
       case OP_DIV: BIN_OP(vm,/); break;
     }
 #ifdef DEBUG_TRACE_EXEC
-   StackPrint(vm);
+   _kvm_printstack(vm);
 #endif
   }
-  return VM_OK;
+  return KVM_OK;
 #undef BYTE_READ
 #undef CONST_READ
 #undef BIN_OP
 }
 
-VMResult VMRun(VM *vm, Chunk *chunk) {
+kvmres kvm_run(kvm *vm, kchunk *chunk) {
   vm->chunk = chunk;
   vm->ip = vm->chunk->code;
-  return _VMRun(vm);
+  return _kvm_run(vm);
 }
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
-char *MemAlloc(VM *vm, void *ptr, size_t oldsize, size_t nsize) {
+char *kalloc(kvm *vm, void *ptr, size_t oldsize, size_t nsize) {
   
 #ifdef MEMORY_TRACE
   printf("%smalloc %d -> %d\n", DEBUG_PREFIX, (int)oldsize, (int)nsize);
@@ -172,15 +172,15 @@ char *MemAlloc(VM *vm, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void ChunkInit(VM *vm, Chunk *chunk) {
+void kchunk_init(kvm *vm, kchunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  ValueArrayInit(vm, &chunk->constants);
+  kvalarr_init(vm, &chunk->constants);
 }
 
-void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line) {
+void kchunk_write(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
@@ -195,52 +195,52 @@ void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 }
 
-void ChunkFree(VM *vm, Chunk *chunk) {
+void kchunk_free(kvm *vm, kchunk *chunk) {
   ARRAY_FREE(vm, uint8_t, chunk->code, chunk->capacity);
   ARRAY_FREE(vm, int, chunk->lines, chunk->capacity);
-  ARRAY_FREE(vm, Value, chunk->constants.values, chunk->constants.capacity);
+  ARRAY_FREE(vm, kval, chunk->constants.values, chunk->constants.capacity);
 }
 
-int ConstantAdd(VM *vm, Chunk *chunk, Value value) {
-  ValueArrayWrite(vm, &chunk->constants, value);
+int kchunk_addconst(kvm *vm, kchunk *chunk, kval value) {
+  kvalarr_write(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-void ValuePrint(VM *vm, Value value) {
+void kval_print(kvm *vm, kval value) {
   printf("%g", value);
 }
 
-void ValueArrayInit(VM* vm, ValueArray *array) {
+void kvalarr_init(kvm* vm, kvalarr *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void ValueArrayWrite(VM* vm, ValueArray *array, Value value) {
+void kvalarr_write(kvm* vm, kvalarr *array, kval value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = CAPACITY_GROW(old);
-    array->values = ARRAY_GROW(vm, Value, array->values, old, array->capacity);
+    array->values = ARRAY_GROW(vm, kval, array->values, old, array->capacity);
   }
   array->values[array->count] = value;
   array->count++;
 }
 
-void ValueArrayFree(VM* vm, ValueArray *array) {
-  MemAlloc(vm, array->values, array->capacity, 0);
-  ValueArrayInit(vm, array);
+void kvalarr_free(kvm* vm, kvalarr *array) {
+  kalloc(vm, array->values, array->capacity, 0);
+  kvalarr_init(vm, array);
 }
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void ChunkDisassemble(VM *vm, Chunk *chunk, const char * name) {
+void kchunk_print(kvm *vm, kchunk *chunk, const char * name) {
   printf("%s== %s ==\n", DEBUG_PREFIX, name);
   for (int offset = 0; offset < chunk->count; offset++) {
-    OpDisassemble(vm, chunk, offset);
+    kop_print(vm, chunk, offset);
   }
 }
 static int OpSimpleDisassemble(const char *name, int offset) {
@@ -248,15 +248,15 @@ static int OpSimpleDisassemble(const char *name, int offset) {
   return offset + 1;
 }
 
-static int OpConstDisassemble(VM *vm, const char *name, Chunk *chunk, int offset) {
+static int OpConstDisassemble(kvm *vm, const char *name, kchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-6s %4d '", name, con);
-  ValuePrint(vm, chunk->constants.values[con]);
+  kval_print(vm, chunk->constants.values[con]);
   printf("'");
   return offset+2;
 }
 
-int OpDisassemble(VM *vm, Chunk *chunk, int offset) {
+int kop_print(kvm *vm, kchunk *chunk, int offset) {
 #define OP_DEF1(o) \
 case o:\
 return OpSimpleDisassemble(#o, offset);
@@ -286,51 +286,46 @@ return OpSimpleDisassemble(#o, offset);
 #undef OP_DEF1
 }
 
+static void _kchunk_writeconst(kvm *vm, int cons, int line) {
+  int index = kchunk_addconst(vm, vm->chunk, cons);
+  kchunk_write(vm, vm->chunk, OP_CONST, line);
+  kchunk_write(vm, vm->chunk, index, line);
+}
+
 // ------------------------------------------------------------
 // REPL
 // ------------------------------------------------------------
 #ifdef KUMU_REPL
-int Main(int argc, const char * argv[]) {
-  VM *vm = VMNew();
+int kmain(int argc, const char * argv[]) {
+  kvm *vm = kvm_new();
   printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
   
-  Chunk chunk;
-  ChunkInit(vm, &chunk);
-  int c1 = ConstantAdd(vm, &chunk, 1);
-  int c2 = ConstantAdd(vm, &chunk, 2);
+  kchunk chunk;
+  kchunk_init(vm, &chunk);
+  vm->chunk = &chunk;
 
   int line = 1;
-  ChunkWrite(vm, &chunk, OP_NOP, line);
-  ChunkWrite(vm, &chunk, OP_CONST, ++line);
-  ChunkWrite(vm, &chunk, c1, line);
-  ChunkWrite(vm, &chunk, OP_CONST, line);
-  ChunkWrite(vm, &chunk, c2, line);
-  ChunkWrite(vm, &chunk, OP_ADD, line);
-  ChunkWrite(vm, &chunk, OP_NEG, 122);
+  kchunk_write(vm, &chunk, OP_NOP, line++);
+  _kchunk_writeconst(vm, 1, line);
+  _kchunk_writeconst(vm, 2, line);
+  kchunk_write(vm, &chunk, OP_ADD, line);
+  kchunk_write(vm, &chunk, OP_NEG, line++);
+
+  _kchunk_writeconst(vm, 4, line);
+  kchunk_write(vm, &chunk, OP_SUB, line++);
+
+  _kchunk_writeconst(vm, 5, line);
+  kchunk_write(vm, &chunk, OP_MUL, line++);
+
+  _kchunk_writeconst(vm, 6, line);
+  kchunk_write(vm, &chunk, OP_DIV, line++);
+
+  kchunk_write(vm, &chunk, OP_RET, line);
   
-  int c3 = ConstantAdd(vm, &chunk, 4);
-  ChunkWrite(vm, &chunk, OP_CONST, ++line);
-  ChunkWrite(vm, &chunk, c3, line);
-  ChunkWrite(vm, &chunk, OP_SUB, line);
-
-  int c4 = ConstantAdd(vm, &chunk, 5);
-  ChunkWrite(vm, &chunk, OP_CONST, ++line);
-  ChunkWrite(vm, &chunk, c4, line);
-  ChunkWrite(vm, &chunk, OP_MUL, line);
-
-  int c5 = ConstantAdd(vm, &chunk, 6);
-  ChunkWrite(vm, &chunk, OP_CONST, ++line);
-  ChunkWrite(vm, &chunk, c5, line);
-  ChunkWrite(vm, &chunk, OP_DIV, line);
-
-
-  ChunkWrite(vm, &chunk, OP_RET, 122);
-  
-  VMResult res = VMRun(vm, &chunk);
+  kvmres res = kvm_run(vm, &chunk);
   printf("%sres=%d\n", DEBUG_PREFIX, res);
-//  ChunkDisassemble(vm, &chunk, "test");
-  ChunkFree(vm, &chunk);
-  VMFree(vm);
+  kchunk_free(vm, &chunk);
+  kvm_free(vm);
   return 0;
 }
 #endif

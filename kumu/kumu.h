@@ -346,48 +346,48 @@
 // Forward
 // ------------------------------------------------------------
 struct _vm;
-typedef struct _vm VM;
+typedef struct _vm kvm;
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-typedef double Value;
+typedef double kval;
 
-void ValuePrint(VM *vm, Value value);
+void kval_print(kvm *vm, kval value);
 
 typedef struct {
   int capacity;
   int count;
-  Value *values;
-} ValueArray;
+  kval *values;
+} kvalarr;
 
-void ValueArrayInit(VM* vm, ValueArray *array);
-void ValueArrayWrite(VM* vm, ValueArray *array, Value value);
-void ValueArrayFree(VM* vm, ValueArray *array);
+void kvalarr_init(kvm* vm, kvalarr *array);
+void kvalarr_write(kvm* vm, kvalarr *array, kval value);
+void kvalarr_free(kvm* vm, kvalarr *array);
 
 // ------------------------------------------------------------
 // Type
 // ------------------------------------------------------------
 typedef struct {
   const char *name;
-} Type;
+} ktype;
 
-typedef struct _Types {
+typedef struct  {
   int count;
   int capacity;
-  Type *types;
-} Types;
+  ktype *types;
+} ktypearr;
 
-void TypesInit(VM *vm, Types *t);
-void TypesAdd(VM *vm, Types *t, const char *name);
-void TypesFree(VM *vm, Types *t);
+void ktypearr_init(kvm *vm, ktypearr *t);
+void ktypearr_write(kvm *vm, ktypearr *t, const char *name);
+void ktypearr_free(kvm *vm, ktypearr *t);
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
 // 0,N => malloc, N,0 => free, N,M => realloc
-char *MemAlloc(VM *vm, void *ptr, size_t old, size_t nsize);
+char *kalloc(kvm *vm, void *ptr, size_t old, size_t nsize);
 
 // ------------------------------------------------------------
 // OP codes
@@ -411,56 +411,56 @@ typedef struct {
   int capacity;
   uint8_t *code;
   int *lines;
-  ValueArray constants;
-} Chunk;
+  kvalarr constants;
+} kchunk;
 
-void ChunkInit(VM *vm, Chunk *chunk);
-void ChunkWrite(VM *vm, Chunk *chunk, uint8_t byte, int line);
-void ChunkFree(VM *vm, Chunk *chunk);
-int ConstantAdd(VM *vm, Chunk *chunk, Value value);
+void kchunk_init(kvm *vm, kchunk *chunk);
+void kchunk_write(kvm *vm, kchunk *chunk, uint8_t byte, int line);
+void kchunk_free(kvm *vm, kchunk *chunk);
+int kchunk_addconst(kvm *vm, kchunk *chunk, kval value);
 
 // ------------------------------------------------------------
 // VM
 // ------------------------------------------------------------
 #define STACK_MAX 256
 typedef enum {
-  VM_OK,
-  VM_CONT,
-  VM_ERR_SYNTAX,
-  VM_ERR_RUNTIME,
-} VMResult;
+  KVM_OK,
+  KVM_CONT,
+  KVM_ERR_SYNTAX,
+  KVM_ERR_RUNTIME,
+} kvmres;
 
 typedef struct _vm {
-  Types types;
+  ktypearr types;
   
   bool stop;
   int allocated;
   int freed;
   
-  Chunk *chunk;
+  kchunk *chunk;
   uint8_t *ip;
   
-  Value stack[STACK_MAX];
-  Value *sp;
-} VM;
+  kval stack[STACK_MAX];
+  kval *sp;
+} kvm;
 
-VM *VMNew(void);
-void VMFree(VM *vm);
-VMResult VMRun(VM *vm, Chunk *chunk);
+kvm *kvm_new(void);
+void kvm_free(kvm *vm);
+kvmres kvm_run(kvm *vm, kchunk *chunk);
 
 // ------------------------------------------------------------
 // Stack
 // ------------------------------------------------------------
-void StackReset(VM *vm);
-void push(VM *vm, Value val);
-Value pop(VM *vm);
+void kvm_resetstack(kvm *vm);
+void kpush(kvm *vm, kval val);
+kval kpop(kvm *vm);
 
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void ChunkDisassemble(VM *vm, Chunk *chunk, const char * name);
-int OpDisassemble(VM *vm, Chunk *chunk, int offset);
+void kchunk_print(kvm *vm, kchunk *chunk, const char * name);
+int kop_print(kvm *vm, kchunk *chunk, int offset);
 
 // ------------------------------------------------------------
 // REPL
@@ -468,7 +468,7 @@ int OpDisassemble(VM *vm, Chunk *chunk, int offset);
 #ifdef KUMU_REPL
 #include <stdio.h>
 
-int Main(int argc, const char * argv[]);
+int kmain(int argc, const char * argv[]);
 #endif
 
 #endif /* KUMU_H */
