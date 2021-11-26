@@ -371,15 +371,13 @@
 // ------------------------------------------------------------
 // Configuration flags
 // ------------------------------------------------------------
-#define KUMU_COMPILER       1
-#define KUMU_TEST           1
 #define KUMU_REPL           1
 
 // ------------------------------------------------------------
 // Forward
 // ------------------------------------------------------------
-struct _state;
-typedef struct _state VM;
+struct _vm;
+typedef struct _vm VM;
 
 // ------------------------------------------------------------
 // Value
@@ -416,10 +414,9 @@ void TypesAdd(VM *vm, Types *t, const char *name);
 void TypesFree(VM *vm, Types *t);
 
 // ------------------------------------------------------------
-// State
+// VM
 // ------------------------------------------------------------
-
-typedef struct _state {
+typedef struct _vm {
   Types types;
   
   bool stop;
