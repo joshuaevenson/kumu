@@ -62,6 +62,10 @@ State *StateNew(void) {
 void StateFree(State *S) {
   S->freed += sizeof(State);
   TypesFree(S, &S->types);
+  printf("%sallocated: %d, freed: %d, delta: %d\n",
+         DEBUG_PREFIX,
+         S->allocated,
+         S->freed, S->allocated - S->freed);
   assert(S->allocated - S->freed == 0);
   free(S);
 }
@@ -70,6 +74,11 @@ void StateFree(State *S) {
 // Memory
 // ------------------------------------------------------------
 char *MemAlloc(State *S, void *ptr, size_t oldsize, size_t nsize) {
+  
+#ifdef MEMORY_TRACE
+  printf("%smalloc %d -> %d\n", DEBUG_PREFIX, (int)oldsize, (int)nsize);
+#endif
+  
   S->allocated += nsize;
   S->freed += oldsize;
   
@@ -206,11 +215,6 @@ int Main(int argc, const char * argv[]) {
   
   ChunkDisassemble(S, &chunk, "test");
   ChunkFree(S, &chunk);
-  
-  printf("%sallocated: %d, freed: %d, delta: %d\n",
-         DEBUG_PREFIX,
-         S->allocated,
-         S->freed, S->allocated - S->freed);
   StateFree(S);
   return 0;
 }
