@@ -329,19 +329,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <string.h>
 #include <assert.h>
 
 // ------------------------------------------------------------
 // Versioning
 // ------------------------------------------------------------
-#define KUMU_MAJOR          0
-#define KUMU_MINOR          1
-
-// ------------------------------------------------------------
-// Configuration flags
-// ------------------------------------------------------------
-#define KUMU_REPL
-#define KUMU_TEST
+#define KVM_MAJOR          0
+#define KVM_MINOR          1
+#define KVM_MAIN
 
 // ------------------------------------------------------------
 // Forward
@@ -429,6 +425,7 @@ typedef enum {
   KVM_CONT,
   KVM_ERR_SYNTAX,
   KVM_ERR_RUNTIME,
+  KVM_FILE_NOTFOUND,
 } kvmres;
 
 typedef struct _vm {
@@ -448,6 +445,7 @@ typedef struct _vm {
 kvm *kvm_new(void);
 void kvm_free(kvm *vm);
 kvmres kvm_run(kvm *vm, kchunk *chunk);
+kvmres kvm_runfile(kvm *vm, const char *file);
 
 // ------------------------------------------------------------
 // Stack
@@ -466,7 +464,7 @@ int kop_print(kvm *vm, kchunk *chunk, int offset);
 // ------------------------------------------------------------
 // REPL
 // ------------------------------------------------------------
-#ifdef KUMU_REPL
+#ifdef KVM_MAIN
 #include <stdio.h>
 
 int kmain(int argc, const char * argv[]);

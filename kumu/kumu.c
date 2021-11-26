@@ -2,6 +2,8 @@
 
 #include "kumu.h"
 
+// #define KVM_TEST
+
 // ------------------------------------------------------------
 // Macros
 // ------------------------------------------------------------
@@ -10,7 +12,6 @@
 (type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
 #define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
 
-#define DEBUG_PREFIX  ""
 #define DEBUG_TRACE_EXEC
 // ------------------------------------------------------------
 // ktypearr
@@ -76,8 +77,7 @@ kvm *kvm_new(void) {
 void kvm_free(kvm *vm) {
   vm->freed += sizeof(kvm);
   ktypearr_free(vm, &vm->types);
-  printf("%sallocated: %d, freed: %d, delta: %d\n",
-         DEBUG_PREFIX,
+  printf("allocated: %d, freed: %d, delta: %d\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
   assert(vm->allocated - vm->freed == 0);
@@ -85,7 +85,6 @@ void kvm_free(kvm *vm) {
 }
 
 static void _kvm_printstack(kvm *vm) {
-  printf("%s", DEBUG_PREFIX);
   printf(" [");
   for (kval* vp = vm->stack; vp < vm->sp; vp++) {
     kval_print(vm, *vp);
@@ -150,13 +149,70 @@ kvmres kvm_run(kvm *vm, kchunk *chunk) {
   vm->ip = vm->chunk->code;
   return _kvm_run(vm);
 }
+
+
+static kvmres _kvm_interpret(kvm *vm, char *data) {
+  return KVM_OK;
+}
+
+static char *_kvm_readfile(kvm *vm, const char *path) {
+  FILE * file = fopen(path , "rb");
+  
+  if (file == NULL) {
+    return NULL;
+  }
+  fseek(file , 0L , SEEK_END);
+  size_t fsize = ftell(file);
+  rewind(file);
+  char * buffer = (char *) malloc(fsize + 1);
+  size_t read = fread(buffer , sizeof (char), fsize, file);
+  
+  if (read < fsize) {
+    free(buffer);
+    return NULL;
+  }
+  buffer [read] = '\0' ;
+  fclose(file);
+  return buffer ;
+}
+
+kvmres kvm_runfile(kvm *vm, const char *file) {
+  char *source = _kvm_readfile(vm, file);
+  
+  if (source == NULL) {
+    return KVM_FILE_NOTFOUND;
+  }
+  kvmres res = _kvm_interpret(vm, source);
+  free(source);
+  return res;
+}
+
+#ifndef KVM_TEST
+static void _kvm_repl(kvm *vm) {
+  printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
+  char line[1024];
+  
+  while(true) {
+    printf("k> ");
+    
+    if (!fgets(line, sizeof(line), stdin)) {
+      printf("\n");
+      break;
+    }
+    
+    _kvm_interpret(vm, line);
+  }
+}
+
+#endif
+
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 char *kalloc(kvm *vm, void *ptr, size_t oldsize, size_t nsize) {
   
 #ifdef MEMORY_TRACE
-  printf("%smalloc %d -> %d\n", DEBUG_PREFIX, (int)oldsize, (int)nsize);
+  printf("malloc %d -> %d\n", (int)oldsize, (int)nsize);
 #endif
   
   vm->allocated += nsize;
@@ -238,17 +294,17 @@ void kvalarr_free(kvm* vm, kvalarr *array) {
 // Debug
 // ------------------------------------------------------------
 void kchunk_print(kvm *vm, kchunk *chunk, const char * name) {
-  printf("%s== %s ==\n", DEBUG_PREFIX, name);
+  printf("== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; offset++) {
     kop_print(vm, chunk, offset);
   }
 }
-static int OpSimpleDisassemble(const char *name, int offset) {
+static int kop_printsimple(const char *name, int offset) {
   printf("%-17s", name);
   return offset + 1;
 }
 
-static int OpConstDisassemble(kvm *vm, const char *name, kchunk *chunk, int offset) {
+static int kop_printconst(kvm *vm, const char *name, kchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-6s %4d '", name, con);
   kval_print(vm, chunk->constants.values[con]);
@@ -259,9 +315,9 @@ static int OpConstDisassemble(kvm *vm, const char *name, kchunk *chunk, int offs
 int kop_print(kvm *vm, kchunk *chunk, int offset) {
 #define OP_DEF1(o) \
 case o:\
-return OpSimpleDisassemble(#o, offset);
+return kop_printsimple(#o, offset);
   
-  printf("%s%04d ", DEBUG_PREFIX, offset);
+  printf("%04d ", offset);
 
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
     printf("   | ");
@@ -278,7 +334,7 @@ return OpSimpleDisassemble(#o, offset);
       OP_DEF1(OP_MUL)
       OP_DEF1(OP_DIV)
     case OP_CONST:
-      return OpConstDisassemble(vm, "OP_CONST", chunk, offset);
+      return kop_printconst(vm, "OP_CONST", chunk, offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
@@ -286,18 +342,18 @@ return OpSimpleDisassemble(#o, offset);
 #undef OP_DEF1
 }
 
+
+// ------------------------------------------------------------
+// TEST
+// ------------------------------------------------------------
+#ifdef KVM_TEST
 static void _kchunk_writeconst(kvm *vm, int cons, int line) {
   int index = kchunk_addconst(vm, vm->chunk, cons);
   kchunk_write(vm, vm->chunk, OP_CONST, line);
   kchunk_write(vm, vm->chunk, index, line);
 }
 
-// ------------------------------------------------------------
-// TEST
-// ------------------------------------------------------------
-#ifdef KUMU_TEST
-static void _kvm_test() {
-  kvm *vm = kvm_new();
+static void _kvm_test(kvm *vm) {
   kchunk chunk;
   kchunk_init(vm, &chunk);
   vm->chunk = &chunk;
@@ -321,21 +377,46 @@ static void _kvm_test() {
   kchunk_write(vm, &chunk, OP_RET, line);
   
   kvmres res = kvm_run(vm, &chunk);
-  printf("%sres=%d\n", DEBUG_PREFIX, res);
+  printf("res=%d\n", res);
   kchunk_free(vm, &chunk);
-  kvm_free(vm);
 }
 #endif
 
 // ------------------------------------------------------------
 // REPL
 // ------------------------------------------------------------
-#ifdef KUMU_REPL
+#ifdef KVM_MAIN
 int kmain(int argc, const char * argv[]) {
-  printf("kumu %d.%d\n", KUMU_MAJOR, KUMU_MINOR);
-#ifdef KUMU_TEST
-  _kvm_test();
+  kvm *vm = kvm_new();
+  
+#ifdef KVM_TEST
+  _kvm_test(vm);
+#else
+  if (argc == 1) {
+    _kvm_repl(vm);
+  } else if (argc == 2) {
+    kvmres res = kvm_runfile(vm, argv[1]);
+    if (res == KVM_ERR_RUNTIME) {
+      kvm_free(vm);
+      exit(70);
+    }
+    if (res == KVM_ERR_SYNTAX)  {
+      kvm_free(vm);
+      exit(65);
+    }
+    if (res == KVM_FILE_NOTFOUND) {
+      fprintf(stderr, "file error '%s'\n", argv[1]);
+      kvm_free(vm);
+      exit(74);
+    }
+    
+  } else {
+    kvm_free(vm);
+    fprintf(stderr, "usage kumu [file]\n");
+    exit(64);
+  }
 #endif
+  kvm_free(vm);
   return 0;
 }
 #endif
