@@ -307,13 +307,117 @@ static void pemitconst(kvm *vm, kval val) {
   pemitbyte(vm, pmakeconst(vm, val));
 }
 
+typedef enum {
+  P_NONE,
+  P_ASSIGN,     // =
+  P_OR,         // or
+  P_AND,        // and
+  P_EQ,         // == and !=
+  P_COMP,       // < > <= >=
+  P_TERM,       // + -
+  P_FACTOR,     // * /
+  P_UNARY,      // ! -
+  P_CALL,       // . ()
+  P_PRIMARY
+} kprecedence;
+
+typedef void (*pfunc)(kvm *);
+
+typedef struct {
+  pfunc prefix;
+  pfunc infix;
+  kprecedence precedence;
+} prule;
+
+static void pprecedence(kvm *vm, kprecedence prec) {
+  
+}
+
 static void pnumber(kvm *vm) {
   double val = strtod(vm->parser.prev.start, NULL);
   pemitconst(vm, val);
 }
 
 static void pexpression(kvm *vm) {
+  pprecedence(vm, P_ASSIGN);
+}
+
+static void pgrouping(kvm *vm) {
+  pexpression(vm);
+  pconsume(vm, TOK_RPAR, "')' expected");
+}
+
+static void punary(kvm *vm) {
+  ltype optype = vm->parser.prev.type;
   
+  pprecedence(vm, P_UNARY);
+  pexpression(vm);
+  
+  switch(optype) {
+    case TOK_MINUS: pemitbyte(vm, OP_NEG);
+    default: return;
+  }
+}
+
+static prule *pgetrule(kvm *vm, ltype optype);
+
+static void pbinary(kvm *vm) {
+  ltype optype = vm->parser.prev.type;
+  prule *rule = pgetrule(vm, optype);
+  pprecedence(vm, (kprecedence)(rule->precedence + 1));
+  
+  switch (optype) {
+    case TOK_PLUS: pemitbyte(vm, OP_ADD); break;
+    case TOK_MINUS: pemitbyte(vm, OP_SUB); break;
+    case TOK_STAR: pemitbyte(vm, OP_MUL); break;
+    case TOK_SLASH: pemitbyte(vm, OP_DIV); break;
+    default: return;
+  }
+}
+
+prule rules[] = {
+  [TOK_LPAR] =      { pgrouping,   NULL,     P_NONE },
+  [TOK_RPAR] =      { NULL,        NULL,     P_NONE },
+  [TOK_LBRACE] =    { NULL,        NULL,     P_NONE },
+  [TOK_RBRACE] =    { NULL,        NULL,     P_NONE },
+  [TOK_COMMA] =     { NULL,        NULL,     P_NONE },
+  [TOK_DOT] =       { NULL,        NULL,     P_NONE },
+  [TOK_MINUS] =     { punary,      pbinary,  P_TERM },
+  [TOK_PLUS] =      { NULL,        pbinary,  P_TERM },
+  [TOK_SEMI] =      { NULL,        NULL,     P_NONE },
+  [TOK_SLASH] =     { NULL,        pbinary,  P_FACTOR },
+  [TOK_STAR] =      { NULL,        pbinary,  P_FACTOR },
+  [TOK_BANG] =      { NULL,        NULL,     P_NONE },
+  [TOK_NE] =        { NULL,        NULL,     P_NONE },
+  [TOK_EQ] =        { NULL,        NULL,     P_NONE },
+  [TOK_EQEQ] =      { NULL,        NULL,     P_NONE },
+  [TOK_GT] =        { NULL,        NULL,     P_NONE },
+  [TOK_GE] =        { NULL,        NULL,     P_NONE },
+  [TOK_LT] =        { NULL,        NULL,     P_NONE },
+  [TOK_LE] =        { NULL,        NULL,     P_NONE },
+  [TOK_IDENT] =     { NULL,        NULL,     P_NONE },
+  [TOK_STR] =       { NULL,        NULL,     P_NONE },
+  [TOK_NUM] =       { pnumber,     NULL,     P_NONE },
+  [TOK_AND] =       { NULL,        NULL,     P_NONE },
+  [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
+  [TOK_ELSE] =      { NULL,        NULL,     P_NONE },
+  [TOK_FOR] =       { NULL,        NULL,     P_NONE },
+  [TOK_FUN] =       { NULL,        NULL,     P_NONE },
+  [TOK_IF] =        { NULL,        NULL,     P_NONE },
+  [TOK_NIL] =       { NULL,        NULL,     P_NONE },
+  [TOK_OR] =        { NULL,        NULL,     P_NONE },
+  [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
+  [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
+  [TOK_THIS] =      { NULL,        NULL,     P_NONE },
+  [TOK_TRUE] =      { NULL,        NULL,     P_NONE },
+  [TOK_VAR] =       { NULL,        NULL,     P_NONE },
+  [TOK_WHILE] =     { NULL,        NULL,     P_NONE },
+  [TOK_ERR] =       { NULL,        NULL,     P_NONE },
+  [TOK_EOF] =       { NULL,        NULL,     P_NONE },
+};
+
+static prule *pgetrule(kvm *vm, ltype optype) {
+  return &rules[optype];
 }
 
 // ------------------------------------------------------------
