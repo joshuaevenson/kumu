@@ -76,19 +76,28 @@ static bool klex_isend(kvm *vm) {
   return (*(vm->scanner.curr) == '\0');
 }
 
+static bool kisdigit(char c) {
+  return (c >= '0' && c <= '9');
+}
+
+static bool kisalpha(char c) {
+  return (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') ||
+         (c == '_');
+}
 
 static char klex_peeknext(kvm *vm) {
   if (klex_isend(vm)) return '\0';
   return vm->scanner.curr[1];
 }
 
-static char klex_peek(kvm *vm) {
+static char kpeek(kvm *vm) {
   return *vm->scanner.curr;
 }
 
 static void klex_skipspace(kvm *vm) {
   while (true) {
-    char c = klex_peek(vm);
+    char c = kpeek(vm);
     switch (c) {
       case ' ':
       case '\r':
@@ -101,7 +110,7 @@ static void klex_skipspace(kvm *vm) {
         break;
       case '/':
         if (klex_peeknext(vm) == '/') {
-          while (klex_peek(vm) != '\n' && !klex_isend(vm))
+          while (kpeek(vm) != '\n' && !klex_isend(vm))
             klex_advance(vm);
         } else {
           return;
@@ -112,7 +121,7 @@ static void klex_skipspace(kvm *vm) {
     }
   }
 }
-static ktok klex_maketok(kvm *vm, ktoktype type) {
+static ktok klex_make(kvm *vm, ktoktype type) {
   ktok token;
   token.type = type;
   token.start = vm->scanner.start;
@@ -121,7 +130,7 @@ static ktok klex_maketok(kvm *vm, ktoktype type) {
   return token;
 }
 
-static ktok klex_errtok(kvm *vm, const char *msg) {
+static ktok klex_err(kvm *vm, const char *msg) {
   ktok token;
   token.type = TOK_ERR;
   token.start = msg;
@@ -137,38 +146,73 @@ static bool klex_match(kvm *vm, char expected) {
   return true;
 }
 
+static ktok klex_num(kvm *vm) {
+  while(kisdigit(kpeek(vm))) klex_advance(vm);
+  
+  if (kpeek(vm) == '.' && kisdigit(klex_peeknext(vm))) {
+    klex_advance(vm);
+  }
+  while(kisdigit(kpeek(vm))) klex_advance(vm);
+  return klex_make(vm, TOK_NUM);
+}
+
+static ktok klex_str(kvm *vm) {
+  while(kpeek(vm) != '"' && !klex_isend(vm)) {
+    if (kpeek(vm) == '\n') vm->scanner.line++;
+    klex_advance(vm);
+  }
+  if (klex_isend(vm)) return klex_err(vm, "unterminated string");
+  klex_advance(vm);
+  return klex_make(vm, TOK_STR);
+}
+
+static ktoktype klex_identype(kvm *vm) {
+  return TOK_IDENT;
+}
+
+static ktok klex_ident(kvm *vm) {
+  while (kisalpha(kpeek(vm)) || kisdigit(kpeek(vm))) {
+    klex_advance(vm);
+  }
+  return klex_make(vm, klex_identype(vm));
+}
+
 static ktok klex_scan(kvm *vm) {
   klex_skipspace(vm);
   vm->scanner.start = vm->scanner.curr;
   
   if (klex_isend(vm)) {
-    return klex_maketok(vm, TOK_EOF);
+    return klex_make(vm, TOK_EOF);
   }
   
   char c = klex_advance(vm);
+  if (kisalpha(c)) return klex_ident(vm);
+  if (kisdigit(c)) return klex_num(vm);
   switch (c) {
-    case '(': return klex_maketok(vm, TOK_LPAR);
-    case ')': return klex_maketok(vm, TOK_RPAR);
-    case '{': return klex_maketok(vm, TOK_LBRACE);
-    case '}': return klex_maketok(vm, TOK_RBRACE);
-    case ';': return klex_maketok(vm, TOK_SEMI);
-    case ',': return klex_maketok(vm, TOK_COMMA);
-    case '.': return klex_maketok(vm, TOK_DOT);
-    case '+': return klex_maketok(vm, TOK_PLUS);
-    case '-': return klex_maketok(vm, TOK_MINUS);
-    case '*': return klex_maketok(vm, TOK_STAR);
+    case '(': return klex_make(vm, TOK_LPAR);
+    case ')': return klex_make(vm, TOK_RPAR);
+    case '{': return klex_make(vm, TOK_LBRACE);
+    case '}': return klex_make(vm, TOK_RBRACE);
+    case ';': return klex_make(vm, TOK_SEMI);
+    case ',': return klex_make(vm, TOK_COMMA);
+    case '.': return klex_make(vm, TOK_DOT);
+    case '+': return klex_make(vm, TOK_PLUS);
+    case '-': return klex_make(vm, TOK_MINUS);
+    case '*': return klex_make(vm, TOK_STAR);
     case '/':
-      return klex_maketok(vm, TOK_SLASH);
+      return klex_make(vm, TOK_SLASH);
     case '!':
-      return klex_maketok(vm, klex_match(vm, '=') ? TOK_NE : TOK_BANG);
+      return klex_make(vm, klex_match(vm, '=') ? TOK_NE : TOK_BANG);
     case '=':
-      return klex_maketok(vm, klex_match(vm, '=') ? TOK_EQ : TOK_EQEQ);
+      return klex_make(vm, klex_match(vm, '=') ? TOK_EQ : TOK_EQEQ);
     case '<':
-      return klex_maketok(vm, klex_match(vm, '=') ? TOK_LE : TOK_LT);
+      return klex_make(vm, klex_match(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
-      return klex_maketok(vm, klex_match(vm, '=') ? TOK_GE : TOK_GT);
+      return klex_make(vm, klex_match(vm, '=') ? TOK_GE : TOK_GT);
+    case '"':
+      return klex_str(vm);
   }
-  return klex_errtok(vm, "Unexpected character");
+  return klex_err(vm, "Unexpected character");
 }
 // ------------------------------------------------------------
 // Virtual machine
