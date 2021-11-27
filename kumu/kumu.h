@@ -414,7 +414,7 @@ typedef struct {
 void cinit(kvm *vm, kchunk *chunk);
 void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line);
 void cfree(kvm *vm, kchunk *chunk);
-int kchunk_addconst(kvm *vm, kchunk *chunk, kval value);
+int caddconst(kvm *vm, kchunk *chunk, kval value);
 
 // ------------------------------------------------------------
 // Scanner

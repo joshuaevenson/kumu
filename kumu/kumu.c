@@ -312,7 +312,7 @@ static void pemitbytes(kvm *vm, uint8_t b1, uint8_t b2) {
 
 
 static uint8_t pmakeconst(kvm *vm, kval val) {
-  int cons = kchunk_addconst(vm, ccurr(vm), val);
+  int cons = caddconst(vm, ccurr(vm), val);
   if (cons > UINT8_MAX) {
     perr(vm, "out of constant space");
     return 0;
@@ -734,7 +734,7 @@ void cfree(kvm *vm, kchunk *chunk) {
   ARRAY_FREE(vm, kval, chunk->constants.values, chunk->constants.capacity);
 }
 
-int kchunk_addconst(kvm *vm, kchunk *chunk, kval value) {
+int caddconst(kvm *vm, kchunk *chunk, kval value) {
   vawrite(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
@@ -858,7 +858,7 @@ int kmain(int argc, const char * argv[]) {
 // TEST
 // ------------------------------------------------------------
 static void cwriteconst(kvm *vm, int cons, int line) {
-  int index = kchunk_addconst(vm, vm->chunk, cons);
+  int index = caddconst(vm, vm->chunk, cons);
   cwrite(vm, vm->chunk, OP_CONST, line);
   cwrite(vm, vm->chunk, index, line);
 }
