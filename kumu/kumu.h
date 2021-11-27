@@ -413,7 +413,7 @@ typedef struct {
 
 void cinit(kvm *vm, kchunk *chunk);
 void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line);
-void kchunk_free(kvm *vm, kchunk *chunk);
+void cfree(kvm *vm, kchunk *chunk);
 int kchunk_addconst(kvm *vm, kchunk *chunk, kval value);
 
 // ------------------------------------------------------------
@@ -469,15 +469,17 @@ typedef enum {
   KVM_FILE_NOTFOUND,
 } kres;
 
+#define KVM_DISASSEMBLE 0x01
+
 typedef struct _vm {
   ktypearr types;
   
+  int flags;
   bool stop;
   int allocated;
   int freed;
   
   kchunk *chunk;
-  kchunk *compiling;
   uint8_t *ip;
   
   kval stack[STACK_MAX];

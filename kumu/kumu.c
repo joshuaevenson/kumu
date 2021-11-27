@@ -2,11 +2,6 @@
 
 #include "kumu.h"
 
-void error(const char *msg) {
-  fprintf(stderr, "error %s\n", msg);
-  exit(-1);
-}
-
 // ------------------------------------------------------------
 // Macros
 // ------------------------------------------------------------
@@ -15,7 +10,9 @@ void error(const char *msg) {
 (type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
 #define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
 
-#define DEBUG_TRACE_EXEC
+// #define DEBUG_TRACE_EXEC
+// #define DEBUG_PRINT_CODE
+
 // ------------------------------------------------------------
 // ktypearr
 // ------------------------------------------------------------
@@ -46,6 +43,7 @@ static char ladvance(kvm *vm) {
   vm->scanner.curr++;
   return vm->scanner.curr[-1];
 }
+
 
 static void linit(kvm *vm, const char *source) {
   vm->scanner.start = source;
@@ -231,7 +229,25 @@ static ktok lscan(kvm *vm) {
     case '"':
       return lstring(vm);
   }
-  return lerror(vm, "Unexpected character");
+  return lerror(vm, "unexpected character");
+}
+
+static void lprint(kvm *vm) {
+  int line = -1;
+  
+  while (true) {
+    ktok token = lscan(vm);
+    if (token.line != line) {
+      printf("%4d ", token.line);
+    } else {
+      printf("  |  ");
+    }
+    printf("%2d '%.*s'\n", token.type, token.len, token.start);
+    
+    if (token.type == TOK_EOF) {
+      break;
+    }
+  }
 }
 
 // ------------------------------------------------------------
@@ -255,7 +271,7 @@ static void perrorat(kvm *vm, ktok *tok, const char *msg) {
   vm->parser.err = true;
 }
 
-static void perrorcur(kvm *vm, const char *msg) {
+static void perr(kvm *vm, const char *msg) {
   perrorat(vm, &vm->parser.curr, msg);
 }
 
@@ -265,7 +281,7 @@ static void padvance(kvm *vm) {
   while (true) {
     vm->parser.curr = lscan(vm);
     if (vm->parser.curr.type != TOK_ERR) break;
-    perrorcur(vm, vm->parser.curr.start);
+    perr(vm, vm->parser.curr.start);
   }
 }
 
@@ -274,15 +290,15 @@ static void pconsume(kvm *vm, ltype type, const char *msg) {
     padvance(vm);
     return;
   }
-  perrorcur(vm, msg);
-}
-
-static void pemitbyte(kvm *vm, uint8_t byte) {
-  cwrite(vm, vm->chunk, byte, vm->parser.prev.line);
+  perr(vm, msg);
 }
 
 kchunk *ccurr(kvm *vm) {
-  return vm->compiling;
+  return vm->chunk;
+}
+
+static void pemitbyte(kvm *vm, uint8_t byte) {
+  cwrite(vm, ccurr(vm), byte, vm->parser.prev.line);
 }
 
 static void pend(kvm *vm) {
@@ -298,13 +314,13 @@ static void pemitbytes(kvm *vm, uint8_t b1, uint8_t b2) {
 static uint8_t pmakeconst(kvm *vm, kval val) {
   int cons = kchunk_addconst(vm, ccurr(vm), val);
   if (cons > UINT8_MAX) {
-    error("out of constant space");
+    perr(vm, "out of constant space");
     return 0;
   }
   return (uint8_t)cons;
 }
 static void pemitconst(kvm *vm, kval val) {
-  pemitbyte(vm, pmakeconst(vm, val));
+  pemitbytes(vm, OP_CONST, pmakeconst(vm, val));
 }
 
 typedef enum {
@@ -329,8 +345,22 @@ typedef struct {
   kprecedence precedence;
 } prule;
 
+static prule *pgetrule(kvm *vm, ltype optype);
+
 static void pprecedence(kvm *vm, kprecedence prec) {
+  padvance(vm);
+  pfunc rule = pgetrule(vm, vm->parser.prev.type)->prefix;
+  if (rule == NULL) {
+    perr(vm, "expected expression");
+    return;
+  }
+  rule(vm);
   
+  while (prec <= pgetrule(vm, vm->parser.curr.type)->precedence) {
+    padvance(vm);
+    pfunc infix = pgetrule(vm, vm->parser.prev.type)->infix;
+    infix(vm);
+  }
 }
 
 static void pnumber(kvm *vm) {
@@ -359,7 +389,6 @@ static void punary(kvm *vm) {
   }
 }
 
-static prule *pgetrule(kvm *vm, ltype optype);
 
 static void pbinary(kvm *vm) {
   ltype optype = vm->parser.prev.type;
@@ -441,7 +470,7 @@ kval kpop(kvm *vm) {
 kvm *knew(void) {
   kvm *vm = malloc(sizeof(kvm));
   vm->allocated = sizeof(kvm);
-
+  vm->flags = 0;
   if (!vm) {
     return NULL;
   }
@@ -458,12 +487,15 @@ kvm *knew(void) {
   return vm;
 }
 
-void kfree(kvm *vm) {
-  vm->freed += sizeof(kvm);
-  tafree(vm, &vm->types);
+static void mprint(kvm *vm) {
   printf("allocated: %d, freed: %d, delta: %d\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
+}
+
+void kfree(kvm *vm) {
+  vm->freed += sizeof(kvm);
+  tafree(vm, &vm->types);
   assert(vm->allocated - vm->freed == 0);
   free(vm);
 }
@@ -503,7 +535,6 @@ static kres krunloop(kvm *vm) {
       case OP_NOP:
         break;
       case OP_RET: {
-        kpop(vm);
         res = KVM_OK;
         break;
       }
@@ -538,29 +569,16 @@ static kres kcompile(kvm *vm, char *source, kchunk *chunk) {
   linit(vm, source);
   vm->parser.err = false;
   vm->parser.panic = false;
-  vm->compiling = chunk;
+  vm->chunk = chunk;
   padvance(vm);
   pexpression(vm);
   pconsume(vm, TOK_EOF, "expected expression end");
   pend(vm);
+  
+#ifdef DEBUG_PRINT_CODE
+  cprint(vm, ccurr(vm), "code");
+#endif
   return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
-  
-  int line = -1;
-  
-  while (true) {
-    ktok token = lscan(vm);
-    if (token.line != line) {
-      printf("%4d ", token.line);
-    } else {
-      printf("  |  ");
-    }
-    printf("%2d '%.*s'\n", token.type, token.len, token.start);
-    
-    if (token.type == TOK_EOF) {
-      break;
-    }
-  }
-  return KVM_OK;
 }
 
 static kres kexec(kvm *vm, char *source) {
@@ -569,14 +587,17 @@ static kres kexec(kvm *vm, char *source) {
   cinit(vm, &chunk);
   
   if (kcompile(vm, source, &chunk) != KVM_OK) {
-    kchunk_free(vm, &chunk);
+    cfree(vm, &chunk);
     return KVM_ERR_SYNTAX;
   }
   
-  vm->chunk = &chunk;
   vm->ip = chunk.code;
   kres res = krun(vm, &chunk);
-  kchunk_free(vm, &chunk);
+  
+  if (vm->flags & KVM_DISASSEMBLE) {
+    cprint(vm, ccurr(vm), "code");
+  }
+  cfree(vm, &chunk);
   return res;
 }
 
@@ -618,7 +639,7 @@ static void krepl(kvm *vm) {
   char line[1024];
   
   while(true) {
-    printf("k> ");
+    printf("$ ");
     
     if (!fgets(line, sizeof(line), stdin)) {
       printf("\n");
@@ -633,8 +654,31 @@ static void krepl(kvm *vm) {
       ktest(vm);
       continue;
     }
+    
+    if (strcmp(line, ".code on\n") == 0) {
+      vm->flags |= KVM_DISASSEMBLE;
+      printf("disassembly on\n");
+      continue;
+    }
 
+    if (strcmp(line, ".code off\n") == 0) {
+      vm->flags &= ~KVM_DISASSEMBLE;
+      printf("disassembly off\n");
+      continue;
+    }
+
+    if (strcmp(line, ".mem\n") == 0) {
+      mprint(vm);
+      continue;
+    }
+    
     kexec(vm, line);
+    if (vm->sp > vm->stack) {
+      kval v = kpop(vm);
+      vprint(vm, v);
+      printf("\n");
+    }
+
   }
 }
 
@@ -684,7 +728,7 @@ void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 }
 
-void kchunk_free(kvm *vm, kchunk *chunk) {
+void cfree(kvm *vm, kchunk *chunk) {
   ARRAY_FREE(vm, uint8_t, chunk->code, chunk->capacity);
   ARRAY_FREE(vm, int, chunk->lines, chunk->capacity);
   ARRAY_FREE(vm, kval, chunk->constants.values, chunk->constants.capacity);
@@ -728,10 +772,12 @@ void vafree(kvm* vm, kvalarr *array) {
 // ------------------------------------------------------------
 void cprint(kvm *vm, kchunk *chunk, const char * name) {
   printf("== %s ==\n", name);
-  for (int offset = 0; offset < chunk->count; offset++) {
-    oprint(vm, chunk, offset);
+  for (int offset = 0; offset < chunk->count; ) {
+    offset = oprint(vm, chunk, offset);
+    printf("\n");
   }
 }
+
 static int oprintsimple(const char *name, int offset) {
   printf("%-17s", name);
   return offset + 1;
@@ -842,7 +888,7 @@ static void ktest(kvm *vm) {
   
   kres res = krun(vm, &chunk);
   assert(res == KVM_OK);
-  kchunk_free(vm, &chunk);
+  cfree(vm, &chunk);
   
   res = kexec(vm, "x=20");
   assert(res == KVM_OK);
