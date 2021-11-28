@@ -966,6 +966,12 @@ void ktest() {
   tint_eq(vm, res, KVM_OK, "unary res");
   tval_eq(vm, kpop(vm), -6, "unary ret");
   kfree(vm);
+
+  // unterminated string
+  vm = knew();
+  linit(vm, "\"hello");
+  lprint(vm);
+  kfree(vm);
   
   ktest_summary();
 }
