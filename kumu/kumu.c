@@ -966,7 +966,7 @@ void ktest() {
   kfree(vm);
   
   vm = knew();
-  vm->flags |= KVM_DISASSEMBLE;
+  vm->flags |= KVM_F_LIST;
   res = kexec(vm, "(1+2)*3");
   kfree(vm);
 
