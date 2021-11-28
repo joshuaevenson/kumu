@@ -337,7 +337,34 @@
 // ------------------------------------------------------------
 #define KVM_MAJOR          0
 #define KVM_MINOR          1
-#define KVM_MAIN
+
+// ------------------------------------------------------------
+// Config
+// ------------------------------------------------------------
+#ifdef KVM_MAIN
+int kmain(int argc, const char * argv[]);
+#else
+#define kmain(a,v)
+#endif
+
+#ifdef KVM_TRACE
+#define tprintf(...) printf (__VA_ARGS__)
+void mprint(kvm *vm);
+void kprintstack(kvm *vm);
+void cprint(kvm *vm, kchunk *chunk, const char * name);
+#else
+#define tprintf(...)
+#define mprint(v)
+#define kprintstack(v)
+#define cprint(v,c,n)
+#endif
+
+#ifdef KVM_TEST
+void ktest(void);
+#else
+#define ktest()
+#endif
+
 
 // ------------------------------------------------------------
 // Forward
@@ -507,13 +534,5 @@ kval kpop(kvm *vm);
 void cprint(kvm *vm, kchunk *chunk, const char * name);
 int oprint(kvm *vm, kchunk *chunk, int offset);
 
-// ------------------------------------------------------------
-// REPL
-// ------------------------------------------------------------
-#ifdef KVM_MAIN
-#include <stdio.h>
-
-int kmain(int argc, const char * argv[]);
-#endif
 
 #endif /* KUMU_H */

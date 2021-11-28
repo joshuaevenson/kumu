@@ -1,6 +1,8 @@
 //  kumu.c
 
 #include "kumu.h"
+#include <stdio.h>
+
 
 // ------------------------------------------------------------
 // Macros
@@ -9,9 +11,6 @@
 #define ARRAY_GROW(k, type, ptr, old, new)\
 (type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
 #define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
-
-// #define DEBUG_TRACE_EXEC
-// #define DEBUG_PRINT_CODE
 
 // ------------------------------------------------------------
 // ktypearr
@@ -221,7 +220,7 @@ static ktok lscan(kvm *vm) {
     case '!':
       return lmake(vm, lmatch(vm, '=') ? TOK_NE : TOK_BANG);
     case '=':
-      return lmake(vm, lmatch(vm, '=') ? TOK_EQ : TOK_EQEQ);
+      return lmake(vm, lmatch(vm, '=') ? TOK_EQEQ : TOK_EQ);
     case '<':
       return lmake(vm, lmatch(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
@@ -232,23 +231,24 @@ static ktok lscan(kvm *vm) {
   return lerror(vm, "unexpected character");
 }
 
-static void lprint(kvm *vm) {
+void lprint(kvm *vm) {
   int line = -1;
   
   while (true) {
     ktok token = lscan(vm);
     if (token.line != line) {
-      printf("%4d ", token.line);
+      tprintf("%4d ", token.line);
     } else {
-      printf("  |  ");
+      tprintf("  |  ");
     }
-    printf("%2d '%.*s'\n", token.type, token.len, token.start);
+    tprintf("%2d '%.*s'\n", token.type, token.len, token.start);
     
     if (token.type == TOK_EOF) {
       break;
     }
   }
 }
+
 
 // ------------------------------------------------------------
 // Parser
@@ -349,12 +349,12 @@ static prule *pgetrule(kvm *vm, ltype optype);
 
 static void pprecedence(kvm *vm, kprecedence prec) {
   padvance(vm);
-  pfunc rule = pgetrule(vm, vm->parser.prev.type)->prefix;
-  if (rule == NULL) {
+  pfunc prefix = pgetrule(vm, vm->parser.prev.type)->prefix;
+  if (prefix == NULL) {
     perr(vm, "expected expression");
     return;
   }
-  rule(vm);
+  prefix(vm);
   
   while (prec <= pgetrule(vm, vm->parser.curr.type)->precedence) {
     padvance(vm);
@@ -380,7 +380,6 @@ static void pgrouping(kvm *vm) {
 static void punary(kvm *vm) {
   ltype optype = vm->parser.prev.type;
   
-  pprecedence(vm, P_UNARY);
   pexpression(vm);
   
   switch(optype) {
@@ -487,11 +486,13 @@ kvm *knew(void) {
   return vm;
 }
 
-static void mprint(kvm *vm) {
+#ifdef KVM_TRACE
+void mprint(kvm *vm) {
   printf("allocated: %d, freed: %d, delta: %d\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
 }
+#endif
 
 void kfree(kvm *vm) {
   vm->freed += sizeof(kvm);
@@ -500,7 +501,8 @@ void kfree(kvm *vm) {
   free(vm);
 }
 
-static void kprintstack(kvm *vm) {
+#ifdef KVM_TRACE
+void kprintstack(kvm *vm) {
   printf(" [");
   for (kval* vp = vm->stack; vp < vm->sp; vp++) {
     vprint(vm, *vp);
@@ -511,7 +513,7 @@ static void kprintstack(kvm *vm) {
   printf("]");
   printf("\n");
 }
-
+#endif
 
 
 static kres krunloop(kvm *vm) {
@@ -527,7 +529,7 @@ static kres krunloop(kvm *vm) {
   kres res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
-#ifdef DEBUG_TRACE_EXEC
+#ifdef KVM_TRACE
    oprint(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
 #endif
 
@@ -549,7 +551,7 @@ static kres krunloop(kvm *vm) {
       case OP_MUL: BIN_OP(vm,*); break;
       case OP_DIV: BIN_OP(vm,/); break;
     }
-#ifdef DEBUG_TRACE_EXEC
+#ifdef KVM_TRACE
    kprintstack(vm);
 #endif
   }
@@ -601,6 +603,7 @@ static kres kexec(kvm *vm, char *source) {
   return res;
 }
 
+#ifdef KVM_MAIN
 static char *kreadfile(kvm *vm, const char *path) {
   FILE * file = fopen(path , "rb");
   
@@ -633,7 +636,6 @@ kres krunfile(kvm *vm, const char *file) {
   return res;
 }
 
-void ktest(void);
 
 static void krepl(kvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
@@ -682,7 +684,7 @@ static void krepl(kvm *vm) {
 
   }
 }
-
+#endif
 
 // ------------------------------------------------------------
 // Memory
@@ -744,7 +746,7 @@ int caddconst(kvm *vm, kchunk *chunk, kval value) {
 // Value
 // ------------------------------------------------------------
 void vprint(kvm *vm, kval value) {
-  printf("%g", value);
+  tprintf("%g", value);
 }
 
 void vainit(kvm* vm, kvalarr *array) {
@@ -766,6 +768,7 @@ void vawrite(kvm* vm, kvalarr *array, kval value) {
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
+#ifdef KVM_TRACE
 void cprint(kvm *vm, kchunk *chunk, const char * name) {
   printf("== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; ) {
@@ -816,10 +819,12 @@ return oprintsimple(#o, offset);
   }
 #undef OP_DEF1
 }
+#endif
 
 // ------------------------------------------------------------
 // REPL
 // ------------------------------------------------------------
+#ifdef KVM_MAIN
 int kmain(int argc, const char * argv[]) {
   kvm *vm = knew();
   
@@ -854,10 +859,13 @@ int kmain(int argc, const char * argv[]) {
   kfree(vm);
   return 0;
 }
+#endif
 
 // ------------------------------------------------------------
 // TEST
 // ------------------------------------------------------------
+#ifdef KVM_TEST
+
 static void cwriteconst(kvm *vm, int cons, int line) {
   int index = caddconst(vm, vm->chunk, cons);
   cwrite(vm, vm->chunk, OP_CONST, line);
@@ -972,6 +980,99 @@ void ktest() {
   linit(vm, "\"hello");
   lprint(vm);
   kfree(vm);
+
+  // vprint
+  vm = knew();
+  res = kexec(vm, "2+3");
+  v = kpop(vm);
+  tval_eq(vm, v, 5, "vprint ret");
+  vprint(vm, v);
+  kfree(vm);
+  
+  vm = knew();
+  res = kexec(vm, "12.3");
+  tval_eq(vm, kpop(vm), 12.3, "lpeeknext ret");
+  kfree(vm);
+  
+  vm = knew();
+  linit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
+  ktok t = lscan(vm);
+  tint_eq(vm, t.type, TOK_AND, "[and]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_CLASS, "[class]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_ELSE, "[else]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_FALSE, "[false]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_FOR, "[for]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_FUN, "[fun]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_IF, "[if]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_NIL, "[nil]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_OR, "[or]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_PRINT, "[print]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_RETURN, "[return]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_SUPER, "[super]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_THIS, "[this]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_TRUE, "[true]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_WHILE, "[while]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_LBRACE, "[{]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_RBRACE, "[}]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_BANG, "[!]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_PLUS, "[+]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_MINUS, "[-]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_STAR, "[*]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_SLASH, "[/]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_EQ, "[=]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_NE, "[!=]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_GT, "[>]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_LT, "[<]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_GE, "[>=]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_LE, "[<=]");
+
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
+  kfree(vm);
+  
+  vm = knew();
+  linit(vm, "// this is a comment");
+  t = lscan(vm);
+  tint_eq(vm, t.type, TOK_EOF, "comment");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "(12-2)/5");
+  tint_eq(vm, res, KVM_OK, "sub div res");
+  tval_eq(vm, kpop(vm), 2, "sub div ret");
+  kfree(vm);
   
   ktest_summary();
 }
+
+#endif
+
