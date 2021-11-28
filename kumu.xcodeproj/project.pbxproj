@@ -311,6 +311,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					KVM_MAIN,
+					KVM_TRACE,
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -320,7 +321,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				GCC_PREPROCESSOR_DEFINITIONS = KVM_MAIN;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					KVM_MAIN,
+					KVM_TRACE,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;

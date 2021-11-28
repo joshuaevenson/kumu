@@ -338,32 +338,6 @@
 #define KVM_MAJOR          0
 #define KVM_MINOR          1
 
-// ------------------------------------------------------------
-// Config
-// ------------------------------------------------------------
-#ifdef KVM_MAIN
-int kmain(int argc, const char * argv[]);
-#else
-#define kmain(a,v)
-#endif
-
-#ifdef KVM_TRACE
-#define tprintf(...) printf (__VA_ARGS__)
-void mprint(kvm *vm);
-void kprintstack(kvm *vm);
-void cprint(kvm *vm, kchunk *chunk, const char * name);
-#else
-#define tprintf(...)
-#define mprint(v)
-#define kprintstack(v)
-#define cprint(v,c,n)
-#endif
-
-#ifdef KVM_TEST
-void ktest(void);
-#else
-#define ktest()
-#endif
 
 
 // ------------------------------------------------------------
@@ -495,12 +469,14 @@ typedef enum {
   KVM_FILE_NOTFOUND,
 } kres;
 
-#define KVM_DISASSEMBLE 0x01
+#define KVM_F_TRACE 0x01    // trace each instruction as it runs
+#define KVM_F_STACK 0x02    // print stack in repl
+#define KVM_F_LIST  0x04    // list instructions after compile
 
 typedef struct _vm {
   ktypearr types;
   
-  int flags;
+  uint64_t flags;
   bool stop;
   int allocated;
   int freed;
@@ -535,4 +511,32 @@ void cprint(kvm *vm, kchunk *chunk, const char * name);
 int oprint(kvm *vm, kchunk *chunk, int offset);
 
 
+// ------------------------------------------------------------
+// Config
+// ------------------------------------------------------------
+#ifdef KVM_MAIN
+int kmain(int argc, const char * argv[]);
+#else
+#define kmain(a,v)
+#endif
+
+#ifdef KVM_TRACE
+#define tprintf(...) printf (__VA_ARGS__)
+void mprint(kvm *vm);
+void kprintstack(kvm *vm);
+void cprint(kvm *vm, kchunk *chunk, const char * name);
+#else
+#define tprintf(...)
+#define mprint(v)
+#define kprintstack(v)
+#define cprint(v,c,n)
+#endif
+
+#ifdef KVM_TEST
+void ktest(void);
+#else
+#define ktest()
+#endif
+
 #endif /* KUMU_H */
+

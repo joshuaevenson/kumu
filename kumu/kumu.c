@@ -530,7 +530,9 @@ static kres krunloop(kvm *vm) {
   while (res == KVM_CONT) {
     uint8_t op;
 #ifdef KVM_TRACE
-   oprint(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+    if (vm->flags & KVM_F_TRACE) {
+     oprint(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+    }
 #endif
 
     switch(op = BYTE_READ(vm)) {
@@ -552,7 +554,11 @@ static kres krunloop(kvm *vm) {
       case OP_DIV: BIN_OP(vm,/); break;
     }
 #ifdef KVM_TRACE
-   kprintstack(vm);
+    if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
+     kprintstack(vm);
+    } else {
+      tprintf("\n");
+    }
 #endif
   }
   return KVM_OK;
@@ -596,7 +602,7 @@ static kres kexec(kvm *vm, char *source) {
   vm->ip = chunk.code;
   kres res = krun(vm, &chunk);
   
-  if (vm->flags & KVM_DISASSEMBLE) {
+  if (vm->flags & KVM_F_LIST) {
     cprint(vm, ccurr(vm), "code");
   }
   cfree(vm, &chunk);
@@ -637,6 +643,23 @@ kres krunfile(kvm *vm, const char *file) {
 }
 
 
+static bool flag_check(kvm *vm, char *line,
+                       const char *name, uint64_t flag) {
+  char buff[256];
+  sprintf(buff, ".%s on\n", name);
+  if (strcmp(line, buff) == 0) {
+    vm->flags |= flag;
+    printf("%s on\n", name);
+    return true;
+  }
+  sprintf(buff, ".%s off\n", name);
+  if (strcmp(line, buff) == 0) {
+    vm->flags &= ~flag;
+    printf("%s off\n", name);
+    return true;
+  }
+  return false;
+}
 static void krepl(kvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
   char line[1024];
@@ -658,17 +681,9 @@ static void krepl(kvm *vm) {
       continue;
     }
     
-    if (strcmp(line, ".code on\n") == 0) {
-      vm->flags |= KVM_DISASSEMBLE;
-      printf("disassembly on\n");
-      continue;
-    }
-
-    if (strcmp(line, ".code off\n") == 0) {
-      vm->flags &= ~KVM_DISASSEMBLE;
-      printf("disassembly off\n");
-      continue;
-    }
+    if (flag_check(vm, line, "trace", KVM_F_TRACE)) continue;
+    if (flag_check(vm, line, "stack", KVM_F_STACK)) continue;
+    if (flag_check(vm, line, "list", KVM_F_LIST)) continue;
 
     if (strcmp(line, ".mem\n") == 0) {
       mprint(vm);
