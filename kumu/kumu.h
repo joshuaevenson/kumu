@@ -360,7 +360,6 @@ typedef struct {
 
 void vainit(kvm* vm, kvalarr *array);
 void vawrite(kvm* vm, kvalarr *array, kval value);
-void vafree(kvm* vm, kvalarr *array);
 
 // ------------------------------------------------------------
 // Type

@@ -632,7 +632,8 @@ kres krunfile(kvm *vm, const char *file) {
   free(source);
   return res;
 }
-static void ktest(kvm *vm);
+
+void ktest(void);
 
 static void krepl(kvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
@@ -651,7 +652,7 @@ static void krepl(kvm *vm) {
     }
 
     if (strcmp(line, ".test\n") == 0) {
-      ktest(vm);
+      ktest();
       continue;
     }
     
@@ -762,11 +763,6 @@ void vawrite(kvm* vm, kvalarr *array, kval value) {
   array->count++;
 }
 
-void vafree(kvm* vm, kvalarr *array) {
-  kalloc(vm, array->values, array->capacity, 0);
-  vainit(vm, array);
-}
-
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
@@ -827,6 +823,11 @@ return oprintsimple(#o, offset);
 int kmain(int argc, const char * argv[]) {
   kvm *vm = knew();
   
+  if (argc == 2 && strcmp(argv[1],"--test") == 0) {
+    ktest();
+    return 0;
+  }
+  
   if (argc == 1) {
     krepl(vm);
   } else if (argc == 2) {
@@ -863,33 +864,108 @@ static void cwriteconst(kvm *vm, int cons, int line) {
   cwrite(vm, vm->chunk, index, line);
 }
 
-static void ktest(kvm *vm) {
+static int ktest_pass = 0;
+int ktest_fail = 0;
+
+static void tint_eq(kvm *vm, int v1, int v2, const char *m) {
+  if (v1 == v2) {
+    ktest_pass++;
+    return;
+  }
+  ktest_fail++;
+  printf("expected: %d found %d [%s]\n", v1, v2, m);
+}
+
+static void tval_eq(kvm* vm, kval v1, kval v2, const char *msg) {
+  if (v1 == v2) {
+    ktest_pass++;
+    return;
+  }
+  
+  ktest_fail++;
+  printf("expected: ");
+  vprint(vm, v2);
+  printf(" found: ");
+  vprint(vm, v1);
+  printf(" [%s]\n", msg);
+}
+
+static void ktest_summary() {
+  printf("tests %d passed %d failed\n", ktest_pass, ktest_fail);
+}
+
+void ktest() {
+  kvm *vm = knew();
   kchunk chunk;
   cinit(vm, &chunk);
   vm->chunk = &chunk;
-
   int line = 1;
   cwrite(vm, &chunk, OP_NOP, line++);
   cwriteconst(vm, 1, line);
   cwriteconst(vm, 2, line);
   cwrite(vm, &chunk, OP_ADD, line);
   cwrite(vm, &chunk, OP_NEG, line++);
-
   cwriteconst(vm, 4, line);
   cwrite(vm, &chunk, OP_SUB, line++);
-
   cwriteconst(vm, 5, line);
   cwrite(vm, &chunk, OP_MUL, line++);
-
   cwriteconst(vm, 6, line);
   cwrite(vm, &chunk, OP_DIV, line++);
-
   cwrite(vm, &chunk, OP_RET, line);
-  
   kres res = krun(vm, &chunk);
-  assert(res == KVM_OK);
+  tint_eq(vm, res, KVM_OK, "krun res");
+  kval v = kpop(vm);
+  tval_eq(vm, v, (-(1.0+2.0)-4.0)*5.0/6.0, "krun ret");
   cfree(vm, &chunk);
+  kfree(vm);
   
-  res = kexec(vm, "x=20");
-  assert(res == KVM_OK);
+  vm = knew();
+  res = kexec(vm, "1+2");
+  tint_eq(vm, res, KVM_OK, "kexec res");
+  v = kpop(vm);
+  tval_eq(vm, v, 3, "kexec ret");
+  kfree(vm);
+  
+  vm = knew();
+  linit(vm, "12+3");
+  lprint(vm);
+  kfree(vm);
+  
+  vm = knew();
+  res = kexec(vm, "12+");
+  tint_eq(vm, res, KVM_ERR_SYNTAX, "12+");
+  kfree(vm);
+  
+  vm = knew();
+  res = kexec(vm, "(1+2)*3");
+  tint_eq(vm, res, KVM_OK, "grouping res");
+  tval_eq(vm, kpop(vm), 9, "grouping ret");
+  kfree(vm);
+  
+  vm = knew();
+  vm->flags |= KVM_DISASSEMBLE;
+  res = kexec(vm, "(1+2)*3");
+  kfree(vm);
+
+  vm = knew();
+  mprint(vm);
+  kfree(vm);
+  
+  vm = knew();
+  linit(vm, "var x=30; \n  x=\"hello\";");
+  lprint(vm);
+  kfree(vm);
+
+  vm = knew();
+  kexec(vm, "2*3");
+  kprintstack(vm);
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "-2*3");
+  tint_eq(vm, res, KVM_OK, "unary res");
+  tval_eq(vm, kpop(vm), -6, "unary ret");
+  kfree(vm);
+  
+  ktest_summary();
 }
