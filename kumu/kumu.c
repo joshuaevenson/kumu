@@ -404,7 +404,8 @@ static void punary(kvm *vm) {
   pexpression(vm);
   
   switch(optype) {
-    case TOK_MINUS: pemitbyte(vm, OP_NEG);
+    case TOK_MINUS: pemitbyte(vm, OP_NEG); break;
+    case TOK_BANG: pemitbyte(vm, OP_NOT); break;
     default: return;
   }
 }
@@ -420,6 +421,12 @@ static void pbinary(kvm *vm) {
     case TOK_MINUS: pemitbyte(vm, OP_SUB); break;
     case TOK_STAR: pemitbyte(vm, OP_MUL); break;
     case TOK_SLASH: pemitbyte(vm, OP_DIV); break;
+    case TOK_NE: pemitbytes(vm, OP_EQ, OP_NOT); break;
+    case TOK_EQEQ: pemitbyte(vm, OP_EQ); break;
+    case TOK_GT: pemitbyte(vm, OP_GT); break;
+    case TOK_GE: pemitbytes(vm, OP_LT, OP_NOT); break;
+    case TOK_LT: pemitbyte(vm, OP_LT); break;
+    case TOK_LE: pemitbytes(vm, OP_GT, OP_NOT); break;
     default: return;
   }
 }
@@ -436,14 +443,14 @@ prule rules[] = {
   [TOK_SEMI] =      { NULL,        NULL,     P_NONE },
   [TOK_SLASH] =     { NULL,        pbinary,  P_FACTOR },
   [TOK_STAR] =      { NULL,        pbinary,  P_FACTOR },
-  [TOK_BANG] =      { NULL,        NULL,     P_NONE },
-  [TOK_NE] =        { NULL,        NULL,     P_NONE },
+  [TOK_BANG] =      { punary,      NULL,     P_NONE },
+  [TOK_NE] =        { NULL,        pbinary,  P_EQ },
   [TOK_EQ] =        { NULL,        NULL,     P_NONE },
-  [TOK_EQEQ] =      { NULL,        NULL,     P_NONE },
-  [TOK_GT] =        { NULL,        NULL,     P_NONE },
-  [TOK_GE] =        { NULL,        NULL,     P_NONE },
-  [TOK_LT] =        { NULL,        NULL,     P_NONE },
-  [TOK_LE] =        { NULL,        NULL,     P_NONE },
+  [TOK_EQEQ] =      { NULL,        pbinary,  P_EQ },
+  [TOK_GT] =        { NULL,        pbinary,  P_COMP },
+  [TOK_GE] =        { NULL,        pbinary,  P_COMP },
+  [TOK_LT] =        { NULL,        pbinary,  P_COMP },
+  [TOK_LE] =        { NULL,        pbinary,  P_COMP },
   [TOK_IDENT] =     { NULL,        NULL,     P_NONE },
   [TOK_STR] =       { NULL,        NULL,     P_NONE },
   [TOK_NUM] =       { pnumber,     NULL,     P_NONE },
@@ -485,6 +492,10 @@ void kpush(kvm *vm, kval val) {
 kval kpop(kvm *vm) {
   vm->sp--;
   return *(vm->sp);
+}
+
+static bool kisfalsy(kval v) {
+  return IS_NIL(v) || (IS_BOOL(v) && !AS_BOOL(v));
 }
 
 kval kpeek(kvm *vm, int distance) {
@@ -555,12 +566,18 @@ static void keruntime(kvm *vm, const char *fmt, ...) {
 static kres krunloop(kvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
-#define BIN_OP(v,op) \
+#define BIN_OP(v, vt, op) \
   do { \
-    double b = AS_NUM(kpop(v)); \
-    double a = AS_NUM(kpop(v)); \
-    kpush(v, NUM_VAL(a op b)); \
-  } while (false)
+  if (!IS_NUM(kpeek(v,0)) || !IS_NUM(kpeek(v,1))) { \
+    keruntime(v, "numbers expected"); \
+    return KVM_ERR_RUNTIME; \
+  } \
+  double b = AS_NUM(kpop(v)); \
+  double a = AS_NUM(kpop(v)); \
+  kpush(v, vt(a op b)); \
+} while (false)
+
+  
 
   kres res = KVM_CONT;
   while (res == KVM_CONT) {
@@ -583,6 +600,12 @@ static kres krunloop(kvm *vm) {
       case OP_FALSE:
         kpush(vm, BOOL_VAL(false));
         break;
+      case OP_EQ: {
+        kval b = kpop(vm);
+        kval a = kpop(vm);
+        kpush(vm, BOOL_VAL(kval_eq(a, b)));
+        break;;
+      }
       case OP_RET: {
         res = KVM_OK;
         break;
@@ -603,10 +626,15 @@ static kres krunloop(kvm *vm) {
         kpush(vm, nv);
         break;
       }
-      case OP_ADD: BIN_OP(vm,+); break;
-      case OP_SUB: BIN_OP(vm,-); break;
-      case OP_MUL: BIN_OP(vm,*); break;
-      case OP_DIV: BIN_OP(vm,/); break;
+      case OP_ADD: BIN_OP(vm,NUM_VAL, +); break;
+      case OP_SUB: BIN_OP(vm,NUM_VAL, -); break;
+      case OP_MUL: BIN_OP(vm,NUM_VAL, *); break;
+      case OP_DIV: BIN_OP(vm,NUM_VAL, /); break;
+      case OP_GT: BIN_OP(vm, BOOL_VAL, >); break;
+      case OP_LT: BIN_OP(vm,BOOL_VAL, <); break;
+      case OP_NOT:
+        kpush(vm, BOOL_VAL(kisfalsy(kpop(vm))));
+        break;
     }
 #ifdef KVM_TRACE
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
@@ -894,6 +922,9 @@ return oprintsimple(#o, offset);
       OP_DEF1(OP_NIL)
       OP_DEF1(OP_TRUE)
       OP_DEF1(OP_FALSE)
+      OP_DEF1(OP_GT)
+      OP_DEF1(OP_LT)
+      OP_DEF1(OP_EQ)
     case OP_CONST:
       return oprintconst(vm, "OP_CONST", chunk, offset);
     default:
@@ -1172,6 +1203,76 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "nil");
   tval_eq(vm, kpop(vm), NIL_VAL, "nil literal eval");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "!true");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "!true eval");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "!false");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "!false eval");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1==1");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "== true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1==2");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "== false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1!=2");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "!= true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1!=1");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "!= false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1<1");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "< false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "1<2");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "< true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "2<=1");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "<= false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "2<=3");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "<= true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "3>2");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "> true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "3>7");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "> false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "3>=7");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), ">= false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "3>=3");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), ">= true");
   kfree(vm);
 
   ktest_summary();

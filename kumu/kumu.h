@@ -423,9 +423,13 @@ typedef enum {
   OP_SUB,
   OP_MUL,
   OP_DIV,
+  OP_NOT,
   OP_NIL,
   OP_TRUE,
   OP_FALSE,
+  OP_GT,
+  OP_LT,
+  OP_EQ,
 } k_op;
 
 // ------------------------------------------------------------
