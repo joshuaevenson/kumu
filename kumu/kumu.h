@@ -331,6 +331,7 @@
 #include <memory.h>
 #include <string.h>
 #include <assert.h>
+#include <stdarg.h>
 
 // ------------------------------------------------------------
 // Versioning
@@ -349,7 +350,31 @@ typedef struct _vm kvm;
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-typedef double kval;
+typedef enum {
+  VAL_BOOL,
+  VAL_NIL,
+  VAL_NUM,
+} kvaltype;
+
+typedef struct {
+  kvaltype type;
+  union {
+    bool bval;
+    double dval;
+  } as;
+} kval;
+  
+#define BOOL_VAL(v) ((kval){ VAL_BOOL, { .bval = v }})
+#define NIL_VAL ((kval) { VAL_NIL, { .dval = 0 }})
+#define NUM_VAL(v) ((kval) { VAL_NUM, { .dval = v }})
+
+#define IS_BOOL(v) ((v).type == VAL_BOOL)
+#define IS_NIL(v) ((v).type == VAL_NIL)
+#define IS_NUM(v) ((v).type == VAL_NUM)
+
+#define AS_BOOL(v) ((v).as.bval)
+#define AS_NUM(v) ((v).as.dval)
+bool kval_eq(kval v1, kval v2);
 
 void vprint(kvm *vm, kval value);
 
@@ -398,6 +423,9 @@ typedef enum {
   OP_SUB,
   OP_MUL,
   OP_DIV,
+  OP_NIL,
+  OP_TRUE,
+  OP_FALSE,
 } k_op;
 
 // ------------------------------------------------------------

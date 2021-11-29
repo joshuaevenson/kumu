@@ -4,6 +4,18 @@
 #include <stdio.h>
 
 
+bool kval_eq(kval v1, kval v2) {
+  if (v1.type != v2.type) {
+    return false;
+  }
+  switch (v1.type) {
+    case VAL_NIL: return true;
+    case VAL_BOOL: return v1.as.bval == v2.as.bval;
+    case VAL_NUM: return v1.as.dval == v2.as.dval;
+  }
+  return false;
+}
+
 // ------------------------------------------------------------
 // Macros
 // ------------------------------------------------------------
@@ -363,9 +375,18 @@ static void pprecedence(kvm *vm, kprecedence prec) {
   }
 }
 
+static void pliteral(kvm *vm) {
+  switch (vm->parser.prev.type) {
+    case TOK_FALSE: pemitbyte(vm, OP_FALSE); break;
+    case TOK_TRUE: pemitbyte(vm, OP_TRUE); break;
+    case TOK_NIL: pemitbyte(vm, OP_NIL); break;
+    default: return; // unreachable
+  }
+}
+
 static void pnumber(kvm *vm) {
   double val = strtod(vm->parser.prev.start, NULL);
-  pemitconst(vm, val);
+  pemitconst(vm, NUM_VAL(val));
 }
 
 static void pexpression(kvm *vm) {
@@ -429,15 +450,16 @@ prule rules[] = {
   [TOK_AND] =       { NULL,        NULL,     P_NONE },
   [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
   [TOK_ELSE] =      { NULL,        NULL,     P_NONE },
+  [TOK_FALSE] =     { pliteral,    NULL,     P_NONE },
   [TOK_FOR] =       { NULL,        NULL,     P_NONE },
   [TOK_FUN] =       { NULL,        NULL,     P_NONE },
   [TOK_IF] =        { NULL,        NULL,     P_NONE },
-  [TOK_NIL] =       { NULL,        NULL,     P_NONE },
+  [TOK_NIL] =       { pliteral,    NULL,     P_NONE },
   [TOK_OR] =        { NULL,        NULL,     P_NONE },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
   [TOK_THIS] =      { NULL,        NULL,     P_NONE },
-  [TOK_TRUE] =      { NULL,        NULL,     P_NONE },
+  [TOK_TRUE] =      { pliteral,    NULL,     P_NONE },
   [TOK_VAR] =       { NULL,        NULL,     P_NONE },
   [TOK_WHILE] =     { NULL,        NULL,     P_NONE },
   [TOK_ERR] =       { NULL,        NULL,     P_NONE },
@@ -465,6 +487,9 @@ kval kpop(kvm *vm) {
   return *(vm->sp);
 }
 
+kval kpeek(kvm *vm, int distance) {
+  return vm->sp[-1 - distance];
+}
 
 kvm *knew(void) {
   kvm *vm = malloc(sizeof(kvm));
@@ -515,15 +540,26 @@ void kprintstack(kvm *vm) {
 }
 #endif
 
+static void keruntime(kvm *vm, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+  fputs("\n", stderr);
+  size_t instruction = vm->ip - vm->chunk->code - 1;
+  int line = vm->chunk->lines[instruction];
+  fprintf(stderr, "[line %d] in script\n", line);
+  kresetstack(vm);
+}
 
 static kres krunloop(kvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
 #define BIN_OP(v,op) \
   do { \
-    kval b = kpop(v); \
-    kval a = kpop(v); \
-    kpush(v, a op b); \
+    double b = AS_NUM(kpop(v)); \
+    double a = AS_NUM(kpop(v)); \
+    kpush(v, NUM_VAL(a op b)); \
   } while (false)
 
   kres res = KVM_CONT;
@@ -538,6 +574,15 @@ static kres krunloop(kvm *vm) {
     switch(op = BYTE_READ(vm)) {
       case OP_NOP:
         break;
+      case OP_NIL:
+        kpush(vm, NIL_VAL);
+        break;
+      case OP_TRUE:
+        kpush(vm, BOOL_VAL(true));
+        break;
+      case OP_FALSE:
+        kpush(vm, BOOL_VAL(false));
+        break;
       case OP_RET: {
         res = KVM_OK;
         break;
@@ -547,7 +592,17 @@ static kres krunloop(kvm *vm) {
         kpush(vm, con);
         break;
       }
-      case OP_NEG: kpush(vm, -kpop(vm)); break;
+      case OP_NEG: {
+        if (! IS_NUM(kpeek(vm, 0))) {
+          keruntime(vm, "number expected" );
+          return KVM_ERR_RUNTIME;
+        }
+        kval v = kpop(vm);
+        double dv = AS_NUM(v);
+        kval nv = NUM_VAL(-dv);
+        kpush(vm, nv);
+        break;
+      }
       case OP_ADD: BIN_OP(vm,+); break;
       case OP_SUB: BIN_OP(vm,-); break;
       case OP_MUL: BIN_OP(vm,*); break;
@@ -557,7 +612,9 @@ static kres krunloop(kvm *vm) {
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      kprintstack(vm);
     } else {
-      tprintf("\n");
+      if (vm->flags & KVM_F_TRACE) {
+        tprintf("\n");
+      }
     }
 #endif
   }
@@ -737,9 +794,7 @@ void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
     chunk->capacity = CAPACITY_GROW(cap);
     chunk->code = ARRAY_GROW(vm, uint8_t, chunk->code, cap, chunk->capacity);
     chunk->lines = ARRAY_GROW(vm, int, chunk->lines, cap, chunk->capacity);
-    if (chunk->code == NULL) {
-      vm->stop = true;
-    }
+    assert(chunk->code != NULL);
   }
   chunk->code[chunk->count] = byte;
   chunk->lines[chunk->count] = line;
@@ -761,7 +816,17 @@ int caddconst(kvm *vm, kchunk *chunk, kval value) {
 // Value
 // ------------------------------------------------------------
 void vprint(kvm *vm, kval value) {
-  tprintf("%g", value);
+  switch (value.type) {
+    case VAL_BOOL:
+      printf("%s", (value.as.bval) ? "true": "false");
+      break;
+    case VAL_NIL:
+      printf("nil");
+      break;;
+    case VAL_NUM:
+      printf("%g", value.as.dval);
+      break;
+  }
 }
 
 void vainit(kvm* vm, kvalarr *array) {
@@ -826,6 +891,9 @@ return oprintsimple(#o, offset);
       OP_DEF1(OP_SUB)
       OP_DEF1(OP_MUL)
       OP_DEF1(OP_DIV)
+      OP_DEF1(OP_NIL)
+      OP_DEF1(OP_TRUE)
+      OP_DEF1(OP_FALSE)
     case OP_CONST:
       return oprintconst(vm, "OP_CONST", chunk, offset);
     default:
@@ -882,7 +950,7 @@ int kmain(int argc, const char * argv[]) {
 #ifdef KVM_TEST
 
 static void cwriteconst(kvm *vm, int cons, int line) {
-  int index = caddconst(vm, vm->chunk, cons);
+  int index = caddconst(vm, vm->chunk, NUM_VAL(cons));
   cwrite(vm, vm->chunk, OP_CONST, line);
   cwrite(vm, vm->chunk, index, line);
 }
@@ -900,7 +968,7 @@ static void tint_eq(kvm *vm, int v1, int v2, const char *m) {
 }
 
 static void tval_eq(kvm* vm, kval v1, kval v2, const char *msg) {
-  if (v1 == v2) {
+  if (kval_eq(v1, v2)) {
     ktest_pass++;
     return;
   }
@@ -938,7 +1006,7 @@ void ktest() {
   kres res = krun(vm, &chunk);
   tint_eq(vm, res, KVM_OK, "krun res");
   kval v = kpop(vm);
-  tval_eq(vm, v, (-(1.0+2.0)-4.0)*5.0/6.0, "krun ret");
+  tval_eq(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "krun ret");
   cfree(vm, &chunk);
   kfree(vm);
   
@@ -946,7 +1014,7 @@ void ktest() {
   res = kexec(vm, "1+2");
   tint_eq(vm, res, KVM_OK, "kexec res");
   v = kpop(vm);
-  tval_eq(vm, v, 3, "kexec ret");
+  tval_eq(vm, v, NUM_VAL(3), "kexec ret");
   kfree(vm);
   
   vm = knew();
@@ -962,7 +1030,7 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "(1+2)*3");
   tint_eq(vm, res, KVM_OK, "grouping res");
-  tval_eq(vm, kpop(vm), 9, "grouping ret");
+  tval_eq(vm, kpop(vm), NUM_VAL(9), "grouping ret");
   kfree(vm);
   
   vm = knew();
@@ -987,7 +1055,7 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "-2*3");
   tint_eq(vm, res, KVM_OK, "unary res");
-  tval_eq(vm, kpop(vm), -6, "unary ret");
+  tval_eq(vm, kpop(vm), NUM_VAL(-6), "unary ret");
   kfree(vm);
 
   // unterminated string
@@ -1000,13 +1068,13 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "2+3");
   v = kpop(vm);
-  tval_eq(vm, v, 5, "vprint ret");
+  tval_eq(vm, v, NUM_VAL(5), "vprint ret");
   vprint(vm, v);
   kfree(vm);
   
   vm = knew();
   res = kexec(vm, "12.3");
-  tval_eq(vm, kpop(vm), 12.3, "lpeeknext ret");
+  tval_eq(vm, kpop(vm), NUM_VAL(12.3), "lpeeknext ret");
   kfree(vm);
   
   vm = knew();
@@ -1083,9 +1151,29 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "(12-2)/5");
   tint_eq(vm, res, KVM_OK, "sub div res");
-  tval_eq(vm, kpop(vm), 2, "sub div ret");
+  tval_eq(vm, kpop(vm), NUM_VAL(2), "sub div ret");
   kfree(vm);
-  
+
+  vm = knew();
+  res = kexec(vm, "-true");
+  tint_eq(vm, res, KVM_ERR_RUNTIME, "negate err");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "true");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "true literal eval");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "false");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "false literal eval");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "nil");
+  tval_eq(vm, kpop(vm), NIL_VAL, "nil literal eval");
+  kfree(vm);
+
   ktest_summary();
 }
 
