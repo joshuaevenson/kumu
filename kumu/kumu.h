@@ -176,9 +176,11 @@
  // ------------------------------------------------------------
  // Arrays
  // ------------------------------------------------------------
- var arr: [Int] = { 1, 2, 3 }; print(typeof(arr))
+ var arr: [Int] = { 1, 2, 3 };
+print(typeof(arr))
  >> [Int]
-  var a2 = { 7, "banana", 9 };
+ 
+var a2 = { 7, "banana", 9 };
  print(typeof(a2))
  >> Array
 
@@ -276,47 +278,8 @@
  }
  >> syntax error line 1 - cannot inherit from self class
 
- // ------------------------------------------------------------
- // C API
- // ------------------------------------------------------------
- * kumu.h - language spec, tutorial, and API spec
- * kumu.c - lexer, parser, code gen, interpreter, and REPL
- * Compiler flags for lexer, parser, code-gen, test or REPL
- * 100% code coverage (how?)
- * Cross platform compile day 1
+ */
 
- ku_state *vm = ku_new();
- ku_getglobal(vm, "x");
- ku_pushinteger(vm, 20);
- ku_setglobal(vm);
-
- // ------------------------------------------------------------
- // Native class libraries
- // ------------------------------------------------------------
- * RegEx()
- * Utf8()
- * DateTime()
- * Crypto() - Hash, Block, BlockChain, Distributed, Tokens,
-              Coinbase, Keys, Transactions
- 
-
- // ------------------------------------------------------------
- // Command line arguments
- // ------------------------------------------------------------
-
- kumu --help
-
- kumu version 0.7.1.9
- --help                    -h  Show help
- --run <file>              -r  Load and run a file
- --lib <file>              -l  Include library/module
- --compile <file> <out>    -c  Compile to bytecodes
- --test <glob>             -t  Run tests using glob
- --selftest                -x  Run self test
- --lex                     -s  Scan only
- --parse                   -p  Parse only
- --verbose                 -v  Verbose output
----------------------------------------------------------------------- */
 
 #ifndef KUMU_H
 #define KUMU_H
@@ -339,8 +302,6 @@
 #define KVM_MAJOR          0
 #define KVM_MINOR          1
 
-
-
 // ------------------------------------------------------------
 // Forward
 // ------------------------------------------------------------
@@ -351,19 +312,19 @@ typedef struct _vm kvm;
 // Value
 // ------------------------------------------------------------
 typedef enum {
-  VAL_BOOL,
-  VAL_NIL,
-  VAL_NUM,
+    VAL_BOOL,
+    VAL_NIL,
+    VAL_NUM,
 } kvaltype;
 
 typedef struct {
-  kvaltype type;
-  union {
-    bool bval;
-    double dval;
-  } as;
+    kvaltype type;
+    union {
+        bool bval;
+        double dval;
+    } as;
 } kval;
-  
+
 #define BOOL_VAL(v) ((kval){ VAL_BOOL, { .bval = v }})
 #define NIL_VAL ((kval) { VAL_NIL, { .dval = 0 }})
 #define NUM_VAL(v) ((kval) { VAL_NUM, { .dval = v }})
@@ -376,117 +337,117 @@ typedef struct {
 #define AS_NUM(v) ((v).as.dval)
 bool kval_eq(kval v1, kval v2);
 
-void vprint(kvm *vm, kval value);
+void vprint(kvm* vm, kval value);
 
 typedef struct {
-  int capacity;
-  int count;
-  kval *values;
+    int capacity;
+    int count;
+    kval* values;
 } kvalarr;
 
-void vainit(kvm* vm, kvalarr *array);
-void vawrite(kvm* vm, kvalarr *array, kval value);
+void vainit(kvm* vm, kvalarr* array);
+void vawrite(kvm* vm, kvalarr* array, kval value);
 
 // ------------------------------------------------------------
 // Type
 // ------------------------------------------------------------
 typedef struct {
-  const char *name;
+  const char* name;
 } ktype;
 
-typedef struct  {
-  int count;
-  int capacity;
-  ktype *types;
+typedef struct {
+    int count;
+    int capacity;
+    ktype* types;
 } ktypearr;
 
-void tainit(kvm *vm, ktypearr *t);
-void tawrite(kvm *vm, ktypearr *t, const char *name);
-void tafree(kvm *vm, ktypearr *t);
+void tainit(kvm* vm, ktypearr* t);
+void tawrite(kvm* vm, ktypearr* t, const char* name);
+void tafree(kvm* vm, ktypearr* t);
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
 // 0,N => malloc, N,0 => free, N,M => realloc
-char *kalloc(kvm *vm, void *ptr, size_t old, size_t nsize);
+char* kalloc(kvm* vm, void* ptr, size_t old, size_t nsize);
 
 // ------------------------------------------------------------
 // OP codes
 // ------------------------------------------------------------
 typedef enum {
-  OP_NOP,
-  OP_CONST,
-  OP_RET,
-  OP_NEG,
-  OP_ADD,
-  OP_SUB,
-  OP_MUL,
-  OP_DIV,
-  OP_NOT,
-  OP_NIL,
-  OP_TRUE,
-  OP_FALSE,
-  OP_GT,
-  OP_LT,
-  OP_EQ,
+    OP_NOP,
+    OP_CONST,
+    OP_RET,
+    OP_NEG,
+    OP_ADD,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    OP_NOT,
+    OP_NIL,
+    OP_TRUE,
+    OP_FALSE,
+    OP_GT,
+    OP_LT,
+    OP_EQ,
 } k_op;
 
 // ------------------------------------------------------------
 // Chunk
 // ------------------------------------------------------------
 typedef struct {
-  int count;
-  int capacity;
-  uint8_t *code;
-  int *lines;
-  kvalarr constants;
+    int count;
+    int capacity;
+    uint8_t* code;
+    int* lines;
+    kvalarr constants;
 } kchunk;
 
-void cinit(kvm *vm, kchunk *chunk);
-void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line);
-void cfree(kvm *vm, kchunk *chunk);
-int caddconst(kvm *vm, kchunk *chunk, kval value);
+void cinit(kvm* vm, kchunk* chunk);
+void cwrite(kvm* vm, kchunk* chunk, uint8_t byte, int line);
+void cfree(kvm* vm, kchunk* chunk);
+int caddconst(kvm* vm, kchunk* chunk, kval value);
 
 // ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
 typedef enum {
-// Single-character tokens.
-  TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
-  TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
-  // One or two character tokens.
-  TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
-  TOK_LE,
-  // Literals.
-  TOK_IDENT, TOK_STR, TOK_NUM,
-  // Keywords.
-  TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
-  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
-  TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
+    // Single-character tokens.
+    TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
+    TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
+    // One or two character tokens.
+    TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
+    TOK_LE,
+    // Literals.
+    TOK_IDENT, TOK_STR, TOK_NUM,
+    // Keywords.
+    TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
+    TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
+    TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
 } ltype;
 
 typedef struct {
-  ltype type;
-  const char *start;
-  int len;
-  int line;
+    ltype type;
+    const char* start;
+    int len;
+    int line;
 } ktok;
 
 typedef struct {
-  const char *start;
-  const char *curr;
-  int line;
+    const char* start;
+    const char* curr;
+    int line;
 } klex;
 
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
 typedef struct {
-  ktok curr;
-  ktok prev;
-  bool err;
-  bool panic;
+    ktok curr;
+    ktok prev;
+    bool err;
+    bool panic;
 } kparser;
 
 // ------------------------------------------------------------
@@ -494,11 +455,11 @@ typedef struct {
 // ------------------------------------------------------------
 #define STACK_MAX 256
 typedef enum {
-  KVM_OK,
-  KVM_CONT,
-  KVM_ERR_SYNTAX,
-  KVM_ERR_RUNTIME,
-  KVM_FILE_NOTFOUND,
+    KVM_OK,
+    KVM_CONT,
+    KVM_ERR_SYNTAX,
+    KVM_ERR_RUNTIME,
+    KVM_FILE_NOTFOUND,
 } kres;
 
 #define KVM_F_TRACE 0x01    // trace each instruction as it runs
@@ -506,57 +467,57 @@ typedef enum {
 #define KVM_F_LIST  0x04    // list instructions after compile
 
 typedef struct _vm {
-  ktypearr types;
-  
-  uint64_t flags;
-  bool stop;
-  int allocated;
-  int freed;
-  
-  kchunk *chunk;
-  uint8_t *ip;
-  
-  kval stack[STACK_MAX];
-  kval *sp;
-  
-  klex scanner;
-  kparser parser;
+    ktypearr types;
+
+    uint64_t flags;
+    bool stop;
+    int allocated;
+    int freed;
+
+    kchunk* chunk;
+    uint8_t* ip;
+
+    kval stack[STACK_MAX];
+    kval* sp;
+
+    klex scanner;
+    kparser parser;
 } kvm;
 
-kvm *knew(void);
-void kfree(kvm *vm);
-kres krun(kvm *vm, kchunk *chunk);
-kres krunfile(kvm *vm, const char *file);
+kvm* knew(void);
+void kfree(kvm* vm);
+kres krun(kvm* vm, kchunk* chunk);
+kres krunfile(kvm* vm, const char* file);
 
 // ------------------------------------------------------------
 // Stack
 // ------------------------------------------------------------
-void kresetstack(kvm *vm);
-void kpush(kvm *vm, kval val);
-kval kpop(kvm *vm);
+void kresetstack(kvm* vm);
+void kpush(kvm* vm, kval val);
+kval kpop(kvm* vm);
 
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void cprint(kvm *vm, kchunk *chunk, const char * name);
-int oprint(kvm *vm, kchunk *chunk, int offset);
+void cprint(kvm* vm, kchunk* chunk, const char* name);
+int oprint(kvm* vm, kchunk* chunk, int offset);
 
 
 // ------------------------------------------------------------
 // Config
 // ------------------------------------------------------------
 #ifdef KVM_MAIN
-int kmain(int argc, const char * argv[]);
+int kmain(int argc, const char* argv[]);
 #else
 #define kmain(a,v)
 #endif
 
 #ifdef KVM_TRACE
 #define tprintf(...) printf (__VA_ARGS__)
-void mprint(kvm *vm);
-void kprintstack(kvm *vm);
-void cprint(kvm *vm, kchunk *chunk, const char * name);
+void mprint(kvm* vm);
+void kprintstack(kvm* vm);
+void cprint(kvm* vm, kchunk* chunk, const char* name);
 #else
 #define tprintf(...)
 #define mprint(v)
@@ -565,7 +526,7 @@ void cprint(kvm *vm, kchunk *chunk, const char * name);
 #endif
 
 #ifdef KVM_TEST
-void ktest(void);
+    void ktest(void);
 #else
 #define ktest()
 #endif

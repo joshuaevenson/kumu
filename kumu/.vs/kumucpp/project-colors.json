@@ -1,0 +1,16 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "f69258a0-643a-496f-a1c9-55b71e3ab133": {
+      "ProjectGuid": "f69258a0-643a-496f-a1c9-55b71e3ab133",
+      "DisplayName": "kumucpp",
+      "ColorIndex": 0
+    },
+    "48d619fe-7303-4dc6-b2ea-5cf8bb359aa8": {
+      "ProjectGuid": "48d619fe-7303-4dc6-b2ea-5cf8bb359aa8",
+      "DisplayName": "kwintest",
+      "ColorIndex": 1
+    }
+  },
+  "NextColorIndex": 2
+}
