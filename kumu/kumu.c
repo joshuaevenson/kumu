@@ -504,6 +504,9 @@ kval kpeek(kvm *vm, int distance) {
 
 kvm *knew(void) {
   kvm *vm = malloc(sizeof(kvm));
+  if (!vm) {
+    return NULL;
+  }
   vm->allocated = sizeof(kvm);
   vm->flags = 0;
   if (!vm) {
