@@ -312,17 +312,17 @@ typedef struct _vm kvm;
 // Value
 // ------------------------------------------------------------
 typedef enum {
-    VAL_BOOL,
-    VAL_NIL,
-    VAL_NUM,
+  VAL_BOOL,
+  VAL_NIL,
+  VAL_NUM,
 } kvaltype;
 
 typedef struct {
-    kvaltype type;
-    union {
-        bool bval;
-        double dval;
-    } as;
+  kvaltype type;
+  union {
+    bool bval;
+    double dval;
+  } as;
 } kval;
 
 #define BOOL_VAL(v) ((kval){ VAL_BOOL, { .bval = v }})
@@ -356,9 +356,9 @@ typedef struct {
 } ktype;
 
 typedef struct {
-    int count;
-    int capacity;
-    ktype* types;
+  int count;
+  int capacity;
+  ktype* types;
 } ktypearr;
 
 void tainit(kvm* vm, ktypearr* t);
@@ -376,32 +376,32 @@ char* kalloc(kvm* vm, void* ptr, size_t old, size_t nsize);
 // OP codes
 // ------------------------------------------------------------
 typedef enum {
-    OP_NOP,
-    OP_CONST,
-    OP_RET,
-    OP_NEG,
-    OP_ADD,
-    OP_SUB,
-    OP_MUL,
-    OP_DIV,
-    OP_NOT,
-    OP_NIL,
-    OP_TRUE,
-    OP_FALSE,
-    OP_GT,
-    OP_LT,
-    OP_EQ,
+  OP_NOP,
+  OP_CONST,
+  OP_RET,
+  OP_NEG,
+  OP_ADD,
+  OP_SUB,
+  OP_MUL,
+  OP_DIV,
+  OP_NOT,
+  OP_NIL,
+  OP_TRUE,
+  OP_FALSE,
+  OP_GT,
+  OP_LT,
+  OP_EQ,
 } k_op;
 
 // ------------------------------------------------------------
 // Chunk
 // ------------------------------------------------------------
 typedef struct {
-    int count;
-    int capacity;
-    uint8_t* code;
-    int* lines;
-    kvalarr constants;
+  int count;
+  int capacity;
+  uint8_t* code;
+  int* lines;
+  kvalarr constants;
 } kchunk;
 
 void cinit(kvm* vm, kchunk* chunk);
@@ -413,41 +413,41 @@ int caddconst(kvm* vm, kchunk* chunk, kval value);
 // Scanner
 // ------------------------------------------------------------
 typedef enum {
-    // Single-character tokens.
-    TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
-    TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
-    // One or two character tokens.
-    TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
-    TOK_LE,
-    // Literals.
-    TOK_IDENT, TOK_STR, TOK_NUM,
-    // Keywords.
-    TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
-    TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
-    TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
+  // Single-character tokens.
+  TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
+  TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
+  // One or two character tokens.
+  TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
+  TOK_LE,
+  // Literals.
+  TOK_IDENT, TOK_STR, TOK_NUM,
+  // Keywords.
+  TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
+  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
+  TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
 } ltype;
 
 typedef struct {
-    ltype type;
-    const char* start;
-    int len;
-    int line;
+  ltype type;
+  const char* start;
+  int len;
+  int line;
 } ktok;
 
 typedef struct {
-    const char* start;
-    const char* curr;
-    int line;
+  const char* start;
+  const char* curr;
+  int line;
 } klex;
 
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
 typedef struct {
-    ktok curr;
-    ktok prev;
-    bool err;
-    bool panic;
+  ktok curr;
+  ktok prev;
+  bool err;
+  bool panic;
 } kparser;
 
 // ------------------------------------------------------------
@@ -455,11 +455,11 @@ typedef struct {
 // ------------------------------------------------------------
 #define STACK_MAX 256
 typedef enum {
-    KVM_OK,
-    KVM_CONT,
-    KVM_ERR_SYNTAX,
-    KVM_ERR_RUNTIME,
-    KVM_FILE_NOTFOUND,
+  KVM_OK,
+  KVM_CONT,
+  KVM_ERR_SYNTAX,
+  KVM_ERR_RUNTIME,
+  KVM_FILE_NOTFOUND,
 } kres;
 
 #define KVM_F_TRACE 0x01    // trace each instruction as it runs
@@ -467,21 +467,21 @@ typedef enum {
 #define KVM_F_LIST  0x04    // list instructions after compile
 
 typedef struct _vm {
-    ktypearr types;
+  ktypearr types;
 
-    uint64_t flags;
-    bool stop;
-    int allocated;
-    int freed;
+  uint64_t flags;
+  bool stop;
+  int allocated;
+  int freed;
 
-    kchunk* chunk;
-    uint8_t* ip;
+  kchunk* chunk;
+  uint8_t* ip;
 
-    kval stack[STACK_MAX];
-    kval* sp;
+  kval stack[STACK_MAX];
+  kval* sp;
 
-    klex scanner;
-    kparser parser;
+  klex scanner;
+  kparser parser;
 } kvm;
 
 kvm* knew(void);
