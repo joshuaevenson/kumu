@@ -312,9 +312,25 @@ typedef struct _vm kvm;
 // Value
 // ------------------------------------------------------------
 typedef enum {
+  OBJ_STR,
+} kobjtype;
+
+typedef struct {
+  kobjtype type;
+  struct kobj *next;
+} kobj;
+
+typedef struct {
+  kobj obj;
+  int len;
+  char* chars;
+} kstr;
+
+typedef enum {
   VAL_BOOL,
   VAL_NIL,
   VAL_NUM,
+  VAL_OBJ,
 } kvaltype;
 
 typedef struct {
@@ -322,19 +338,31 @@ typedef struct {
   union {
     bool bval;
     double dval;
+    kobj* oval;
   } as;
 } kval;
+
+bool kisobjtype(kval v, kobjtype ot);
 
 #define BOOL_VAL(v) ((kval){ VAL_BOOL, { .bval = v }})
 #define NIL_VAL ((kval) { VAL_NIL, { .dval = 0 }})
 #define NUM_VAL(v) ((kval) { VAL_NUM, { .dval = v }})
+#define OBJ_VAL(v) ((kval) { VAL_OBJ, { .oval = (kobj*)v} })
 
 #define IS_BOOL(v) ((v).type == VAL_BOOL)
 #define IS_NIL(v) ((v).type == VAL_NIL)
 #define IS_NUM(v) ((v).type == VAL_NUM)
+#define IS_OBJ(v) ((v).type == VAL_OBJ)
+#define IS_STR(v) (kisobjtype(v, OBJ_STR))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
+#define AS_OBJ(v) ((v).as.oval)
+#define AS_STR(v) ((kstr*)AS_OBJ(v))
+#define AS_CSTR(v) (((kstr*)AS_OBJ(v))->chars)
+
+#define OBJ_TYPE(v) (AS_OBJ(v)->type)
+
 bool kval_eq(kval v1, kval v2);
 
 void vprint(kvm* vm, kval value);
@@ -471,14 +499,16 @@ typedef struct _vm {
 
   uint64_t flags;
   bool stop;
-  int allocated;
-  int freed;
+  size_t allocated;
+  size_t freed;
 
   kchunk* chunk;
   uint8_t* ip;
 
   kval stack[STACK_MAX];
   kval* sp;
+
+  kobj* objects;
 
   klex scanner;
   kparser parser;

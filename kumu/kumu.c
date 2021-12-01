@@ -3,7 +3,58 @@
 #include "kumu.h"
 #include <stdio.h>
 
+// ------------------------------------------------------------
+// Macros
+// ------------------------------------------------------------
+#define CAPACITY_GROW(cap)  ((cap) < 8 ? 8 : (cap) * 2)
+#define ARRAY_GROW(k, type, ptr, old, new)\
+(type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
+#define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
+#define KALLOC(vm, type, count) \
+    (type*)kalloc(vm, NULL, 0, sizeof(type) * (count))
+#define KALLOC_OBJ(vm, type, objtype) \
+    (type*)kobjalloc(vm, sizeof(type), objtype)
+#define FREE(vm, type, ptr) \
+  kalloc(vm, ptr, sizeof(type), 0)
+// ------------------------------------------------------------
+// Values
+// ------------------------------------------------------------
+static kobj* kobjalloc(kvm* vm, size_t size, kobjtype type) {
+  kobj* obj = (kobj*)kalloc(vm, NULL, 0, size);
+  obj->type = type;
+  obj->next = (struct kobj*)vm->objects;
+  vm->objects = obj;
+  return obj;
+}
 
+static void kobjfree(kvm* vm, kobj* obj) {
+  switch (obj->type) {
+  case OBJ_STR: {
+    kstr* str = (kstr*)obj;
+    ARRAY_FREE(vm, char, str->chars, str->len + 1);
+    FREE(vm, kstr, obj);
+    break;
+  }
+  }
+}
+
+static kstr* kstralloc(kvm* vm, char* chars, int len) {
+  kstr* str = KALLOC_OBJ(vm, kstr, OBJ_STR);
+  str->len = len;
+  str->chars = chars;
+  return str;
+}
+
+bool kisobjtype(kval v, kobjtype ot) {
+  return IS_OBJ(v) && AS_OBJ(v)->type == ot;
+}
+
+static kstr* kstrcpy(kvm* vm, const char* chars, int len) {
+  char* buff = KALLOC(vm, char, len + 1);
+  memcpy(buff, chars, len);
+  buff[len] = '\0';
+  return kstralloc(vm, buff, len);
+}
 bool kval_eq(kval v1, kval v2) {
   if (v1.type != v2.type) {
     return false;
@@ -12,17 +63,33 @@ bool kval_eq(kval v1, kval v2) {
     case VAL_NIL: return true;
     case VAL_BOOL: return v1.as.bval == v2.as.bval;
     case VAL_NUM: return v1.as.dval == v2.as.dval;
+    case VAL_OBJ: {
+      kstr* a = AS_STR(v1);
+      kstr* b = AS_STR(v2);
+      return a->len == b->len &&
+        memcmp(a->chars, b->chars, a->len) == 0;
+    default:
+      break;
+    }
   }
   return false;
 }
 
-// ------------------------------------------------------------
-// Macros
-// ------------------------------------------------------------
-#define CAPACITY_GROW(cap)  ((cap) < 8 ? 8 : (cap) * 2)
-#define ARRAY_GROW(k, type, ptr, old, new)\
-(type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
-#define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
+static kstr* kstrtake(kvm* vm, char* buff, int len) {
+  return kstralloc(vm, buff, len);
+}
+
+static void kstradd(kvm* vm) {
+  kstr *b = AS_STR(kpop(vm));
+  kstr* a = AS_STR(kpop(vm));
+  int len = a->len + b->len;
+  char* buff = KALLOC(vm, char, len + 1);
+  memcpy(buff, a->chars, a->len);
+  memcpy(buff + a->len, b->chars, b->len);
+  buff[len] = '\0';
+  kstr* res = kstrtake(vm, buff, len);
+  kpush(vm, OBJ_VAL(res));
+}
 
 // ------------------------------------------------------------
 // ktypearr
@@ -375,6 +442,7 @@ static void pprecedence(kvm *vm, kprecedence prec) {
   }
 }
 
+
 static void pliteral(kvm *vm) {
   switch (vm->parser.prev.type) {
     case TOK_FALSE: pemitbyte(vm, OP_FALSE); break;
@@ -382,6 +450,12 @@ static void pliteral(kvm *vm) {
     case TOK_NIL: pemitbyte(vm, OP_NIL); break;
     default: return; // unreachable
   }
+}
+
+static void pstring(kvm* vm) {
+  pemitconst(vm, OBJ_VAL(kstrcpy(vm, 
+            vm->parser.prev.start + 1,
+            vm->parser.prev.len - 2)));
 }
 
 static void pnumber(kvm *vm) {
@@ -452,7 +526,7 @@ prule rules[] = {
   [TOK_LT] =        { NULL,        pbinary,  P_COMP },
   [TOK_LE] =        { NULL,        pbinary,  P_COMP },
   [TOK_IDENT] =     { NULL,        NULL,     P_NONE },
-  [TOK_STR] =       { NULL,        NULL,     P_NONE },
+  [TOK_STR] =       { pstring,     NULL,     P_NONE },
   [TOK_NUM] =       { pnumber,     NULL,     P_NONE },
   [TOK_AND] =       { NULL,        NULL,     P_NONE },
   [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
@@ -516,7 +590,7 @@ kvm *knew(void) {
   vm->freed = 0;
   vm->stop = false;
   vm->chunk = NULL;
-
+  vm->objects = NULL;
   kresetstack(vm);
   tainit(vm, &vm->types);
   tawrite(vm, &vm->types, "Int");
@@ -533,7 +607,17 @@ void mprint(kvm *vm) {
 }
 #endif
 
+static void kfreeobjects(kvm* vm) {
+  kobj* obj = vm->objects;
+  while (obj != NULL) {
+    kobj* next = (kobj*)obj->next;
+    kobjfree(vm, obj);
+    obj = next;
+  }
+}
+
 void kfree(kvm *vm) {
+  kfreeobjects(vm);
   vm->freed += sizeof(kvm);
   tafree(vm, &vm->types);
   assert(vm->allocated - vm->freed == 0);
@@ -629,7 +713,21 @@ static kres krunloop(kvm *vm) {
         kpush(vm, nv);
         break;
       }
-      case OP_ADD: BIN_OP(vm,NUM_VAL, +); break;
+      case OP_ADD: {
+        if (IS_STR(kpeek(vm, 0)) && IS_STR(kpeek(vm, 1))) {
+          kstradd(vm);
+        }
+        else if (IS_NUM(kpeek(vm, 0)) && IS_NUM(kpeek(vm, 1))) {
+          double a = AS_NUM(kpop(vm));
+          double b = AS_NUM(kpop(vm));
+          kpush(vm, NUM_VAL(a + b));
+        }
+        else {
+          keruntime(vm, "numbers expected");
+          return KVM_ERR_RUNTIME;
+        }
+        break;
+      }
       case OP_SUB: BIN_OP(vm,NUM_VAL, -); break;
       case OP_MUL: BIN_OP(vm,NUM_VAL, *); break;
       case OP_DIV: BIN_OP(vm,NUM_VAL, /); break;
@@ -846,6 +944,14 @@ int caddconst(kvm *vm, kchunk *chunk, kval value) {
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
+static void kobjprint(kvm* vm, kval val) {
+  switch (OBJ_TYPE(val)) {
+  case OBJ_STR:
+    printf("%s", AS_CSTR(val));
+    break;
+  }
+}
+
 void vprint(kvm *vm, kval value) {
   switch (value.type) {
     case VAL_BOOL:
@@ -856,6 +962,9 @@ void vprint(kvm *vm, kval value) {
       break;;
     case VAL_NUM:
       printf("%g", value.as.dval);
+      break;
+    case VAL_OBJ:
+      kobjprint(vm, value);
       break;
   }
 }
@@ -1276,6 +1385,35 @@ void ktest() {
   vm = knew();
   res = kexec(vm, "3>=3");
   tval_eq(vm, kpop(vm), BOOL_VAL(true), ">= true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "12 + true");
+  tint_eq(vm, res, KVM_ERR_RUNTIME, "add num expected");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "\"hello \" + \"world\"");
+  v = kpop(vm);
+  tint_eq(vm, v.type, VAL_OBJ, "stradd type obj");
+  tint_eq(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
+  char* chars = AS_CSTR(v);
+  tint_eq(vm, strcmp(chars, "hello world"), 0, "str val");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "\"hello \" == \"world\"");
+  tval_eq(vm, kpop(vm), BOOL_VAL(false), "str eq false");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "\"hello\" == \"hello\"");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "str eq true");
+  kfree(vm);
+
+  vm = knew();
+  res = kexec(vm, "\"hello \" != \"world\"");
+  tval_eq(vm, kpop(vm), BOOL_VAL(true), "str ne true");
   kfree(vm);
 
   ktest_summary();
