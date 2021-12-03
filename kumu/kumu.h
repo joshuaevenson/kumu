@@ -281,6 +281,15 @@ var a2 = { 7, "banana", 9 };
  */
 
 
+/*
+    Backlog
+    + T0001 remove type for now
+    + N0001 kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
+    + N0002 ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
+    - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
+    - P0002 simplevars[27] per environment? 
+*/
+
 #ifndef KUMU_H
 #define KUMU_H
 
@@ -306,99 +315,82 @@ var a2 = { 7, "banana", 9 };
 // Forward
 // ------------------------------------------------------------
 struct _vm;
-typedef struct _vm kvm;
+typedef struct _vm kuvm;
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
 typedef enum {
   OBJ_STR,
-} kobjtype;
+} kuobjtype;
 
 typedef struct {
-  kobjtype type;
-  struct kobj *next;
-} kobj;
+  kuobjtype type;
+  struct kuobj *next;
+} kuobj;
 
 typedef struct {
-  kobj obj;
+  kuobj obj;
   int len;
   char* chars;
-} kstr;
+} kustr;
 
 typedef enum {
   VAL_BOOL,
   VAL_NIL,
   VAL_NUM,
   VAL_OBJ,
-} kvaltype;
+} kuvaltype;
 
 typedef struct {
-  kvaltype type;
+  kuvaltype type;
   union {
     bool bval;
     double dval;
-    kobj* oval;
+    kuobj* oval;
   } as;
-} kval;
+} kuval;
 
-bool kisobjtype(kval v, kobjtype ot);
+bool kuo_is_type(kuval v, kuobjtype ot);
 
-#define BOOL_VAL(v) ((kval){ VAL_BOOL, { .bval = v }})
-#define NIL_VAL ((kval) { VAL_NIL, { .dval = 0 }})
-#define NUM_VAL(v) ((kval) { VAL_NUM, { .dval = v }})
-#define OBJ_VAL(v) ((kval) { VAL_OBJ, { .oval = (kobj*)v} })
+#define BOOL_VAL(v) ((kuval){ VAL_BOOL, { .bval = v }})
+#define NIL_VAL ((kuval) { VAL_NIL, { .dval = 0 }})
+#define NUM_VAL(v) ((kuval) { VAL_NUM, { .dval = v }})
+#define OBJ_VAL(v) ((kuval) { VAL_OBJ, { .oval = (kuobj*)v} })
 
 #define IS_BOOL(v) ((v).type == VAL_BOOL)
 #define IS_NIL(v) ((v).type == VAL_NIL)
 #define IS_NUM(v) ((v).type == VAL_NUM)
 #define IS_OBJ(v) ((v).type == VAL_OBJ)
-#define IS_STR(v) (kisobjtype(v, OBJ_STR))
+#define IS_STR(v) (kuo_is_type(v, OBJ_STR))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
 #define AS_OBJ(v) ((v).as.oval)
-#define AS_STR(v) ((kstr*)AS_OBJ(v))
-#define AS_CSTR(v) (((kstr*)AS_OBJ(v))->chars)
+#define AS_STR(v) ((kustr*)AS_OBJ(v))
+#define AS_CSTR(v) (((kustr*)AS_OBJ(v))->chars)
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
-bool kval_eq(kval v1, kval v2);
+bool kuv_eq(kuval v1, kuval v2);
 
-void vprint(kvm* vm, kval value);
+void ku_printv(kuvm* vm, kuval value);
 
 typedef struct {
     int capacity;
     int count;
-    kval* values;
-} kvalarr;
+    kuval* values;
+} kuarr;
 
-void vainit(kvm* vm, kvalarr* array);
-void vawrite(kvm* vm, kvalarr* array, kval value);
-
-// ------------------------------------------------------------
-// Type
-// ------------------------------------------------------------
-typedef struct {
-  const char* name;
-} ktype;
-
-typedef struct {
-  int count;
-  int capacity;
-  ktype* types;
-} ktypearr;
-
-void tainit(kvm* vm, ktypearr* t);
-void tawrite(kvm* vm, ktypearr* t, const char* name);
-void tafree(kvm* vm, ktypearr* t);
+void kua_init(kuvm* vm, kuarr* array);
+void kua_write(kuvm* vm, kuarr* array, kuval value);
 
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 
 // 0,N => malloc, N,0 => free, N,M => realloc
-char* kalloc(kvm* vm, void* ptr, size_t old, size_t nsize);
+char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
 
 // ------------------------------------------------------------
 // OP codes
@@ -429,13 +421,13 @@ typedef struct {
   int capacity;
   uint8_t* code;
   int* lines;
-  kvalarr constants;
-} kchunk;
+  kuarr constants;
+} kuchunk;
 
-void cinit(kvm* vm, kchunk* chunk);
-void cwrite(kvm* vm, kchunk* chunk, uint8_t byte, int line);
-void cfree(kvm* vm, kchunk* chunk);
-int caddconst(kvm* vm, kchunk* chunk, kval value);
+void kuc_init(kuvm* vm, kuchunk* chunk);
+void kuc_write(kuvm* vm, kuchunk* chunk, uint8_t byte, int line);
+void kuc_free(kuvm* vm, kuchunk* chunk);
+int kuc_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 
 // ------------------------------------------------------------
 // Scanner
@@ -453,30 +445,30 @@ typedef enum {
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
   TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
   TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
-} ltype;
+} kutoktype;
 
 typedef struct {
-  ltype type;
+  kutoktype type;
   const char* start;
   int len;
   int line;
-} ktok;
+} kutok;
 
 typedef struct {
   const char* start;
   const char* curr;
   int line;
-} klex;
+} kulex;
 
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
 typedef struct {
-  ktok curr;
-  ktok prev;
+  kutok curr;
+  kutok prev;
   bool err;
   bool panic;
-} kparser;
+} kuparser;
 
 // ------------------------------------------------------------
 // VM
@@ -488,77 +480,75 @@ typedef enum {
   KVM_ERR_SYNTAX,
   KVM_ERR_RUNTIME,
   KVM_FILE_NOTFOUND,
-} kres;
+} kures;
 
 #define KVM_F_TRACE 0x01    // trace each instruction as it runs
 #define KVM_F_STACK 0x02    // print stack in repl
 #define KVM_F_LIST  0x04    // list instructions after compile
 
 typedef struct _vm {
-  ktypearr types;
-
   uint64_t flags;
   bool stop;
   size_t allocated;
   size_t freed;
 
-  kchunk* chunk;
+  kuchunk* chunk;
   uint8_t* ip;
 
-  kval stack[STACK_MAX];
-  kval* sp;
+  kuval stack[STACK_MAX];
+  kuval* sp;
 
-  kobj* objects;
+  kuobj* objects;
 
-  klex scanner;
-  kparser parser;
-} kvm;
+  kulex scanner;
+  kuparser parser;
+} kuvm;
 
-kvm* knew(void);
-void kfree(kvm* vm);
-kres krun(kvm* vm, kchunk* chunk);
-kres krunfile(kvm* vm, const char* file);
+kuvm* ku_new(void);
+void ku_free(kuvm* vm);
+kures ku_run(kuvm* vm, kuchunk* chunk);
+kures ku_runfile(kuvm* vm, const char* file);
 
 // ------------------------------------------------------------
 // Stack
 // ------------------------------------------------------------
-void kresetstack(kvm* vm);
-void kpush(kvm* vm, kval val);
-kval kpop(kvm* vm);
+void ku_reset_stack(kuvm* vm);
+void ku_push(kuvm* vm, kuval val);
+kuval ku_pop(kuvm* vm);
 
 
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-void cprint(kvm* vm, kchunk* chunk, const char* name);
-int oprint(kvm* vm, kchunk* chunk, int offset);
+void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
+int ku_print_op(kuvm* vm, kuchunk* chunk, int offset);
 
 
 // ------------------------------------------------------------
 // Config
 // ------------------------------------------------------------
 #ifdef KVM_MAIN
-int kmain(int argc, const char* argv[]);
+int ku_main(int argc, const char* argv[]);
 #else
-#define kmain(a,v)
+#define ku_main(a,v)
 #endif
 
 #ifdef KVM_TRACE
-#define tprintf(...) printf (__VA_ARGS__)
-void mprint(kvm* vm);
-void kprintstack(kvm* vm);
-void cprint(kvm* vm, kchunk* chunk, const char* name);
+#define kuprintf(...) printf (__VA_ARGS__)
+void ku_print_mem(kuvm* vm);
+void ku_print_stack(kuvm* vm);
+void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
 #else
-#define tprintf(...)
-#define mprint(v)
-#define kprintstack(v)
-#define cprint(v,c,n)
+#define kuprintf(...)
+#define ku_print_mem(v)
+#define ku_print_stack(v)
+#define ku_print_chunk(v,c,n)
 #endif
 
 #ifdef KVM_TEST
-    void ktest(void);
+    void ku_test(void);
 #else
-#define ktest()
+#define ku_test()
 #endif
 
 #endif /* KUMU_H */

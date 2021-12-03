@@ -8,54 +8,54 @@
 // ------------------------------------------------------------
 #define CAPACITY_GROW(cap)  ((cap) < 8 ? 8 : (cap) * 2)
 #define ARRAY_GROW(k, type, ptr, old, new)\
-(type*)kalloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
-#define ARRAY_FREE(vm, type, ptr, old) kalloc(vm, ptr, sizeof(type) * (old), 0)
+(type*)ku_alloc(k, ptr, sizeof(type) * (old), sizeof(type) * (new))
+#define ARRAY_FREE(vm, type, ptr, old) ku_alloc(vm, ptr, sizeof(type) * (old), 0)
 #define KALLOC(vm, type, count) \
-    (type*)kalloc(vm, NULL, 0, sizeof(type) * (count))
+    (type*)ku_alloc(vm, NULL, 0, sizeof(type) * (count))
 #define KALLOC_OBJ(vm, type, objtype) \
-    (type*)kobjalloc(vm, sizeof(type), objtype)
+    (type*)kuo_alloc(vm, sizeof(type), objtype)
 #define FREE(vm, type, ptr) \
-  kalloc(vm, ptr, sizeof(type), 0)
+  ku_alloc(vm, ptr, sizeof(type), 0)
 // ------------------------------------------------------------
 // Values
 // ------------------------------------------------------------
-static kobj* kobjalloc(kvm* vm, size_t size, kobjtype type) {
-  kobj* obj = (kobj*)kalloc(vm, NULL, 0, size);
+static kuobj* kuo_alloc(kuvm* vm, size_t size, kuobjtype type) {
+  kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
   obj->type = type;
-  obj->next = (struct kobj*)vm->objects;
+  obj->next = (struct kuobj*)vm->objects;
   vm->objects = obj;
   return obj;
 }
 
-static void kobjfree(kvm* vm, kobj* obj) {
+static void kuo_free(kuvm* vm, kuobj* obj) {
   switch (obj->type) {
   case OBJ_STR: {
-    kstr* str = (kstr*)obj;
+    kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
-    FREE(vm, kstr, obj);
+    FREE(vm, kustr, obj);
     break;
   }
   }
 }
 
-static kstr* kstralloc(kvm* vm, char* chars, int len) {
-  kstr* str = KALLOC_OBJ(vm, kstr, OBJ_STR);
+static kustr* kus_alloc(kuvm* vm, char* chars, int len) {
+  kustr* str = KALLOC_OBJ(vm, kustr, OBJ_STR);
   str->len = len;
   str->chars = chars;
   return str;
 }
 
-bool kisobjtype(kval v, kobjtype ot) {
+bool kuo_is_type(kuval v, kuobjtype ot) {
   return IS_OBJ(v) && AS_OBJ(v)->type == ot;
 }
 
-static kstr* kstrcpy(kvm* vm, const char* chars, int len) {
+static kustr* kus_copy(kuvm* vm, const char* chars, int len) {
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, chars, len);
   buff[len] = '\0';
-  return kstralloc(vm, buff, len);
+  return kus_alloc(vm, buff, len);
 }
-bool kval_eq(kval v1, kval v2) {
+bool kuv_eq(kuval v1, kuval v2) {
   if (v1.type != v2.type) {
     return false;
   }
@@ -64,8 +64,8 @@ bool kval_eq(kval v1, kval v2) {
     case VAL_BOOL: return v1.as.bval == v2.as.bval;
     case VAL_NUM: return v1.as.dval == v2.as.dval;
     case VAL_OBJ: {
-      kstr* a = AS_STR(v1);
-      kstr* b = AS_STR(v2);
+      kustr* a = AS_STR(v1);
+      kustr* b = AS_STR(v2);
       return a->len == b->len &&
         memcmp(a->chars, b->chars, a->len) == 0;
     default:
@@ -75,100 +75,78 @@ bool kval_eq(kval v1, kval v2) {
   return false;
 }
 
-static kstr* kstrtake(kvm* vm, char* buff, int len) {
-  return kstralloc(vm, buff, len);
+static kustr* kus_take(kuvm* vm, char* buff, int len) {
+  return kus_alloc(vm, buff, len);
 }
 
-static void kstradd(kvm* vm) {
-  kstr *b = AS_STR(kpop(vm));
-  kstr* a = AS_STR(kpop(vm));
+static void kus_add(kuvm* vm) {
+  kustr *b = AS_STR(ku_pop(vm));
+  kustr* a = AS_STR(ku_pop(vm));
   int len = a->len + b->len;
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, a->chars, a->len);
   memcpy(buff + a->len, b->chars, b->len);
   buff[len] = '\0';
-  kstr* res = kstrtake(vm, buff, len);
-  kpush(vm, OBJ_VAL(res));
+  kustr* res = kus_take(vm, buff, len);
+  ku_push(vm, OBJ_VAL(res));
 }
 
-// ------------------------------------------------------------
-// ktypearr
-// ------------------------------------------------------------
-void tainit(kvm *vm, ktypearr *t) {
-  t->count = 0;
-  t->capacity = 0;
-  t->types = NULL;
-}
-
-void tawrite(kvm *vm, ktypearr *t, const char *name) {
-  if (t->capacity < t->count + 1) {
-    int old = t->capacity;
-    t->capacity = CAPACITY_GROW(old);
-    t->types = ARRAY_GROW(vm, ktype, t->types, old, t->capacity);
-  }
-  t->types[t->count].name = name;
-  t->count++;
-}
-
-void tafree(kvm *vm, ktypearr *t) {
-  ARRAY_FREE(vm, ktype, vm->types.types, vm->types.capacity);
-}
 
 // ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
-static char ladvance(kvm *vm) {
+static char kul_advance(kuvm *vm) {
   vm->scanner.curr++;
   return vm->scanner.curr[-1];
 }
 
 
-static void linit(kvm *vm, const char *source) {
+static void kul_init(kuvm *vm, const char *source) {
   vm->scanner.start = source;
   vm->scanner.curr = source;
   vm->scanner.line = 1;
 }
 
-static bool lisend(kvm *vm) {
+static bool kul_is_end(kuvm *vm) {
   return (*(vm->scanner.curr) == '\0');
 }
 
-static bool lisdigit(char c) {
+static bool ku_isdigit(char c) {
   return (c >= '0' && c <= '9');
 }
 
-static bool lisalpha(char c) {
+static bool ku_isalpha(char c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c == '_');
 }
 
-static char lpeeknext(kvm *vm) {
-  if (lisend(vm)) return '\0';
+static char kul_peeknext(kuvm *vm) {
+  if (kul_is_end(vm)) return '\0';
   return vm->scanner.curr[1];
 }
 
-static char lpeek(kvm *vm) {
+static char kul_peek(kuvm *vm) {
   return *vm->scanner.curr;
 }
 
-static void lskipspace(kvm *vm) {
+static void kul_skipspace(kuvm *vm) {
   while (true) {
-    char c = lpeek(vm);
+    char c = kul_peek(vm);
     switch (c) {
       case ' ':
       case '\r':
       case '\t':
-        ladvance(vm);
+        kul_advance(vm);
         break;
       case '\n':
         vm->scanner.line++;
-        ladvance(vm);
+        kul_advance(vm);
         break;
       case '/':
-        if (lpeeknext(vm) == '/') {
-          while (lpeek(vm) != '\n' && !lisend(vm))
-            ladvance(vm);
+        if (kul_peeknext(vm) == '/') {
+          while (kul_peek(vm) != '\n' && !kul_is_end(vm))
+            kul_advance(vm);
         } else {
           return;
         }
@@ -179,8 +157,8 @@ static void lskipspace(kvm *vm) {
   }
 }
 
-static ktok lmake(kvm *vm, ltype type) {
-  ktok token;
+static kutok kul_make(kuvm *vm, kutoktype type) {
+  kutok token;
   token.type = type;
   token.start = vm->scanner.start;
   token.len = (int) (vm->scanner.curr - vm->scanner.start);
@@ -188,8 +166,8 @@ static ktok lmake(kvm *vm, ltype type) {
   return token;
 }
 
-static ktok lerror(kvm *vm, const char *msg) {
-  ktok token;
+static kutok kul_err(kuvm *vm, const char *msg) {
+  kutok token;
   token.type = TOK_ERR;
   token.start = msg;
   token.len = (int)strlen(msg);
@@ -197,35 +175,35 @@ static ktok lerror(kvm *vm, const char *msg) {
   return token;
 }
 
-static bool lmatch(kvm *vm, char expected) {
-  if (lisend(vm)) return false;
+static bool kul_match(kuvm *vm, char expected) {
+  if (kul_is_end(vm)) return false;
   if (*vm->scanner.curr != expected) return false;
   vm->scanner.curr++;
   return true;
 }
 
-static ktok lnumber(kvm *vm) {
-  while(lisdigit(lpeek(vm))) ladvance(vm);
+static kutok kul_number(kuvm *vm) {
+  while(ku_isdigit(kul_peek(vm))) kul_advance(vm);
   
-  if (lpeek(vm) == '.' && lisdigit(lpeeknext(vm))) {
-    ladvance(vm);
+  if (kul_peek(vm) == '.' && ku_isdigit(kul_peeknext(vm))) {
+    kul_advance(vm);
   }
-  while(lisdigit(lpeek(vm))) ladvance(vm);
-  return lmake(vm, TOK_NUM);
+  while(ku_isdigit(kul_peek(vm))) kul_advance(vm);
+  return kul_make(vm, TOK_NUM);
 }
 
-static ktok lstring(kvm *vm) {
-  while(lpeek(vm) != '"' && !lisend(vm)) {
-    if (lpeek(vm) == '\n') vm->scanner.line++;
-    ladvance(vm);
+static kutok kul_string(kuvm *vm) {
+  while(kul_peek(vm) != '"' && !kul_is_end(vm)) {
+    if (kul_peek(vm) == '\n') vm->scanner.line++;
+    kul_advance(vm);
   }
-  if (lisend(vm)) return lerror(vm, "unterminated string");
-  ladvance(vm);
-  return lmake(vm, TOK_STR);
+  if (kul_is_end(vm)) return kul_err(vm, "unterminated string");
+  kul_advance(vm);
+  return kul_make(vm, TOK_STR);
 }
 
-static ltype lkeyword(kvm *vm, int start, int len,
-                        const char *rest, ltype type) {
+static kutoktype kul_keyword(kuvm *vm, int start, int len,
+                        const char *rest, kutoktype type) {
   if (vm->scanner.curr - vm->scanner.start == start + len &&
       memcmp(vm->scanner.start + start, rest, len) == 0) {
     return type;
@@ -233,94 +211,94 @@ static ltype lkeyword(kvm *vm, int start, int len,
   return TOK_IDENT;
 }
 
-static ltype lidentitytype(kvm *vm) {
+static kutoktype kul_identity_type(kuvm *vm) {
   switch(vm->scanner.start[0]) {
-    case 'a': return lkeyword(vm, 1,2,"nd", TOK_AND);
-    case 'c': return lkeyword(vm, 1,4,"lass", TOK_CLASS);
-    case 'e': return lkeyword(vm, 1,3,"lse", TOK_ELSE);
+    case 'a': return kul_keyword(vm, 1,2,"nd", TOK_AND);
+    case 'c': return kul_keyword(vm, 1,4,"lass", TOK_CLASS);
+    case 'e': return kul_keyword(vm, 1,3,"lse", TOK_ELSE);
     case 'f':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch (vm->scanner.start[1]) {
-          case 'a': return lkeyword(vm, 2, 3, "lse", TOK_FALSE);
-          case 'o': return lkeyword(vm, 2, 1, "r", TOK_FOR);
-          case 'u': return lkeyword(vm, 2, 1, "n", TOK_FUN);
+          case 'a': return kul_keyword(vm, 2, 3, "lse", TOK_FALSE);
+          case 'o': return kul_keyword(vm, 2, 1, "r", TOK_FOR);
+          case 'u': return kul_keyword(vm, 2, 1, "n", TOK_FUN);
         }
       }
-    case 'i': return lkeyword(vm, 1,1,"f", TOK_IF);
-    case 'n': return lkeyword(vm, 1,2,"il", TOK_NIL);
-    case 'o': return lkeyword(vm, 1,1,"r", TOK_OR);
-    case 'p': return lkeyword(vm, 1,4,"rint", TOK_PRINT);
-    case 'r': return lkeyword(vm, 1,5,"eturn", TOK_RETURN);
-    case 's': return lkeyword(vm, 1,4,"uper", TOK_SUPER);
+    case 'i': return kul_keyword(vm, 1,1,"f", TOK_IF);
+    case 'n': return kul_keyword(vm, 1,2,"il", TOK_NIL);
+    case 'o': return kul_keyword(vm, 1,1,"r", TOK_OR);
+    case 'p': return kul_keyword(vm, 1,4,"rint", TOK_PRINT);
+    case 'r': return kul_keyword(vm, 1,5,"eturn", TOK_RETURN);
+    case 's': return kul_keyword(vm, 1,4,"uper", TOK_SUPER);
     case 't':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch(vm->scanner.start[1]) {
-          case 'h': return lkeyword(vm, 2, 2, "is", TOK_THIS);
-          case 'r': return lkeyword(vm, 2, 2, "ue", TOK_TRUE);
+          case 'h': return kul_keyword(vm, 2, 2, "is", TOK_THIS);
+          case 'r': return kul_keyword(vm, 2, 2, "ue", TOK_TRUE);
         }
       }
-    case 'v': return lkeyword(vm, 1,2,"ar", TOK_VAR);
-    case 'w': return lkeyword(vm, 1,4,"hile", TOK_WHILE);
+    case 'v': return kul_keyword(vm, 1,2,"ar", TOK_VAR);
+    case 'w': return kul_keyword(vm, 1,4,"hile", TOK_WHILE);
   }
   return TOK_IDENT;
 }
 
-static ktok lidentifier(kvm *vm) {
-  while (lisalpha(lpeek(vm)) || lisdigit(lpeek(vm))) {
-    ladvance(vm);
+static kutok kul_identifier(kuvm *vm) {
+  while (ku_isalpha(kul_peek(vm)) || ku_isdigit(kul_peek(vm))) {
+    kul_advance(vm);
   }
-  return lmake(vm, lidentitytype(vm));
+  return kul_make(vm, kul_identity_type(vm));
 }
 
-static ktok lscan(kvm *vm) {
-  lskipspace(vm);
+static kutok kul_scan(kuvm *vm) {
+  kul_skipspace(vm);
   vm->scanner.start = vm->scanner.curr;
   
-  if (lisend(vm)) {
-    return lmake(vm, TOK_EOF);
+  if (kul_is_end(vm)) {
+    return kul_make(vm, TOK_EOF);
   }
   
-  char c = ladvance(vm);
-  if (lisalpha(c)) return lidentifier(vm);
-  if (lisdigit(c)) return lnumber(vm);
+  char c = kul_advance(vm);
+  if (ku_isalpha(c)) return kul_identifier(vm);
+  if (ku_isdigit(c)) return kul_number(vm);
   switch (c) {
-    case '(': return lmake(vm, TOK_LPAR);
-    case ')': return lmake(vm, TOK_RPAR);
-    case '{': return lmake(vm, TOK_LBRACE);
-    case '}': return lmake(vm, TOK_RBRACE);
-    case ';': return lmake(vm, TOK_SEMI);
-    case ',': return lmake(vm, TOK_COMMA);
-    case '.': return lmake(vm, TOK_DOT);
-    case '+': return lmake(vm, TOK_PLUS);
-    case '-': return lmake(vm, TOK_MINUS);
-    case '*': return lmake(vm, TOK_STAR);
+    case '(': return kul_make(vm, TOK_LPAR);
+    case ')': return kul_make(vm, TOK_RPAR);
+    case '{': return kul_make(vm, TOK_LBRACE);
+    case '}': return kul_make(vm, TOK_RBRACE);
+    case ';': return kul_make(vm, TOK_SEMI);
+    case ',': return kul_make(vm, TOK_COMMA);
+    case '.': return kul_make(vm, TOK_DOT);
+    case '+': return kul_make(vm, TOK_PLUS);
+    case '-': return kul_make(vm, TOK_MINUS);
+    case '*': return kul_make(vm, TOK_STAR);
     case '/':
-      return lmake(vm, TOK_SLASH);
+      return kul_make(vm, TOK_SLASH);
     case '!':
-      return lmake(vm, lmatch(vm, '=') ? TOK_NE : TOK_BANG);
+      return kul_make(vm, kul_match(vm, '=') ? TOK_NE : TOK_BANG);
     case '=':
-      return lmake(vm, lmatch(vm, '=') ? TOK_EQEQ : TOK_EQ);
+      return kul_make(vm, kul_match(vm, '=') ? TOK_EQEQ : TOK_EQ);
     case '<':
-      return lmake(vm, lmatch(vm, '=') ? TOK_LE : TOK_LT);
+      return kul_make(vm, kul_match(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
-      return lmake(vm, lmatch(vm, '=') ? TOK_GE : TOK_GT);
+      return kul_make(vm, kul_match(vm, '=') ? TOK_GE : TOK_GT);
     case '"':
-      return lstring(vm);
+      return kul_string(vm);
   }
-  return lerror(vm, "unexpected character");
+  return kul_err(vm, "unexpected character");
 }
 
-void lprint(kvm *vm) {
+void kul_print_all(kuvm *vm) {
   int line = -1;
   
   while (true) {
-    ktok token = lscan(vm);
+    kutok token = kul_scan(vm);
     if (token.line != line) {
-      tprintf("%4d ", token.line);
+      kuprintf("%4d ", token.line);
     } else {
-      tprintf("  |  ");
+      kuprintf("  |  ");
     }
-    tprintf("%2d '%.*s'\n", token.type, token.len, token.start);
+    kuprintf("%2d '%.*s'\n", token.type, token.len, token.start);
     
     if (token.type == TOK_EOF) {
       break;
@@ -332,7 +310,7 @@ void lprint(kvm *vm) {
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
-static void perrorat(kvm *vm, ktok *tok, const char *msg) {
+static void kup_err_at(kuvm *vm, kutok *tok, const char *msg) {
   if (vm->parser.panic) return;
   vm->parser.panic = true;
   
@@ -350,56 +328,56 @@ static void perrorat(kvm *vm, ktok *tok, const char *msg) {
   vm->parser.err = true;
 }
 
-static void perr(kvm *vm, const char *msg) {
-  perrorat(vm, &vm->parser.curr, msg);
+static void kup_err(kuvm *vm, const char *msg) {
+  kup_err_at(vm, &vm->parser.curr, msg);
 }
 
-static void padvance(kvm *vm) {
+static void kup_advance(kuvm *vm) {
   vm->parser.prev = vm->parser.curr;
   
   while (true) {
-    vm->parser.curr = lscan(vm);
+    vm->parser.curr = kul_scan(vm);
     if (vm->parser.curr.type != TOK_ERR) break;
-    perr(vm, vm->parser.curr.start);
+    kup_err(vm, vm->parser.curr.start);
   }
 }
 
-static void pconsume(kvm *vm, ltype type, const char *msg) {
+static void kup_consume(kuvm *vm, kutoktype type, const char *msg) {
   if (vm->parser.curr.type == type) {
-    padvance(vm);
+    kup_advance(vm);
     return;
   }
-  perr(vm, msg);
+  kup_err(vm, msg);
 }
 
-kchunk *ccurr(kvm *vm) {
+kuchunk *ku_cur_chunk(kuvm *vm) {
   return vm->chunk;
 }
 
-static void pemitbyte(kvm *vm, uint8_t byte) {
-  cwrite(vm, ccurr(vm), byte, vm->parser.prev.line);
+static void kup_emit_byte(kuvm *vm, uint8_t byte) {
+  kuc_write(vm, ku_cur_chunk(vm), byte, vm->parser.prev.line);
 }
 
-static void pend(kvm *vm) {
-  pemitbyte(vm, OP_RET);
+static void kup_end(kuvm *vm) {
+  kup_emit_byte(vm, OP_RET);
 }
 
-static void pemitbytes(kvm *vm, uint8_t b1, uint8_t b2) {
-  pemitbyte(vm, b1);
-  pemitbyte(vm, b2);
+static void kup_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
+  kup_emit_byte(vm, b1);
+  kup_emit_byte(vm, b2);
 }
 
 
-static uint8_t pmakeconst(kvm *vm, kval val) {
-  int cons = caddconst(vm, ccurr(vm), val);
+static uint8_t kup_make_const(kuvm *vm, kuval val) {
+  int cons = kuc_add_const(vm, ku_cur_chunk(vm), val);
   if (cons > UINT8_MAX) {
-    perr(vm, "out of constant space");
+    kup_err(vm, "out of constant space");
     return 0;
   }
   return (uint8_t)cons;
 }
-static void pemitconst(kvm *vm, kval val) {
-  pemitbytes(vm, OP_CONST, pmakeconst(vm, val));
+static void kup_emit_const(kuvm *vm, kuval val) {
+  kup_emit_bytes(vm, OP_CONST, kup_make_const(vm, val));
 }
 
 typedef enum {
@@ -414,174 +392,174 @@ typedef enum {
   P_UNARY,      // ! -
   P_CALL,       // . ()
   P_PRIMARY
-} kprecedence;
+} kup_precedence;
 
-typedef void (*pfunc)(kvm *);
+typedef void (*kup_func)(kuvm *);
 
 typedef struct {
-  pfunc prefix;
-  pfunc infix;
-  kprecedence precedence;
-} prule;
+  kup_func prefix;
+  kup_func infix;
+  kup_precedence precedence;
+} kup_rule;
 
-static prule *pgetrule(kvm *vm, ltype optype);
+static kup_rule *kup_get_rule(kuvm *vm, kutoktype optype);
 
-static void pprecedence(kvm *vm, kprecedence prec) {
-  padvance(vm);
-  pfunc prefix = pgetrule(vm, vm->parser.prev.type)->prefix;
+static void kup_process(kuvm *vm, kup_precedence prec) {
+  kup_advance(vm);
+  kup_func prefix = kup_get_rule(vm, vm->parser.prev.type)->prefix;
   if (prefix == NULL) {
-    perr(vm, "expected expression");
+    kup_err(vm, "expected expression");
     return;
   }
   prefix(vm);
   
-  while (prec <= pgetrule(vm, vm->parser.curr.type)->precedence) {
-    padvance(vm);
-    pfunc infix = pgetrule(vm, vm->parser.prev.type)->infix;
+  while (prec <= kup_get_rule(vm, vm->parser.curr.type)->precedence) {
+    kup_advance(vm);
+    kup_func infix = kup_get_rule(vm, vm->parser.prev.type)->infix;
     infix(vm);
   }
 }
 
 
-static void pliteral(kvm *vm) {
+static void kup_literal(kuvm *vm) {
   switch (vm->parser.prev.type) {
-    case TOK_FALSE: pemitbyte(vm, OP_FALSE); break;
-    case TOK_TRUE: pemitbyte(vm, OP_TRUE); break;
-    case TOK_NIL: pemitbyte(vm, OP_NIL); break;
+    case TOK_FALSE: kup_emit_byte(vm, OP_FALSE); break;
+    case TOK_TRUE: kup_emit_byte(vm, OP_TRUE); break;
+    case TOK_NIL: kup_emit_byte(vm, OP_NIL); break;
     default: return; // unreachable
   }
 }
 
-static void pstring(kvm* vm) {
-  pemitconst(vm, OBJ_VAL(kstrcpy(vm, 
+static void kup_string(kuvm* vm) {
+  kup_emit_const(vm, OBJ_VAL(kus_copy(vm, 
             vm->parser.prev.start + 1,
             vm->parser.prev.len - 2)));
 }
 
-static void pnumber(kvm *vm) {
+static void kup_number(kuvm *vm) {
   double val = strtod(vm->parser.prev.start, NULL);
-  pemitconst(vm, NUM_VAL(val));
+  kup_emit_const(vm, NUM_VAL(val));
 }
 
-static void pexpression(kvm *vm) {
-  pprecedence(vm, P_ASSIGN);
+static void kup_expression(kuvm *vm) {
+  kup_process(vm, P_ASSIGN);
 }
 
-static void pgrouping(kvm *vm) {
-  pexpression(vm);
-  pconsume(vm, TOK_RPAR, "')' expected");
+static void kup_grouping(kuvm *vm) {
+  kup_expression(vm);
+  kup_consume(vm, TOK_RPAR, "')' expected");
 }
 
-static void punary(kvm *vm) {
-  ltype optype = vm->parser.prev.type;
+static void kup_unary(kuvm *vm) {
+  kutoktype optype = vm->parser.prev.type;
   
-  pexpression(vm);
+  kup_expression(vm);
   
   switch(optype) {
-    case TOK_MINUS: pemitbyte(vm, OP_NEG); break;
-    case TOK_BANG: pemitbyte(vm, OP_NOT); break;
+    case TOK_MINUS: kup_emit_byte(vm, OP_NEG); break;
+    case TOK_BANG: kup_emit_byte(vm, OP_NOT); break;
     default: return;
   }
 }
 
 
-static void pbinary(kvm *vm) {
-  ltype optype = vm->parser.prev.type;
-  prule *rule = pgetrule(vm, optype);
-  pprecedence(vm, (kprecedence)(rule->precedence + 1));
+static void kup_binary(kuvm *vm) {
+  kutoktype optype = vm->parser.prev.type;
+  kup_rule *rule = kup_get_rule(vm, optype);
+  kup_process(vm, (kup_precedence)(rule->precedence + 1));
   
   switch (optype) {
-    case TOK_PLUS: pemitbyte(vm, OP_ADD); break;
-    case TOK_MINUS: pemitbyte(vm, OP_SUB); break;
-    case TOK_STAR: pemitbyte(vm, OP_MUL); break;
-    case TOK_SLASH: pemitbyte(vm, OP_DIV); break;
-    case TOK_NE: pemitbytes(vm, OP_EQ, OP_NOT); break;
-    case TOK_EQEQ: pemitbyte(vm, OP_EQ); break;
-    case TOK_GT: pemitbyte(vm, OP_GT); break;
-    case TOK_GE: pemitbytes(vm, OP_LT, OP_NOT); break;
-    case TOK_LT: pemitbyte(vm, OP_LT); break;
-    case TOK_LE: pemitbytes(vm, OP_GT, OP_NOT); break;
+    case TOK_PLUS: kup_emit_byte(vm, OP_ADD); break;
+    case TOK_MINUS: kup_emit_byte(vm, OP_SUB); break;
+    case TOK_STAR: kup_emit_byte(vm, OP_MUL); break;
+    case TOK_SLASH: kup_emit_byte(vm, OP_DIV); break;
+    case TOK_NE: kup_emit_bytes(vm, OP_EQ, OP_NOT); break;
+    case TOK_EQEQ: kup_emit_byte(vm, OP_EQ); break;
+    case TOK_GT: kup_emit_byte(vm, OP_GT); break;
+    case TOK_GE: kup_emit_bytes(vm, OP_LT, OP_NOT); break;
+    case TOK_LT: kup_emit_byte(vm, OP_LT); break;
+    case TOK_LE: kup_emit_bytes(vm, OP_GT, OP_NOT); break;
     default: return;
   }
 }
 
-prule rules[] = {
-  [TOK_LPAR] =      { pgrouping,   NULL,     P_NONE },
+kup_rule rules[] = {
+  [TOK_LPAR] =      { kup_grouping,   NULL,     P_NONE },
   [TOK_RPAR] =      { NULL,        NULL,     P_NONE },
   [TOK_LBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_RBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_COMMA] =     { NULL,        NULL,     P_NONE },
   [TOK_DOT] =       { NULL,        NULL,     P_NONE },
-  [TOK_MINUS] =     { punary,      pbinary,  P_TERM },
-  [TOK_PLUS] =      { NULL,        pbinary,  P_TERM },
+  [TOK_MINUS] =     { kup_unary,      kup_binary,  P_TERM },
+  [TOK_PLUS] =      { NULL,        kup_binary,  P_TERM },
   [TOK_SEMI] =      { NULL,        NULL,     P_NONE },
-  [TOK_SLASH] =     { NULL,        pbinary,  P_FACTOR },
-  [TOK_STAR] =      { NULL,        pbinary,  P_FACTOR },
-  [TOK_BANG] =      { punary,      NULL,     P_NONE },
-  [TOK_NE] =        { NULL,        pbinary,  P_EQ },
+  [TOK_SLASH] =     { NULL,        kup_binary,  P_FACTOR },
+  [TOK_STAR] =      { NULL,        kup_binary,  P_FACTOR },
+  [TOK_BANG] =      { kup_unary,      NULL,     P_NONE },
+  [TOK_NE] =        { NULL,        kup_binary,  P_EQ },
   [TOK_EQ] =        { NULL,        NULL,     P_NONE },
-  [TOK_EQEQ] =      { NULL,        pbinary,  P_EQ },
-  [TOK_GT] =        { NULL,        pbinary,  P_COMP },
-  [TOK_GE] =        { NULL,        pbinary,  P_COMP },
-  [TOK_LT] =        { NULL,        pbinary,  P_COMP },
-  [TOK_LE] =        { NULL,        pbinary,  P_COMP },
+  [TOK_EQEQ] =      { NULL,        kup_binary,  P_EQ },
+  [TOK_GT] =        { NULL,        kup_binary,  P_COMP },
+  [TOK_GE] =        { NULL,        kup_binary,  P_COMP },
+  [TOK_LT] =        { NULL,        kup_binary,  P_COMP },
+  [TOK_LE] =        { NULL,        kup_binary,  P_COMP },
   [TOK_IDENT] =     { NULL,        NULL,     P_NONE },
-  [TOK_STR] =       { pstring,     NULL,     P_NONE },
-  [TOK_NUM] =       { pnumber,     NULL,     P_NONE },
+  [TOK_STR] =       { kup_string,     NULL,     P_NONE },
+  [TOK_NUM] =       { kup_number,     NULL,     P_NONE },
   [TOK_AND] =       { NULL,        NULL,     P_NONE },
   [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
   [TOK_ELSE] =      { NULL,        NULL,     P_NONE },
-  [TOK_FALSE] =     { pliteral,    NULL,     P_NONE },
+  [TOK_FALSE] =     { kup_literal,    NULL,     P_NONE },
   [TOK_FOR] =       { NULL,        NULL,     P_NONE },
   [TOK_FUN] =       { NULL,        NULL,     P_NONE },
   [TOK_IF] =        { NULL,        NULL,     P_NONE },
-  [TOK_NIL] =       { pliteral,    NULL,     P_NONE },
+  [TOK_NIL] =       { kup_literal,    NULL,     P_NONE },
   [TOK_OR] =        { NULL,        NULL,     P_NONE },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
   [TOK_THIS] =      { NULL,        NULL,     P_NONE },
-  [TOK_TRUE] =      { pliteral,    NULL,     P_NONE },
+  [TOK_TRUE] =      { kup_literal,    NULL,     P_NONE },
   [TOK_VAR] =       { NULL,        NULL,     P_NONE },
   [TOK_WHILE] =     { NULL,        NULL,     P_NONE },
   [TOK_ERR] =       { NULL,        NULL,     P_NONE },
   [TOK_EOF] =       { NULL,        NULL,     P_NONE },
 };
 
-static prule *pgetrule(kvm *vm, ltype optype) {
+static kup_rule *kup_get_rule(kuvm *vm, kutoktype optype) {
   return &rules[optype];
 }
 
 // ------------------------------------------------------------
 // Virtual machine
 // ------------------------------------------------------------
-void kresetstack(kvm *vm) {
+void ku_reset_stack(kuvm *vm) {
   vm->sp = vm->stack;
 }
 
-void kpush(kvm *vm, kval val) {
+void ku_push(kuvm *vm, kuval val) {
   *(vm->sp) = val;
   vm->sp++;
 }
 
-kval kpop(kvm *vm) {
+kuval ku_pop(kuvm *vm) {
   vm->sp--;
   return *(vm->sp);
 }
 
-static bool kisfalsy(kval v) {
+static bool ku_is_falsy(kuval v) {
   return IS_NIL(v) || (IS_BOOL(v) && !AS_BOOL(v));
 }
 
-kval kpeek(kvm *vm, int distance) {
+kuval ku_peek_stack(kuvm *vm, int distance) {
   return vm->sp[-1 - distance];
 }
 
-kvm *knew(void) {
-  kvm *vm = malloc(sizeof(kvm));
+kuvm *ku_new(void) {
+  kuvm *vm = malloc(sizeof(kuvm));
   if (!vm) {
     return NULL;
   }
-  vm->allocated = sizeof(kvm);
+  vm->allocated = sizeof(kuvm);
   vm->flags = 0;
   if (!vm) {
     return NULL;
@@ -591,44 +569,39 @@ kvm *knew(void) {
   vm->stop = false;
   vm->chunk = NULL;
   vm->objects = NULL;
-  kresetstack(vm);
-  tainit(vm, &vm->types);
-  tawrite(vm, &vm->types, "Int");
-  tawrite(vm, &vm->types, "String");
-  tawrite(vm, &vm->types, "Double");
+  ku_reset_stack(vm);
   return vm;
 }
 
 #ifdef KVM_TRACE
-void mprint(kvm *vm) {
+void ku_print_mem(kuvm *vm) {
   printf("allocated: %d, freed: %d, delta: %d\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
 }
 #endif
 
-static void kfreeobjects(kvm* vm) {
-  kobj* obj = vm->objects;
+static void ku_free_objects(kuvm* vm) {
+  kuobj* obj = vm->objects;
   while (obj != NULL) {
-    kobj* next = (kobj*)obj->next;
-    kobjfree(vm, obj);
+    kuobj* next = (kuobj*)obj->next;
+    kuo_free(vm, obj);
     obj = next;
   }
 }
 
-void kfree(kvm *vm) {
-  kfreeobjects(vm);
-  vm->freed += sizeof(kvm);
-  tafree(vm, &vm->types);
+void ku_free(kuvm *vm) {
+  ku_free_objects(vm);
+  vm->freed += sizeof(kuvm);
   assert(vm->allocated - vm->freed == 0);
   free(vm);
 }
 
 #ifdef KVM_TRACE
-void kprintstack(kvm *vm) {
+void ku_print_stack(kuvm *vm) {
   printf(" [");
-  for (kval* vp = vm->stack; vp < vm->sp; vp++) {
-    vprint(vm, *vp);
+  for (kuval* vp = vm->stack; vp < vm->sp; vp++) {
+    ku_printv(vm, *vp);
     if (vp < vm->sp - 1) {
       printf(",");
     }
@@ -638,7 +611,7 @@ void kprintstack(kvm *vm) {
 }
 #endif
 
-static void keruntime(kvm *vm, const char *fmt, ...) {
+static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
@@ -647,31 +620,31 @@ static void keruntime(kvm *vm, const char *fmt, ...) {
   size_t instruction = vm->ip - vm->chunk->code - 1;
   int line = vm->chunk->lines[instruction];
   fprintf(stderr, "[line %d] in script\n", line);
-  kresetstack(vm);
+  ku_reset_stack(vm);
 }
 
-static kres krunloop(kvm *vm) {
+static kures ku_runloop(kuvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
 #define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
 #define BIN_OP(v, vt, op) \
   do { \
-  if (!IS_NUM(kpeek(v,0)) || !IS_NUM(kpeek(v,1))) { \
-    keruntime(v, "numbers expected"); \
+  if (!IS_NUM(ku_peek_stack(v,0)) || !IS_NUM(ku_peek_stack(v,1))) { \
+    ku_err(v, "numbers expected"); \
     return KVM_ERR_RUNTIME; \
   } \
-  double b = AS_NUM(kpop(v)); \
-  double a = AS_NUM(kpop(v)); \
-  kpush(v, vt(a op b)); \
+  double b = AS_NUM(ku_pop(v)); \
+  double a = AS_NUM(ku_pop(v)); \
+  ku_push(v, vt(a op b)); \
 } while (false)
 
   
 
-  kres res = KVM_CONT;
+  kures res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
 #ifdef KVM_TRACE
     if (vm->flags & KVM_F_TRACE) {
-     oprint(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+     ku_print_op(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
     }
 #endif
 
@@ -679,18 +652,18 @@ static kres krunloop(kvm *vm) {
       case OP_NOP:
         break;
       case OP_NIL:
-        kpush(vm, NIL_VAL);
+        ku_push(vm, NIL_VAL);
         break;
       case OP_TRUE:
-        kpush(vm, BOOL_VAL(true));
+        ku_push(vm, BOOL_VAL(true));
         break;
       case OP_FALSE:
-        kpush(vm, BOOL_VAL(false));
+        ku_push(vm, BOOL_VAL(false));
         break;
       case OP_EQ: {
-        kval b = kpop(vm);
-        kval a = kpop(vm);
-        kpush(vm, BOOL_VAL(kval_eq(a, b)));
+        kuval b = ku_pop(vm);
+        kuval a = ku_pop(vm);
+        ku_push(vm, BOOL_VAL(kuv_eq(a, b)));
         break;;
       }
       case OP_RET: {
@@ -698,32 +671,32 @@ static kres krunloop(kvm *vm) {
         break;
       }
       case OP_CONST: {
-        kval con = CONST_READ(vm);
-        kpush(vm, con);
+        kuval con = CONST_READ(vm);
+        ku_push(vm, con);
         break;
       }
       case OP_NEG: {
-        if (! IS_NUM(kpeek(vm, 0))) {
-          keruntime(vm, "number expected" );
+        if (! IS_NUM(ku_peek_stack(vm, 0))) {
+          ku_err(vm, "number expected" );
           return KVM_ERR_RUNTIME;
         }
-        kval v = kpop(vm);
+        kuval v = ku_pop(vm);
         double dv = AS_NUM(v);
-        kval nv = NUM_VAL(-dv);
-        kpush(vm, nv);
+        kuval nv = NUM_VAL(-dv);
+        ku_push(vm, nv);
         break;
       }
       case OP_ADD: {
-        if (IS_STR(kpeek(vm, 0)) && IS_STR(kpeek(vm, 1))) {
-          kstradd(vm);
+        if (IS_STR(ku_peek_stack(vm, 0)) && IS_STR(ku_peek_stack(vm, 1))) {
+          kus_add(vm);
         }
-        else if (IS_NUM(kpeek(vm, 0)) && IS_NUM(kpeek(vm, 1))) {
-          double a = AS_NUM(kpop(vm));
-          double b = AS_NUM(kpop(vm));
-          kpush(vm, NUM_VAL(a + b));
+        else if (IS_NUM(ku_peek_stack(vm, 0)) && IS_NUM(ku_peek_stack(vm, 1))) {
+          double a = AS_NUM(ku_pop(vm));
+          double b = AS_NUM(ku_pop(vm));
+          ku_push(vm, NUM_VAL(a + b));
         }
         else {
-          keruntime(vm, "numbers expected");
+          ku_err(vm, "numbers expected");
           return KVM_ERR_RUNTIME;
         }
         break;
@@ -734,15 +707,15 @@ static kres krunloop(kvm *vm) {
       case OP_GT: BIN_OP(vm, BOOL_VAL, >); break;
       case OP_LT: BIN_OP(vm,BOOL_VAL, <); break;
       case OP_NOT:
-        kpush(vm, BOOL_VAL(kisfalsy(kpop(vm))));
+        ku_push(vm, BOOL_VAL(ku_is_falsy(ku_pop(vm))));
         break;
     }
 #ifdef KVM_TRACE
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
-     kprintstack(vm);
+     ku_print_stack(vm);
     } else {
       if (vm->flags & KVM_F_TRACE) {
-        tprintf("\n");
+        kuprintf("\n");
       }
     }
 #endif
@@ -753,50 +726,50 @@ static kres krunloop(kvm *vm) {
 #undef BIN_OP
 }
 
-kres krun(kvm *vm, kchunk *chunk) {
+kures ku_run(kuvm *vm, kuchunk *chunk) {
   vm->chunk = chunk;
   vm->ip = vm->chunk->code;
-  return krunloop(vm);
+  return ku_runloop(vm);
 }
 
-static kres kcompile(kvm *vm, char *source, kchunk *chunk) {
-  linit(vm, source);
+static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
+  kul_init(vm, source);
   vm->parser.err = false;
   vm->parser.panic = false;
   vm->chunk = chunk;
-  padvance(vm);
-  pexpression(vm);
-  pconsume(vm, TOK_EOF, "expected expression end");
-  pend(vm);
+  kup_advance(vm);
+  kup_expression(vm);
+  kup_consume(vm, TOK_EOF, "expected expression end");
+  kup_end(vm);
   
 #ifdef DEBUG_PRINT_CODE
-  cprint(vm, ccurr(vm), "code");
+  ku_print_chunk(vm, ku_cur_chunk(vm), "code");
 #endif
   return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
 }
 
-static kres kexec(kvm *vm, char *source) {
-  kchunk chunk;
+static kures ku_exec(kuvm *vm, char *source) {
+  kuchunk chunk;
   
-  cinit(vm, &chunk);
+  kuc_init(vm, &chunk);
   
-  if (kcompile(vm, source, &chunk) != KVM_OK) {
-    cfree(vm, &chunk);
+  if (ku_compile(vm, source, &chunk) != KVM_OK) {
+    kuc_free(vm, &chunk);
     return KVM_ERR_SYNTAX;
   }
   
   vm->ip = chunk.code;
-  kres res = krun(vm, &chunk);
+  kures res = ku_run(vm, &chunk);
   
   if (vm->flags & KVM_F_LIST) {
-    cprint(vm, ccurr(vm), "code");
+    ku_print_chunk(vm, ku_cur_chunk(vm), "code");
   }
-  cfree(vm, &chunk);
+  kuc_free(vm, &chunk);
   return res;
 }
 
 #ifdef KVM_MAIN
-static char *kreadfile(kvm *vm, const char *path) {
+static char *ku_readfile(kuvm *vm, const char *path) {
   FILE * file = fopen(path , "rb");
   
   if (file == NULL) {
@@ -817,19 +790,19 @@ static char *kreadfile(kvm *vm, const char *path) {
   return buffer ;
 }
 
-kres krunfile(kvm *vm, const char *file) {
-  char *source = kreadfile(vm, file);
+kures ku_runfile(kuvm *vm, const char *file) {
+  char *source = ku_readfile(vm, file);
   
   if (source == NULL) {
     return KVM_FILE_NOTFOUND;
   }
-  kres res = kexec(vm, source);
+  kures res = ku_exec(vm, source);
   free(source);
   return res;
 }
 
 
-static bool flag_check(kvm *vm, char *line,
+static bool ku_check_flag(kuvm *vm, char *line,
                        const char *name, uint64_t flag) {
   char buff[256];
   sprintf(buff, ".%s on\n", name);
@@ -846,7 +819,7 @@ static bool flag_check(kvm *vm, char *line,
   }
   return false;
 }
-static void krepl(kvm *vm) {
+static void ku_repl(kuvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
   char line[1024];
   
@@ -863,23 +836,23 @@ static void krepl(kvm *vm) {
     }
 
     if (strcmp(line, ".test\n") == 0) {
-      ktest();
+      ku_test();
       continue;
     }
     
-    if (flag_check(vm, line, "trace", KVM_F_TRACE)) continue;
-    if (flag_check(vm, line, "stack", KVM_F_STACK)) continue;
-    if (flag_check(vm, line, "list", KVM_F_LIST)) continue;
+    if (ku_check_flag(vm, line, "trace", KVM_F_TRACE)) continue;
+    if (ku_check_flag(vm, line, "stack", KVM_F_STACK)) continue;
+    if (ku_check_flag(vm, line, "list", KVM_F_LIST)) continue;
 
     if (strcmp(line, ".mem\n") == 0) {
-      mprint(vm);
+      ku_print_mem(vm);
       continue;
     }
     
-    kexec(vm, line);
+    ku_exec(vm, line);
     if (vm->sp > vm->stack) {
-      kval v = kpop(vm);
-      vprint(vm, v);
+      kuval v = ku_pop(vm);
+      ku_printv(vm, v);
       printf("\n");
     }
 
@@ -890,7 +863,7 @@ static void krepl(kvm *vm) {
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
-char *kalloc(kvm *vm, void *ptr, size_t oldsize, size_t nsize) {
+char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
   
 #ifdef MEMORY_TRACE
   printf("malloc %d -> %d\n", (int)oldsize, (int)nsize);
@@ -909,15 +882,15 @@ char *kalloc(kvm *vm, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void cinit(kvm *vm, kchunk *chunk) {
+void kuc_init(kuvm *vm, kuchunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  vainit(vm, &chunk->constants);
+  kua_init(vm, &chunk->constants);
 }
 
-void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
+void kuc_write(kuvm *vm, kuchunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
@@ -930,21 +903,21 @@ void cwrite(kvm *vm, kchunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 }
 
-void cfree(kvm *vm, kchunk *chunk) {
+void kuc_free(kuvm *vm, kuchunk *chunk) {
   ARRAY_FREE(vm, uint8_t, chunk->code, chunk->capacity);
   ARRAY_FREE(vm, int, chunk->lines, chunk->capacity);
-  ARRAY_FREE(vm, kval, chunk->constants.values, chunk->constants.capacity);
+  ARRAY_FREE(vm, kuval, chunk->constants.values, chunk->constants.capacity);
 }
 
-int caddconst(kvm *vm, kchunk *chunk, kval value) {
-  vawrite(vm, &chunk->constants, value);
+int kuc_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
+  kua_write(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-static void kobjprint(kvm* vm, kval val) {
+static void kuo_print(kuvm* vm, kuval val) {
   switch (OBJ_TYPE(val)) {
   case OBJ_STR:
     printf("%s", AS_CSTR(val));
@@ -952,7 +925,7 @@ static void kobjprint(kvm* vm, kval val) {
   }
 }
 
-void vprint(kvm *vm, kval value) {
+void ku_printv(kuvm *vm, kuval value) {
   switch (value.type) {
     case VAL_BOOL:
       printf("%s", (value.as.bval) ? "true": "false");
@@ -964,22 +937,22 @@ void vprint(kvm *vm, kval value) {
       printf("%g", value.as.dval);
       break;
     case VAL_OBJ:
-      kobjprint(vm, value);
+      kuo_print(vm, value);
       break;
   }
 }
 
-void vainit(kvm* vm, kvalarr *array) {
+void kua_init(kuvm* vm, kuarr *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void vawrite(kvm* vm, kvalarr *array, kval value) {
+void kua_write(kuvm* vm, kuarr *array, kuval value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = CAPACITY_GROW(old);
-    array->values = ARRAY_GROW(vm, kval, array->values, old, array->capacity);
+    array->values = ARRAY_GROW(vm, kuval, array->values, old, array->capacity);
   }
   array->values[array->count] = value;
   array->count++;
@@ -989,31 +962,31 @@ void vawrite(kvm* vm, kvalarr *array, kval value) {
 // Debug
 // ------------------------------------------------------------
 #ifdef KVM_TRACE
-void cprint(kvm *vm, kchunk *chunk, const char * name) {
+void ku_print_chunk(kuvm *vm, kuchunk *chunk, const char * name) {
   printf("== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; ) {
-    offset = oprint(vm, chunk, offset);
+    offset = ku_print_op(vm, chunk, offset);
     printf("\n");
   }
 }
 
-static int oprintsimple(const char *name, int offset) {
+static int ku_print_simple_op(const char *name, int offset) {
   printf("%-17s", name);
   return offset + 1;
 }
 
-static int oprintconst(kvm *vm, const char *name, kchunk *chunk, int offset) {
+static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-6s %4d '", name, con);
-  vprint(vm, chunk->constants.values[con]);
+  ku_printv(vm, chunk->constants.values[con]);
   printf("'");
   return offset+2;
 }
 
-int oprint(kvm *vm, kchunk *chunk, int offset) {
+int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
 #define OP_DEF1(o) \
 case o:\
-return oprintsimple(#o, offset);
+return ku_print_simple_op(#o, offset);
   
   printf("%04d ", offset);
 
@@ -1038,7 +1011,7 @@ return oprintsimple(#o, offset);
       OP_DEF1(OP_LT)
       OP_DEF1(OP_EQ)
     case OP_CONST:
-      return oprintconst(vm, "OP_CONST", chunk, offset);
+      return ku_print_const(vm, "OP_CONST", chunk, offset);
     default:
       printf("Unknown opcode %d\n", op);
       return offset + 1;
@@ -1051,38 +1024,38 @@ return oprintsimple(#o, offset);
 // REPL
 // ------------------------------------------------------------
 #ifdef KVM_MAIN
-int kmain(int argc, const char * argv[]) {
-  kvm *vm = knew();
+int ku_main(int argc, const char * argv[]) {
+  kuvm *vm = ku_new();
   
   if (argc == 2 && strcmp(argv[1],"--test") == 0) {
-    ktest();
+    ku_test();
     return 0;
   }
   
   if (argc == 1) {
-    krepl(vm);
+    ku_repl(vm);
   } else if (argc == 2) {
-    kres res = krunfile(vm, argv[1]);
+    kures res = ku_runfile(vm, argv[1]);
     if (res == KVM_ERR_RUNTIME) {
-      kfree(vm);
+      ku_free(vm);
       exit(70);
     }
     if (res == KVM_ERR_SYNTAX)  {
-      kfree(vm);
+      ku_free(vm);
       exit(65);
     }
     if (res == KVM_FILE_NOTFOUND) {
       fprintf(stderr, "file error '%s'\n", argv[1]);
-      kfree(vm);
+      ku_free(vm);
       exit(74);
     }
     
   } else {
-    kfree(vm);
+    ku_free(vm);
     fprintf(stderr, "usage kumu [file]\n");
     exit(64);
   }
-  kfree(vm);
+  ku_free(vm);
   return 0;
 }
 #endif
@@ -1092,16 +1065,16 @@ int kmain(int argc, const char * argv[]) {
 // ------------------------------------------------------------
 #ifdef KVM_TEST
 
-static void cwriteconst(kvm *vm, int cons, int line) {
-  int index = caddconst(vm, vm->chunk, NUM_VAL(cons));
-  cwrite(vm, vm->chunk, OP_CONST, line);
-  cwrite(vm, vm->chunk, index, line);
+static void kuc_write_const(kuvm *vm, int cons, int line) {
+  int index = kuc_add_const(vm, vm->chunk, NUM_VAL(cons));
+  kuc_write(vm, vm->chunk, OP_CONST, line);
+  kuc_write(vm, vm->chunk, index, line);
 }
 
 static int ktest_pass = 0;
 int ktest_fail = 0;
 
-static void tint_eq(kvm *vm, int v1, int v2, const char *m) {
+static void tint_eq(kuvm *vm, int v1, int v2, const char *m) {
   if (v1 == v2) {
     ktest_pass++;
     return;
@@ -1110,313 +1083,313 @@ static void tint_eq(kvm *vm, int v1, int v2, const char *m) {
   printf("expected: %d found %d [%s]\n", v1, v2, m);
 }
 
-static void tval_eq(kvm* vm, kval v1, kval v2, const char *msg) {
-  if (kval_eq(v1, v2)) {
+static void tval_eq(kuvm* vm, kuval v1, kuval v2, const char *msg) {
+  if (kuv_eq(v1, v2)) {
     ktest_pass++;
     return;
   }
   
   ktest_fail++;
   printf("expected: ");
-  vprint(vm, v2);
+  ku_printv(vm, v2);
   printf(" found: ");
-  vprint(vm, v1);
+  ku_printv(vm, v1);
   printf(" [%s]\n", msg);
 }
 
-static void ktest_summary() {
+static void ku_test_summary() {
   printf("tests %d passed %d failed\n", ktest_pass, ktest_fail);
 }
 
-void ktest() {
-  kvm *vm = knew();
-  kchunk chunk;
-  cinit(vm, &chunk);
+void ku_test() {
+  kuvm *vm = ku_new();
+  kuchunk chunk;
+  kuc_init(vm, &chunk);
   vm->chunk = &chunk;
   int line = 1;
-  cwrite(vm, &chunk, OP_NOP, line++);
-  cwriteconst(vm, 1, line);
-  cwriteconst(vm, 2, line);
-  cwrite(vm, &chunk, OP_ADD, line);
-  cwrite(vm, &chunk, OP_NEG, line++);
-  cwriteconst(vm, 4, line);
-  cwrite(vm, &chunk, OP_SUB, line++);
-  cwriteconst(vm, 5, line);
-  cwrite(vm, &chunk, OP_MUL, line++);
-  cwriteconst(vm, 6, line);
-  cwrite(vm, &chunk, OP_DIV, line++);
-  cwrite(vm, &chunk, OP_RET, line);
-  kres res = krun(vm, &chunk);
-  tint_eq(vm, res, KVM_OK, "krun res");
-  kval v = kpop(vm);
-  tval_eq(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "krun ret");
-  cfree(vm, &chunk);
-  kfree(vm);
+  kuc_write(vm, &chunk, OP_NOP, line++);
+  kuc_write_const(vm, 1, line);
+  kuc_write_const(vm, 2, line);
+  kuc_write(vm, &chunk, OP_ADD, line);
+  kuc_write(vm, &chunk, OP_NEG, line++);
+  kuc_write_const(vm, 4, line);
+  kuc_write(vm, &chunk, OP_SUB, line++);
+  kuc_write_const(vm, 5, line);
+  kuc_write(vm, &chunk, OP_MUL, line++);
+  kuc_write_const(vm, 6, line);
+  kuc_write(vm, &chunk, OP_DIV, line++);
+  kuc_write(vm, &chunk, OP_RET, line);
+  kures res = ku_run(vm, &chunk);
+  tint_eq(vm, res, KVM_OK, "ku_run res");
+  kuval v = ku_pop(vm);
+  tval_eq(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
+  kuc_free(vm, &chunk);
+  ku_free(vm);
   
-  vm = knew();
-  res = kexec(vm, "1+2");
-  tint_eq(vm, res, KVM_OK, "kexec res");
-  v = kpop(vm);
-  tval_eq(vm, v, NUM_VAL(3), "kexec ret");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1+2");
+  tint_eq(vm, res, KVM_OK, "ku_exec res");
+  v = ku_pop(vm);
+  tval_eq(vm, v, NUM_VAL(3), "ku_exec ret");
+  ku_free(vm);
   
-  vm = knew();
-  linit(vm, "12+3");
-  lprint(vm);
-  kfree(vm);
+  vm = ku_new();
+  kul_init(vm, "12+3");
+  kul_print_all(vm);
+  ku_free(vm);
   
-  vm = knew();
-  res = kexec(vm, "12+");
+  vm = ku_new();
+  res = ku_exec(vm, "12+");
   tint_eq(vm, res, KVM_ERR_SYNTAX, "12+");
-  kfree(vm);
+  ku_free(vm);
   
-  vm = knew();
-  res = kexec(vm, "(1+2)*3");
+  vm = ku_new();
+  res = ku_exec(vm, "(1+2)*3");
   tint_eq(vm, res, KVM_OK, "grouping res");
-  tval_eq(vm, kpop(vm), NUM_VAL(9), "grouping ret");
-  kfree(vm);
+  tval_eq(vm, ku_pop(vm), NUM_VAL(9), "grouping ret");
+  ku_free(vm);
   
-  vm = knew();
+  vm = ku_new();
   vm->flags |= KVM_F_LIST;
-  res = kexec(vm, "(1+2)*3");
-  kfree(vm);
+  res = ku_exec(vm, "(1+2)*3");
+  ku_free(vm);
 
-  vm = knew();
-  mprint(vm);
-  kfree(vm);
+  vm = ku_new();
+  ku_print_mem(vm);
+  ku_free(vm);
   
-  vm = knew();
-  linit(vm, "var x=30; \n  x=\"hello\";");
-  lprint(vm);
-  kfree(vm);
+  vm = ku_new();
+  kul_init(vm, "var x=30; \n  x=\"hello\";");
+  kul_print_all(vm);
+  ku_free(vm);
 
-  vm = knew();
-  kexec(vm, "2*3");
-  kprintstack(vm);
-  kfree(vm);
+  vm = ku_new();
+  ku_exec(vm, "2*3");
+  ku_print_stack(vm);
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "-2*3");
+  vm = ku_new();
+  res = ku_exec(vm, "-2*3");
   tint_eq(vm, res, KVM_OK, "unary res");
-  tval_eq(vm, kpop(vm), NUM_VAL(-6), "unary ret");
-  kfree(vm);
+  tval_eq(vm, ku_pop(vm), NUM_VAL(-6), "unary ret");
+  ku_free(vm);
 
   // unterminated string
-  vm = knew();
-  linit(vm, "\"hello");
-  lprint(vm);
-  kfree(vm);
+  vm = ku_new();
+  kul_init(vm, "\"hello");
+  kul_print_all(vm);
+  ku_free(vm);
 
-  // vprint
-  vm = knew();
-  res = kexec(vm, "2+3");
-  v = kpop(vm);
-  tval_eq(vm, v, NUM_VAL(5), "vprint ret");
-  vprint(vm, v);
-  kfree(vm);
+  // ku_printv
+  vm = ku_new();
+  res = ku_exec(vm, "2+3");
+  v = ku_pop(vm);
+  tval_eq(vm, v, NUM_VAL(5), "ku_printv ret");
+  ku_printv(vm, v);
+  ku_free(vm);
   
-  vm = knew();
-  res = kexec(vm, "12.3");
-  tval_eq(vm, kpop(vm), NUM_VAL(12.3), "lpeeknext ret");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "12.3");
+  tval_eq(vm, ku_pop(vm), NUM_VAL(12.3), "kul_peeknext ret");
+  ku_free(vm);
   
-  vm = knew();
-  linit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
-  ktok t = lscan(vm);
+  vm = ku_new();
+  kul_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
+  kutok t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_AND, "[and]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_CLASS, "[class]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_ELSE, "[else]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_FALSE, "[false]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_FOR, "[for]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_FUN, "[fun]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_IF, "[if]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_NIL, "[nil]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_OR, "[or]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_PRINT, "[print]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_RETURN, "[return]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_SUPER, "[super]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_THIS, "[this]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_TRUE, "[true]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_WHILE, "[while]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_LBRACE, "[{]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_RBRACE, "[}]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_BANG, "[!]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_PLUS, "[+]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_MINUS, "[-]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_STAR, "[*]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_SLASH, "[/]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_EQ, "[=]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_NE, "[!=]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_GT, "[>]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_LT, "[<]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_GE, "[>=]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_LE, "[<=]");
 
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
-  t = lscan(vm);
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
-  kfree(vm);
+  ku_free(vm);
   
-  vm = knew();
-  linit(vm, "// this is a comment");
-  t = lscan(vm);
+  vm = ku_new();
+  kul_init(vm, "// this is a comment");
+  t = kul_scan(vm);
   tint_eq(vm, t.type, TOK_EOF, "comment");
-  kfree(vm);
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "(12-2)/5");
+  vm = ku_new();
+  res = ku_exec(vm, "(12-2)/5");
   tint_eq(vm, res, KVM_OK, "sub div res");
-  tval_eq(vm, kpop(vm), NUM_VAL(2), "sub div ret");
-  kfree(vm);
+  tval_eq(vm, ku_pop(vm), NUM_VAL(2), "sub div ret");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "-true");
+  vm = ku_new();
+  res = ku_exec(vm, "-true");
   tint_eq(vm, res, KVM_ERR_RUNTIME, "negate err");
-  kfree(vm);
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "true");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "true literal eval");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "true");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "true literal eval");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "false");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "false literal eval");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "false");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "false literal eval");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "nil");
-  tval_eq(vm, kpop(vm), NIL_VAL, "nil literal eval");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "nil");
+  tval_eq(vm, ku_pop(vm), NIL_VAL, "nil literal eval");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "!true");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "!true eval");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "!true");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "!true eval");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "!false");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "!false eval");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "!false");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "!false eval");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1==1");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "== true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1==1");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "== true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1==2");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "== false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1==2");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "== false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1!=2");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "!= true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1!=2");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "!= true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1!=1");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "!= false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1!=1");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "!= false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1<1");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "< false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1<1");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "< false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "1<2");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "< true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "1<2");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "< true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "2<=1");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "<= false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "2<=1");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "<= false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "2<=3");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "<= true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "2<=3");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "<= true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "3>2");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "> true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "3>2");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "> true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "3>7");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "> false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "3>7");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "> false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "3>=7");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), ">= false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "3>=7");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), ">= false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "3>=3");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), ">= true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "3>=3");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), ">= true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "12 + true");
+  vm = ku_new();
+  res = ku_exec(vm, "12 + true");
   tint_eq(vm, res, KVM_ERR_RUNTIME, "add num expected");
-  kfree(vm);
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "\"hello \" + \"world\"");
-  v = kpop(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "\"hello \" + \"world\"");
+  v = ku_pop(vm);
   tint_eq(vm, v.type, VAL_OBJ, "stradd type obj");
   tint_eq(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
   char* chars = AS_CSTR(v);
   tint_eq(vm, strcmp(chars, "hello world"), 0, "str val");
-  kfree(vm);
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "\"hello \" == \"world\"");
-  tval_eq(vm, kpop(vm), BOOL_VAL(false), "str eq false");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "\"hello \" == \"world\"");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "str eq false");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "\"hello\" == \"hello\"");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "str eq true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "\"hello\" == \"hello\"");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "str eq true");
+  ku_free(vm);
 
-  vm = knew();
-  res = kexec(vm, "\"hello \" != \"world\"");
-  tval_eq(vm, kpop(vm), BOOL_VAL(true), "str ne true");
-  kfree(vm);
+  vm = ku_new();
+  res = ku_exec(vm, "\"hello \" != \"world\"");
+  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "str ne true");
+  ku_free(vm);
 
-  ktest_summary();
+  ku_test_summary();
 }
 
 #endif

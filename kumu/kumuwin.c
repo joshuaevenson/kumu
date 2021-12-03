@@ -6,7 +6,7 @@
 
 int main(int argc, char **argv)
 {
-	ktest();
+	ku_test();
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
