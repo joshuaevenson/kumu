@@ -286,8 +286,10 @@ var a2 = { 7, "banana", 9 };
     + T0001 remove type for now
     + N0001 kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
     + N0002 ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
+    + N0003 kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
     - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
     - P0002 simplevars[27] per environment? 
+    - X0001 Switch to macros for TEST_TOP_EQ, TEST_TOP_EQ_STR
 */
 
 #ifndef KUMU_H
@@ -351,7 +353,7 @@ typedef struct {
   } as;
 } kuval;
 
-bool kuo_is_type(kuval v, kuobjtype ot);
+bool ku_obj_istype(kuval v, kuobjtype ot);
 
 #define BOOL_VAL(v) ((kuval){ VAL_BOOL, { .bval = v }})
 #define NIL_VAL ((kuval) { VAL_NIL, { .dval = 0 }})
@@ -362,7 +364,7 @@ bool kuo_is_type(kuval v, kuobjtype ot);
 #define IS_NIL(v) ((v).type == VAL_NIL)
 #define IS_NUM(v) ((v).type == VAL_NUM)
 #define IS_OBJ(v) ((v).type == VAL_OBJ)
-#define IS_STR(v) (kuo_is_type(v, OBJ_STR))
+#define IS_STR(v) (ku_obj_istype(v, OBJ_STR))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -372,9 +374,9 @@ bool kuo_is_type(kuval v, kuobjtype ot);
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
-bool kuv_eq(kuval v1, kuval v2);
+bool ku_val_eq(kuval v1, kuval v2);
 
-void ku_printv(kuvm* vm, kuval value);
+void ku_print_val(kuvm* vm, kuval value);
 
 typedef struct {
     int capacity;
@@ -382,8 +384,8 @@ typedef struct {
     kuval* values;
 } kuarr;
 
-void kua_init(kuvm* vm, kuarr* array);
-void kua_write(kuvm* vm, kuarr* array, kuval value);
+void ku_arr_init(kuvm* vm, kuarr* array);
+void ku_arr_write(kuvm* vm, kuarr* array, kuval value);
 
 // ------------------------------------------------------------
 // Memory
@@ -424,10 +426,10 @@ typedef struct {
   kuarr constants;
 } kuchunk;
 
-void kuc_init(kuvm* vm, kuchunk* chunk);
-void kuc_write(kuvm* vm, kuchunk* chunk, uint8_t byte, int line);
-void kuc_free(kuvm* vm, kuchunk* chunk);
-int kuc_add_const(kuvm* vm, kuchunk* chunk, kuval value);
+void ku_chunk_init(kuvm* vm, kuchunk* chunk);
+void ku_chunk_write(kuvm* vm, kuchunk* chunk, uint8_t byte, int line);
+void ku_chunk_free(kuvm* vm, kuchunk* chunk);
+int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 
 // ------------------------------------------------------------
 // Scanner

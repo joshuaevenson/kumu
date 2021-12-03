@@ -13,13 +13,13 @@
 #define KALLOC(vm, type, count) \
     (type*)ku_alloc(vm, NULL, 0, sizeof(type) * (count))
 #define KALLOC_OBJ(vm, type, objtype) \
-    (type*)kuo_alloc(vm, sizeof(type), objtype)
+    (type*)ku_obj_alloc(vm, sizeof(type), objtype)
 #define FREE(vm, type, ptr) \
   ku_alloc(vm, ptr, sizeof(type), 0)
 // ------------------------------------------------------------
 // Values
 // ------------------------------------------------------------
-static kuobj* kuo_alloc(kuvm* vm, size_t size, kuobjtype type) {
+static kuobj* ku_obj_alloc(kuvm* vm, size_t size, kuobjtype type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
   obj->type = type;
   obj->next = (struct kuobj*)vm->objects;
@@ -27,7 +27,7 @@ static kuobj* kuo_alloc(kuvm* vm, size_t size, kuobjtype type) {
   return obj;
 }
 
-static void kuo_free(kuvm* vm, kuobj* obj) {
+static void ku_obj_free(kuvm* vm, kuobj* obj) {
   switch (obj->type) {
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
@@ -38,24 +38,24 @@ static void kuo_free(kuvm* vm, kuobj* obj) {
   }
 }
 
-static kustr* kus_alloc(kuvm* vm, char* chars, int len) {
+static kustr* ku_str_alloc(kuvm* vm, char* chars, int len) {
   kustr* str = KALLOC_OBJ(vm, kustr, OBJ_STR);
   str->len = len;
   str->chars = chars;
   return str;
 }
 
-bool kuo_is_type(kuval v, kuobjtype ot) {
+bool ku_obj_istype(kuval v, kuobjtype ot) {
   return IS_OBJ(v) && AS_OBJ(v)->type == ot;
 }
 
-static kustr* kus_copy(kuvm* vm, const char* chars, int len) {
+static kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, chars, len);
   buff[len] = '\0';
-  return kus_alloc(vm, buff, len);
+  return ku_str_alloc(vm, buff, len);
 }
-bool kuv_eq(kuval v1, kuval v2) {
+bool ku_val_eq(kuval v1, kuval v2) {
   if (v1.type != v2.type) {
     return false;
   }
@@ -75,11 +75,11 @@ bool kuv_eq(kuval v1, kuval v2) {
   return false;
 }
 
-static kustr* kus_take(kuvm* vm, char* buff, int len) {
-  return kus_alloc(vm, buff, len);
+static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
+  return ku_str_alloc(vm, buff, len);
 }
 
-static void kus_add(kuvm* vm) {
+static void ku_str_cat(kuvm* vm) {
   kustr *b = AS_STR(ku_pop(vm));
   kustr* a = AS_STR(ku_pop(vm));
   int len = a->len + b->len;
@@ -87,7 +87,7 @@ static void kus_add(kuvm* vm) {
   memcpy(buff, a->chars, a->len);
   memcpy(buff + a->len, b->chars, b->len);
   buff[len] = '\0';
-  kustr* res = kus_take(vm, buff, len);
+  kustr* res = ku_str_take(vm, buff, len);
   ku_push(vm, OBJ_VAL(res));
 }
 
@@ -95,19 +95,19 @@ static void kus_add(kuvm* vm) {
 // ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
-static char kul_advance(kuvm *vm) {
+static char ku_lex_advance(kuvm *vm) {
   vm->scanner.curr++;
   return vm->scanner.curr[-1];
 }
 
 
-static void kul_init(kuvm *vm, const char *source) {
+static void ku_lex_init(kuvm *vm, const char *source) {
   vm->scanner.start = source;
   vm->scanner.curr = source;
   vm->scanner.line = 1;
 }
 
-static bool kul_is_end(kuvm *vm) {
+static bool ku_lex_is_end(kuvm *vm) {
   return (*(vm->scanner.curr) == '\0');
 }
 
@@ -121,32 +121,32 @@ static bool ku_isalpha(char c) {
          (c == '_');
 }
 
-static char kul_peeknext(kuvm *vm) {
-  if (kul_is_end(vm)) return '\0';
+static char ku_lex_peeknext(kuvm *vm) {
+  if (ku_lex_is_end(vm)) return '\0';
   return vm->scanner.curr[1];
 }
 
-static char kul_peek(kuvm *vm) {
+static char ku_lex_peek(kuvm *vm) {
   return *vm->scanner.curr;
 }
 
-static void kul_skipspace(kuvm *vm) {
+static void ku_lex_skip_space(kuvm *vm) {
   while (true) {
-    char c = kul_peek(vm);
+    char c = ku_lex_peek(vm);
     switch (c) {
       case ' ':
       case '\r':
       case '\t':
-        kul_advance(vm);
+        ku_lex_advance(vm);
         break;
       case '\n':
         vm->scanner.line++;
-        kul_advance(vm);
+        ku_lex_advance(vm);
         break;
       case '/':
-        if (kul_peeknext(vm) == '/') {
-          while (kul_peek(vm) != '\n' && !kul_is_end(vm))
-            kul_advance(vm);
+        if (ku_lex_peeknext(vm) == '/') {
+          while (ku_lex_peek(vm) != '\n' && !ku_lex_is_end(vm))
+            ku_lex_advance(vm);
         } else {
           return;
         }
@@ -157,7 +157,7 @@ static void kul_skipspace(kuvm *vm) {
   }
 }
 
-static kutok kul_make(kuvm *vm, kutoktype type) {
+static kutok ku_lex_make(kuvm *vm, kutoktype type) {
   kutok token;
   token.type = type;
   token.start = vm->scanner.start;
@@ -166,7 +166,7 @@ static kutok kul_make(kuvm *vm, kutoktype type) {
   return token;
 }
 
-static kutok kul_err(kuvm *vm, const char *msg) {
+static kutok ku_lex_err(kuvm *vm, const char *msg) {
   kutok token;
   token.type = TOK_ERR;
   token.start = msg;
@@ -175,34 +175,34 @@ static kutok kul_err(kuvm *vm, const char *msg) {
   return token;
 }
 
-static bool kul_match(kuvm *vm, char expected) {
-  if (kul_is_end(vm)) return false;
+static bool ku_lex_match(kuvm *vm, char expected) {
+  if (ku_lex_is_end(vm)) return false;
   if (*vm->scanner.curr != expected) return false;
   vm->scanner.curr++;
   return true;
 }
 
-static kutok kul_number(kuvm *vm) {
-  while(ku_isdigit(kul_peek(vm))) kul_advance(vm);
+static kutok ku_lex_number(kuvm *vm) {
+  while(ku_isdigit(ku_lex_peek(vm))) ku_lex_advance(vm);
   
-  if (kul_peek(vm) == '.' && ku_isdigit(kul_peeknext(vm))) {
-    kul_advance(vm);
+  if (ku_lex_peek(vm) == '.' && ku_isdigit(ku_lex_peeknext(vm))) {
+    ku_lex_advance(vm);
   }
-  while(ku_isdigit(kul_peek(vm))) kul_advance(vm);
-  return kul_make(vm, TOK_NUM);
+  while(ku_isdigit(ku_lex_peek(vm))) ku_lex_advance(vm);
+  return ku_lex_make(vm, TOK_NUM);
 }
 
-static kutok kul_string(kuvm *vm) {
-  while(kul_peek(vm) != '"' && !kul_is_end(vm)) {
-    if (kul_peek(vm) == '\n') vm->scanner.line++;
-    kul_advance(vm);
+static kutok ku_lex_string(kuvm *vm) {
+  while(ku_lex_peek(vm) != '"' && !ku_lex_is_end(vm)) {
+    if (ku_lex_peek(vm) == '\n') vm->scanner.line++;
+    ku_lex_advance(vm);
   }
-  if (kul_is_end(vm)) return kul_err(vm, "unterminated string");
-  kul_advance(vm);
-  return kul_make(vm, TOK_STR);
+  if (ku_lex_is_end(vm)) return ku_lex_err(vm, "unterminated string");
+  ku_lex_advance(vm);
+  return ku_lex_make(vm, TOK_STR);
 }
 
-static kutoktype kul_keyword(kuvm *vm, int start, int len,
+static kutoktype ku_lex_keyword(kuvm *vm, int start, int len,
                         const char *rest, kutoktype type) {
   if (vm->scanner.curr - vm->scanner.start == start + len &&
       memcmp(vm->scanner.start + start, rest, len) == 0) {
@@ -211,88 +211,88 @@ static kutoktype kul_keyword(kuvm *vm, int start, int len,
   return TOK_IDENT;
 }
 
-static kutoktype kul_identity_type(kuvm *vm) {
+static kutoktype ku_lex_identity_type(kuvm *vm) {
   switch(vm->scanner.start[0]) {
-    case 'a': return kul_keyword(vm, 1,2,"nd", TOK_AND);
-    case 'c': return kul_keyword(vm, 1,4,"lass", TOK_CLASS);
-    case 'e': return kul_keyword(vm, 1,3,"lse", TOK_ELSE);
+    case 'a': return ku_lex_keyword(vm, 1,2,"nd", TOK_AND);
+    case 'c': return ku_lex_keyword(vm, 1,4,"lass", TOK_CLASS);
+    case 'e': return ku_lex_keyword(vm, 1,3,"lse", TOK_ELSE);
     case 'f':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch (vm->scanner.start[1]) {
-          case 'a': return kul_keyword(vm, 2, 3, "lse", TOK_FALSE);
-          case 'o': return kul_keyword(vm, 2, 1, "r", TOK_FOR);
-          case 'u': return kul_keyword(vm, 2, 1, "n", TOK_FUN);
+          case 'a': return ku_lex_keyword(vm, 2, 3, "lse", TOK_FALSE);
+          case 'o': return ku_lex_keyword(vm, 2, 1, "r", TOK_FOR);
+          case 'u': return ku_lex_keyword(vm, 2, 1, "n", TOK_FUN);
         }
       }
-    case 'i': return kul_keyword(vm, 1,1,"f", TOK_IF);
-    case 'n': return kul_keyword(vm, 1,2,"il", TOK_NIL);
-    case 'o': return kul_keyword(vm, 1,1,"r", TOK_OR);
-    case 'p': return kul_keyword(vm, 1,4,"rint", TOK_PRINT);
-    case 'r': return kul_keyword(vm, 1,5,"eturn", TOK_RETURN);
-    case 's': return kul_keyword(vm, 1,4,"uper", TOK_SUPER);
+    case 'i': return ku_lex_keyword(vm, 1,1,"f", TOK_IF);
+    case 'n': return ku_lex_keyword(vm, 1,2,"il", TOK_NIL);
+    case 'o': return ku_lex_keyword(vm, 1,1,"r", TOK_OR);
+    case 'p': return ku_lex_keyword(vm, 1,4,"rint", TOK_PRINT);
+    case 'r': return ku_lex_keyword(vm, 1,5,"eturn", TOK_RETURN);
+    case 's': return ku_lex_keyword(vm, 1,4,"uper", TOK_SUPER);
     case 't':
       if (vm->scanner.curr - vm->scanner.start > 1) {
         switch(vm->scanner.start[1]) {
-          case 'h': return kul_keyword(vm, 2, 2, "is", TOK_THIS);
-          case 'r': return kul_keyword(vm, 2, 2, "ue", TOK_TRUE);
+          case 'h': return ku_lex_keyword(vm, 2, 2, "is", TOK_THIS);
+          case 'r': return ku_lex_keyword(vm, 2, 2, "ue", TOK_TRUE);
         }
       }
-    case 'v': return kul_keyword(vm, 1,2,"ar", TOK_VAR);
-    case 'w': return kul_keyword(vm, 1,4,"hile", TOK_WHILE);
+    case 'v': return ku_lex_keyword(vm, 1,2,"ar", TOK_VAR);
+    case 'w': return ku_lex_keyword(vm, 1,4,"hile", TOK_WHILE);
   }
   return TOK_IDENT;
 }
 
-static kutok kul_identifier(kuvm *vm) {
-  while (ku_isalpha(kul_peek(vm)) || ku_isdigit(kul_peek(vm))) {
-    kul_advance(vm);
+static kutok ku_lex_identifier(kuvm *vm) {
+  while (ku_isalpha(ku_lex_peek(vm)) || ku_isdigit(ku_lex_peek(vm))) {
+    ku_lex_advance(vm);
   }
-  return kul_make(vm, kul_identity_type(vm));
+  return ku_lex_make(vm, ku_lex_identity_type(vm));
 }
 
-static kutok kul_scan(kuvm *vm) {
-  kul_skipspace(vm);
+static kutok ku_lex_scan(kuvm *vm) {
+  ku_lex_skip_space(vm);
   vm->scanner.start = vm->scanner.curr;
   
-  if (kul_is_end(vm)) {
-    return kul_make(vm, TOK_EOF);
+  if (ku_lex_is_end(vm)) {
+    return ku_lex_make(vm, TOK_EOF);
   }
   
-  char c = kul_advance(vm);
-  if (ku_isalpha(c)) return kul_identifier(vm);
-  if (ku_isdigit(c)) return kul_number(vm);
+  char c = ku_lex_advance(vm);
+  if (ku_isalpha(c)) return ku_lex_identifier(vm);
+  if (ku_isdigit(c)) return ku_lex_number(vm);
   switch (c) {
-    case '(': return kul_make(vm, TOK_LPAR);
-    case ')': return kul_make(vm, TOK_RPAR);
-    case '{': return kul_make(vm, TOK_LBRACE);
-    case '}': return kul_make(vm, TOK_RBRACE);
-    case ';': return kul_make(vm, TOK_SEMI);
-    case ',': return kul_make(vm, TOK_COMMA);
-    case '.': return kul_make(vm, TOK_DOT);
-    case '+': return kul_make(vm, TOK_PLUS);
-    case '-': return kul_make(vm, TOK_MINUS);
-    case '*': return kul_make(vm, TOK_STAR);
+    case '(': return ku_lex_make(vm, TOK_LPAR);
+    case ')': return ku_lex_make(vm, TOK_RPAR);
+    case '{': return ku_lex_make(vm, TOK_LBRACE);
+    case '}': return ku_lex_make(vm, TOK_RBRACE);
+    case ';': return ku_lex_make(vm, TOK_SEMI);
+    case ',': return ku_lex_make(vm, TOK_COMMA);
+    case '.': return ku_lex_make(vm, TOK_DOT);
+    case '+': return ku_lex_make(vm, TOK_PLUS);
+    case '-': return ku_lex_make(vm, TOK_MINUS);
+    case '*': return ku_lex_make(vm, TOK_STAR);
     case '/':
-      return kul_make(vm, TOK_SLASH);
+      return ku_lex_make(vm, TOK_SLASH);
     case '!':
-      return kul_make(vm, kul_match(vm, '=') ? TOK_NE : TOK_BANG);
+      return ku_lex_make(vm, ku_lex_match(vm, '=') ? TOK_NE : TOK_BANG);
     case '=':
-      return kul_make(vm, kul_match(vm, '=') ? TOK_EQEQ : TOK_EQ);
+      return ku_lex_make(vm, ku_lex_match(vm, '=') ? TOK_EQEQ : TOK_EQ);
     case '<':
-      return kul_make(vm, kul_match(vm, '=') ? TOK_LE : TOK_LT);
+      return ku_lex_make(vm, ku_lex_match(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
-      return kul_make(vm, kul_match(vm, '=') ? TOK_GE : TOK_GT);
+      return ku_lex_make(vm, ku_lex_match(vm, '=') ? TOK_GE : TOK_GT);
     case '"':
-      return kul_string(vm);
+      return ku_lex_string(vm);
   }
-  return kul_err(vm, "unexpected character");
+  return ku_lex_err(vm, "unexpected character");
 }
 
-void kul_print_all(kuvm *vm) {
+void ku_lex_print_all(kuvm *vm) {
   int line = -1;
   
   while (true) {
-    kutok token = kul_scan(vm);
+    kutok token = ku_lex_scan(vm);
     if (token.line != line) {
       kuprintf("%4d ", token.line);
     } else {
@@ -310,7 +310,7 @@ void kul_print_all(kuvm *vm) {
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
-static void kup_err_at(kuvm *vm, kutok *tok, const char *msg) {
+static void ku_parse_err_at(kuvm *vm, kutok *tok, const char *msg) {
   if (vm->parser.panic) return;
   vm->parser.panic = true;
   
@@ -328,56 +328,56 @@ static void kup_err_at(kuvm *vm, kutok *tok, const char *msg) {
   vm->parser.err = true;
 }
 
-static void kup_err(kuvm *vm, const char *msg) {
-  kup_err_at(vm, &vm->parser.curr, msg);
+static void ku_parse_err(kuvm *vm, const char *msg) {
+  ku_parse_err_at(vm, &vm->parser.curr, msg);
 }
 
-static void kup_advance(kuvm *vm) {
+static void ku_parse_advance(kuvm *vm) {
   vm->parser.prev = vm->parser.curr;
   
   while (true) {
-    vm->parser.curr = kul_scan(vm);
+    vm->parser.curr = ku_lex_scan(vm);
     if (vm->parser.curr.type != TOK_ERR) break;
-    kup_err(vm, vm->parser.curr.start);
+    ku_parse_err(vm, vm->parser.curr.start);
   }
 }
 
-static void kup_consume(kuvm *vm, kutoktype type, const char *msg) {
+static void ku_parse_consume(kuvm *vm, kutoktype type, const char *msg) {
   if (vm->parser.curr.type == type) {
-    kup_advance(vm);
+    ku_parse_advance(vm);
     return;
   }
-  kup_err(vm, msg);
+  ku_parse_err(vm, msg);
 }
 
-kuchunk *ku_cur_chunk(kuvm *vm) {
+kuchunk *ku_current_chunk(kuvm *vm) {
   return vm->chunk;
 }
 
-static void kup_emit_byte(kuvm *vm, uint8_t byte) {
-  kuc_write(vm, ku_cur_chunk(vm), byte, vm->parser.prev.line);
+static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
+  ku_chunk_write(vm, ku_current_chunk(vm), byte, vm->parser.prev.line);
 }
 
-static void kup_end(kuvm *vm) {
-  kup_emit_byte(vm, OP_RET);
+static void ku_parse_end(kuvm *vm) {
+  ku_parse_emit_byte(vm, OP_RET);
 }
 
-static void kup_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
-  kup_emit_byte(vm, b1);
-  kup_emit_byte(vm, b2);
+static void ku_parse_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
+  ku_parse_emit_byte(vm, b1);
+  ku_parse_emit_byte(vm, b2);
 }
 
 
-static uint8_t kup_make_const(kuvm *vm, kuval val) {
-  int cons = kuc_add_const(vm, ku_cur_chunk(vm), val);
+static uint8_t ku_parse_make_const(kuvm *vm, kuval val) {
+  int cons = ku_chunk_add_const(vm, ku_current_chunk(vm), val);
   if (cons > UINT8_MAX) {
-    kup_err(vm, "out of constant space");
+    ku_parse_err(vm, "out of constant space");
     return 0;
   }
   return (uint8_t)cons;
 }
-static void kup_emit_const(kuvm *vm, kuval val) {
-  kup_emit_bytes(vm, OP_CONST, kup_make_const(vm, val));
+static void ku_parse_emit_const(kuvm *vm, kuval val) {
+  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, val));
 }
 
 typedef enum {
@@ -394,138 +394,138 @@ typedef enum {
   P_PRIMARY
 } kup_precedence;
 
-typedef void (*kup_func)(kuvm *);
+typedef void (*ku_parse_func)(kuvm *);
 
 typedef struct {
-  kup_func prefix;
-  kup_func infix;
+  ku_parse_func prefix;
+  ku_parse_func infix;
   kup_precedence precedence;
-} kup_rule;
+} ku_parse_rule;
 
-static kup_rule *kup_get_rule(kuvm *vm, kutoktype optype);
+static ku_parse_rule *ku_parse_get_rule(kuvm *vm, kutoktype optype);
 
-static void kup_process(kuvm *vm, kup_precedence prec) {
-  kup_advance(vm);
-  kup_func prefix = kup_get_rule(vm, vm->parser.prev.type)->prefix;
+static void ku_parse_process(kuvm *vm, kup_precedence prec) {
+  ku_parse_advance(vm);
+  ku_parse_func prefix = ku_parse_get_rule(vm, vm->parser.prev.type)->prefix;
   if (prefix == NULL) {
-    kup_err(vm, "expected expression");
+    ku_parse_err(vm, "expected expression");
     return;
   }
   prefix(vm);
   
-  while (prec <= kup_get_rule(vm, vm->parser.curr.type)->precedence) {
-    kup_advance(vm);
-    kup_func infix = kup_get_rule(vm, vm->parser.prev.type)->infix;
+  while (prec <= ku_parse_get_rule(vm, vm->parser.curr.type)->precedence) {
+    ku_parse_advance(vm);
+    ku_parse_func infix = ku_parse_get_rule(vm, vm->parser.prev.type)->infix;
     infix(vm);
   }
 }
 
 
-static void kup_literal(kuvm *vm) {
+static void ku_parse_literal(kuvm *vm) {
   switch (vm->parser.prev.type) {
-    case TOK_FALSE: kup_emit_byte(vm, OP_FALSE); break;
-    case TOK_TRUE: kup_emit_byte(vm, OP_TRUE); break;
-    case TOK_NIL: kup_emit_byte(vm, OP_NIL); break;
+    case TOK_FALSE: ku_parse_emit_byte(vm, OP_FALSE); break;
+    case TOK_TRUE: ku_parse_emit_byte(vm, OP_TRUE); break;
+    case TOK_NIL: ku_parse_emit_byte(vm, OP_NIL); break;
     default: return; // unreachable
   }
 }
 
-static void kup_string(kuvm* vm) {
-  kup_emit_const(vm, OBJ_VAL(kus_copy(vm, 
+static void ku_parse_string(kuvm* vm) {
+  ku_parse_emit_const(vm, OBJ_VAL(ku_str_copy(vm, 
             vm->parser.prev.start + 1,
             vm->parser.prev.len - 2)));
 }
 
-static void kup_number(kuvm *vm) {
+static void ku_parse_number(kuvm *vm) {
   double val = strtod(vm->parser.prev.start, NULL);
-  kup_emit_const(vm, NUM_VAL(val));
+  ku_parse_emit_const(vm, NUM_VAL(val));
 }
 
-static void kup_expression(kuvm *vm) {
-  kup_process(vm, P_ASSIGN);
+static void ku_parse_expression(kuvm *vm) {
+  ku_parse_process(vm, P_ASSIGN);
 }
 
-static void kup_grouping(kuvm *vm) {
-  kup_expression(vm);
-  kup_consume(vm, TOK_RPAR, "')' expected");
+static void ku_parse_grouping(kuvm *vm) {
+  ku_parse_expression(vm);
+  ku_parse_consume(vm, TOK_RPAR, "')' expected");
 }
 
-static void kup_unary(kuvm *vm) {
+static void ku_parse_unary(kuvm *vm) {
   kutoktype optype = vm->parser.prev.type;
   
-  kup_expression(vm);
+  ku_parse_expression(vm);
   
   switch(optype) {
-    case TOK_MINUS: kup_emit_byte(vm, OP_NEG); break;
-    case TOK_BANG: kup_emit_byte(vm, OP_NOT); break;
+    case TOK_MINUS: ku_parse_emit_byte(vm, OP_NEG); break;
+    case TOK_BANG: ku_parse_emit_byte(vm, OP_NOT); break;
     default: return;
   }
 }
 
 
-static void kup_binary(kuvm *vm) {
+static void ku_parse_binary(kuvm *vm) {
   kutoktype optype = vm->parser.prev.type;
-  kup_rule *rule = kup_get_rule(vm, optype);
-  kup_process(vm, (kup_precedence)(rule->precedence + 1));
+  ku_parse_rule *rule = ku_parse_get_rule(vm, optype);
+  ku_parse_process(vm, (kup_precedence)(rule->precedence + 1));
   
   switch (optype) {
-    case TOK_PLUS: kup_emit_byte(vm, OP_ADD); break;
-    case TOK_MINUS: kup_emit_byte(vm, OP_SUB); break;
-    case TOK_STAR: kup_emit_byte(vm, OP_MUL); break;
-    case TOK_SLASH: kup_emit_byte(vm, OP_DIV); break;
-    case TOK_NE: kup_emit_bytes(vm, OP_EQ, OP_NOT); break;
-    case TOK_EQEQ: kup_emit_byte(vm, OP_EQ); break;
-    case TOK_GT: kup_emit_byte(vm, OP_GT); break;
-    case TOK_GE: kup_emit_bytes(vm, OP_LT, OP_NOT); break;
-    case TOK_LT: kup_emit_byte(vm, OP_LT); break;
-    case TOK_LE: kup_emit_bytes(vm, OP_GT, OP_NOT); break;
+    case TOK_PLUS: ku_parse_emit_byte(vm, OP_ADD); break;
+    case TOK_MINUS: ku_parse_emit_byte(vm, OP_SUB); break;
+    case TOK_STAR: ku_parse_emit_byte(vm, OP_MUL); break;
+    case TOK_SLASH: ku_parse_emit_byte(vm, OP_DIV); break;
+    case TOK_NE: ku_parse_emit_bytes(vm, OP_EQ, OP_NOT); break;
+    case TOK_EQEQ: ku_parse_emit_byte(vm, OP_EQ); break;
+    case TOK_GT: ku_parse_emit_byte(vm, OP_GT); break;
+    case TOK_GE: ku_parse_emit_bytes(vm, OP_LT, OP_NOT); break;
+    case TOK_LT: ku_parse_emit_byte(vm, OP_LT); break;
+    case TOK_LE: ku_parse_emit_bytes(vm, OP_GT, OP_NOT); break;
     default: return;
   }
 }
 
-kup_rule rules[] = {
-  [TOK_LPAR] =      { kup_grouping,   NULL,     P_NONE },
+ku_parse_rule rules[] = {
+  [TOK_LPAR] =      { ku_parse_grouping,   NULL,     P_NONE },
   [TOK_RPAR] =      { NULL,        NULL,     P_NONE },
   [TOK_LBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_RBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_COMMA] =     { NULL,        NULL,     P_NONE },
   [TOK_DOT] =       { NULL,        NULL,     P_NONE },
-  [TOK_MINUS] =     { kup_unary,      kup_binary,  P_TERM },
-  [TOK_PLUS] =      { NULL,        kup_binary,  P_TERM },
+  [TOK_MINUS] =     { ku_parse_unary,      ku_parse_binary,  P_TERM },
+  [TOK_PLUS] =      { NULL,        ku_parse_binary,  P_TERM },
   [TOK_SEMI] =      { NULL,        NULL,     P_NONE },
-  [TOK_SLASH] =     { NULL,        kup_binary,  P_FACTOR },
-  [TOK_STAR] =      { NULL,        kup_binary,  P_FACTOR },
-  [TOK_BANG] =      { kup_unary,      NULL,     P_NONE },
-  [TOK_NE] =        { NULL,        kup_binary,  P_EQ },
+  [TOK_SLASH] =     { NULL,        ku_parse_binary,  P_FACTOR },
+  [TOK_STAR] =      { NULL,        ku_parse_binary,  P_FACTOR },
+  [TOK_BANG] =      { ku_parse_unary,      NULL,     P_NONE },
+  [TOK_NE] =        { NULL,        ku_parse_binary,  P_EQ },
   [TOK_EQ] =        { NULL,        NULL,     P_NONE },
-  [TOK_EQEQ] =      { NULL,        kup_binary,  P_EQ },
-  [TOK_GT] =        { NULL,        kup_binary,  P_COMP },
-  [TOK_GE] =        { NULL,        kup_binary,  P_COMP },
-  [TOK_LT] =        { NULL,        kup_binary,  P_COMP },
-  [TOK_LE] =        { NULL,        kup_binary,  P_COMP },
+  [TOK_EQEQ] =      { NULL,        ku_parse_binary,  P_EQ },
+  [TOK_GT] =        { NULL,        ku_parse_binary,  P_COMP },
+  [TOK_GE] =        { NULL,        ku_parse_binary,  P_COMP },
+  [TOK_LT] =        { NULL,        ku_parse_binary,  P_COMP },
+  [TOK_LE] =        { NULL,        ku_parse_binary,  P_COMP },
   [TOK_IDENT] =     { NULL,        NULL,     P_NONE },
-  [TOK_STR] =       { kup_string,     NULL,     P_NONE },
-  [TOK_NUM] =       { kup_number,     NULL,     P_NONE },
+  [TOK_STR] =       { ku_parse_string,     NULL,     P_NONE },
+  [TOK_NUM] =       { ku_parse_number,     NULL,     P_NONE },
   [TOK_AND] =       { NULL,        NULL,     P_NONE },
   [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
   [TOK_ELSE] =      { NULL,        NULL,     P_NONE },
-  [TOK_FALSE] =     { kup_literal,    NULL,     P_NONE },
+  [TOK_FALSE] =     { ku_parse_literal,    NULL,     P_NONE },
   [TOK_FOR] =       { NULL,        NULL,     P_NONE },
   [TOK_FUN] =       { NULL,        NULL,     P_NONE },
   [TOK_IF] =        { NULL,        NULL,     P_NONE },
-  [TOK_NIL] =       { kup_literal,    NULL,     P_NONE },
+  [TOK_NIL] =       { ku_parse_literal,    NULL,     P_NONE },
   [TOK_OR] =        { NULL,        NULL,     P_NONE },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
   [TOK_THIS] =      { NULL,        NULL,     P_NONE },
-  [TOK_TRUE] =      { kup_literal,    NULL,     P_NONE },
+  [TOK_TRUE] =      { ku_parse_literal,    NULL,     P_NONE },
   [TOK_VAR] =       { NULL,        NULL,     P_NONE },
   [TOK_WHILE] =     { NULL,        NULL,     P_NONE },
   [TOK_ERR] =       { NULL,        NULL,     P_NONE },
   [TOK_EOF] =       { NULL,        NULL,     P_NONE },
 };
 
-static kup_rule *kup_get_rule(kuvm *vm, kutoktype optype) {
+static ku_parse_rule *ku_parse_get_rule(kuvm *vm, kutoktype optype) {
   return &rules[optype];
 }
 
@@ -585,7 +585,7 @@ static void ku_free_objects(kuvm* vm) {
   kuobj* obj = vm->objects;
   while (obj != NULL) {
     kuobj* next = (kuobj*)obj->next;
-    kuo_free(vm, obj);
+    ku_obj_free(vm, obj);
     obj = next;
   }
 }
@@ -601,7 +601,7 @@ void ku_free(kuvm *vm) {
 void ku_print_stack(kuvm *vm) {
   printf(" [");
   for (kuval* vp = vm->stack; vp < vm->sp; vp++) {
-    ku_printv(vm, *vp);
+    ku_print_val(vm, *vp);
     if (vp < vm->sp - 1) {
       printf(",");
     }
@@ -663,7 +663,7 @@ static kures ku_runloop(kuvm *vm) {
       case OP_EQ: {
         kuval b = ku_pop(vm);
         kuval a = ku_pop(vm);
-        ku_push(vm, BOOL_VAL(kuv_eq(a, b)));
+        ku_push(vm, BOOL_VAL(ku_val_eq(a, b)));
         break;;
       }
       case OP_RET: {
@@ -688,7 +688,7 @@ static kures ku_runloop(kuvm *vm) {
       }
       case OP_ADD: {
         if (IS_STR(ku_peek_stack(vm, 0)) && IS_STR(ku_peek_stack(vm, 1))) {
-          kus_add(vm);
+          ku_str_cat(vm);
         }
         else if (IS_NUM(ku_peek_stack(vm, 0)) && IS_NUM(ku_peek_stack(vm, 1))) {
           double a = AS_NUM(ku_pop(vm));
@@ -733,17 +733,17 @@ kures ku_run(kuvm *vm, kuchunk *chunk) {
 }
 
 static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
-  kul_init(vm, source);
+  ku_lex_init(vm, source);
   vm->parser.err = false;
   vm->parser.panic = false;
   vm->chunk = chunk;
-  kup_advance(vm);
-  kup_expression(vm);
-  kup_consume(vm, TOK_EOF, "expected expression end");
-  kup_end(vm);
+  ku_parse_advance(vm);
+  ku_parse_expression(vm);
+  ku_parse_consume(vm, TOK_EOF, "expected expression end");
+  ku_parse_end(vm);
   
 #ifdef DEBUG_PRINT_CODE
-  ku_print_chunk(vm, ku_cur_chunk(vm), "code");
+  ku_print_chunk(vm, ku_current_chunk(vm), "code");
 #endif
   return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
 }
@@ -751,10 +751,10 @@ static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
 static kures ku_exec(kuvm *vm, char *source) {
   kuchunk chunk;
   
-  kuc_init(vm, &chunk);
+  ku_chunk_init(vm, &chunk);
   
   if (ku_compile(vm, source, &chunk) != KVM_OK) {
-    kuc_free(vm, &chunk);
+    ku_chunk_free(vm, &chunk);
     return KVM_ERR_SYNTAX;
   }
   
@@ -762,9 +762,9 @@ static kures ku_exec(kuvm *vm, char *source) {
   kures res = ku_run(vm, &chunk);
   
   if (vm->flags & KVM_F_LIST) {
-    ku_print_chunk(vm, ku_cur_chunk(vm), "code");
+    ku_print_chunk(vm, ku_current_chunk(vm), "code");
   }
-  kuc_free(vm, &chunk);
+  ku_chunk_free(vm, &chunk);
   return res;
 }
 
@@ -852,7 +852,7 @@ static void ku_repl(kuvm *vm) {
     ku_exec(vm, line);
     if (vm->sp > vm->stack) {
       kuval v = ku_pop(vm);
-      ku_printv(vm, v);
+      ku_print_val(vm, v);
       printf("\n");
     }
 
@@ -882,15 +882,15 @@ char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
 // ------------------------------------------------------------
 // Chunks
 // ------------------------------------------------------------
-void kuc_init(kuvm *vm, kuchunk *chunk) {
+void ku_chunk_init(kuvm *vm, kuchunk *chunk) {
   chunk->count = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
   chunk->lines = NULL;
-  kua_init(vm, &chunk->constants);
+  ku_arr_init(vm, &chunk->constants);
 }
 
-void kuc_write(kuvm *vm, kuchunk *chunk, uint8_t byte, int line) {
+void ku_chunk_write(kuvm *vm, kuchunk *chunk, uint8_t byte, int line) {
   if (chunk->capacity < chunk->count + 1) {
     int cap = chunk->capacity;
     chunk->capacity = CAPACITY_GROW(cap);
@@ -903,21 +903,21 @@ void kuc_write(kuvm *vm, kuchunk *chunk, uint8_t byte, int line) {
   chunk->count++;
 }
 
-void kuc_free(kuvm *vm, kuchunk *chunk) {
+void ku_chunk_free(kuvm *vm, kuchunk *chunk) {
   ARRAY_FREE(vm, uint8_t, chunk->code, chunk->capacity);
   ARRAY_FREE(vm, int, chunk->lines, chunk->capacity);
   ARRAY_FREE(vm, kuval, chunk->constants.values, chunk->constants.capacity);
 }
 
-int kuc_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
-  kua_write(vm, &chunk->constants, value);
+int ku_chunk_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
+  ku_arr_write(vm, &chunk->constants, value);
   return chunk->constants.count - 1;
 }
 
 // ------------------------------------------------------------
 // Value
 // ------------------------------------------------------------
-static void kuo_print(kuvm* vm, kuval val) {
+static void ku_print_obj(kuvm* vm, kuval val) {
   switch (OBJ_TYPE(val)) {
   case OBJ_STR:
     printf("%s", AS_CSTR(val));
@@ -925,7 +925,7 @@ static void kuo_print(kuvm* vm, kuval val) {
   }
 }
 
-void ku_printv(kuvm *vm, kuval value) {
+void ku_print_val(kuvm *vm, kuval value) {
   switch (value.type) {
     case VAL_BOOL:
       printf("%s", (value.as.bval) ? "true": "false");
@@ -937,18 +937,18 @@ void ku_printv(kuvm *vm, kuval value) {
       printf("%g", value.as.dval);
       break;
     case VAL_OBJ:
-      kuo_print(vm, value);
+      ku_print_obj(vm, value);
       break;
   }
 }
 
-void kua_init(kuvm* vm, kuarr *array) {
+void ku_arr_init(kuvm* vm, kuarr *array) {
   array->values = NULL;
   array->count = 0;
   array->capacity = 0;
 }
 
-void kua_write(kuvm* vm, kuarr *array, kuval value) {
+void ku_arr_write(kuvm* vm, kuarr *array, kuval value) {
   if (array->capacity < array->count + 1) {
     int old = array->capacity;
     array->capacity = CAPACITY_GROW(old);
@@ -978,7 +978,7 @@ static int ku_print_simple_op(const char *name, int offset) {
 static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
   printf("%-6s %4d '", name, con);
-  ku_printv(vm, chunk->constants.values[con]);
+  ku_print_val(vm, chunk->constants.values[con]);
   printf("'");
   return offset+2;
 }
@@ -1065,10 +1065,10 @@ int ku_main(int argc, const char * argv[]) {
 // ------------------------------------------------------------
 #ifdef KVM_TEST
 
-static void kuc_write_const(kuvm *vm, int cons, int line) {
-  int index = kuc_add_const(vm, vm->chunk, NUM_VAL(cons));
-  kuc_write(vm, vm->chunk, OP_CONST, line);
-  kuc_write(vm, vm->chunk, index, line);
+static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
+  int index = ku_chunk_add_const(vm, vm->chunk, NUM_VAL(cons));
+  ku_chunk_write(vm, vm->chunk, OP_CONST, line);
+  ku_chunk_write(vm, vm->chunk, index, line);
 }
 
 static int ktest_pass = 0;
@@ -1084,16 +1084,16 @@ static void tint_eq(kuvm *vm, int v1, int v2, const char *m) {
 }
 
 static void tval_eq(kuvm* vm, kuval v1, kuval v2, const char *msg) {
-  if (kuv_eq(v1, v2)) {
+  if (ku_val_eq(v1, v2)) {
     ktest_pass++;
     return;
   }
   
   ktest_fail++;
   printf("expected: ");
-  ku_printv(vm, v2);
+  ku_print_val(vm, v2);
   printf(" found: ");
-  ku_printv(vm, v1);
+  ku_print_val(vm, v1);
   printf(" [%s]\n", msg);
 }
 
@@ -1104,26 +1104,26 @@ static void ku_test_summary() {
 void ku_test() {
   kuvm *vm = ku_new();
   kuchunk chunk;
-  kuc_init(vm, &chunk);
+  ku_chunk_init(vm, &chunk);
   vm->chunk = &chunk;
   int line = 1;
-  kuc_write(vm, &chunk, OP_NOP, line++);
-  kuc_write_const(vm, 1, line);
-  kuc_write_const(vm, 2, line);
-  kuc_write(vm, &chunk, OP_ADD, line);
-  kuc_write(vm, &chunk, OP_NEG, line++);
-  kuc_write_const(vm, 4, line);
-  kuc_write(vm, &chunk, OP_SUB, line++);
-  kuc_write_const(vm, 5, line);
-  kuc_write(vm, &chunk, OP_MUL, line++);
-  kuc_write_const(vm, 6, line);
-  kuc_write(vm, &chunk, OP_DIV, line++);
-  kuc_write(vm, &chunk, OP_RET, line);
+  ku_chunk_write(vm, &chunk, OP_NOP, line++);
+  ku_chunk_write_const(vm, 1, line);
+  ku_chunk_write_const(vm, 2, line);
+  ku_chunk_write(vm, &chunk, OP_ADD, line);
+  ku_chunk_write(vm, &chunk, OP_NEG, line++);
+  ku_chunk_write_const(vm, 4, line);
+  ku_chunk_write(vm, &chunk, OP_SUB, line++);
+  ku_chunk_write_const(vm, 5, line);
+  ku_chunk_write(vm, &chunk, OP_MUL, line++);
+  ku_chunk_write_const(vm, 6, line);
+  ku_chunk_write(vm, &chunk, OP_DIV, line++);
+  ku_chunk_write(vm, &chunk, OP_RET, line);
   kures res = ku_run(vm, &chunk);
   tint_eq(vm, res, KVM_OK, "ku_run res");
   kuval v = ku_pop(vm);
   tval_eq(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
-  kuc_free(vm, &chunk);
+  ku_chunk_free(vm, &chunk);
   ku_free(vm);
   
   vm = ku_new();
@@ -1134,8 +1134,8 @@ void ku_test() {
   ku_free(vm);
   
   vm = ku_new();
-  kul_init(vm, "12+3");
-  kul_print_all(vm);
+  ku_lex_init(vm, "12+3");
+  ku_lex_print_all(vm);
   ku_free(vm);
   
   vm = ku_new();
@@ -1159,8 +1159,8 @@ void ku_test() {
   ku_free(vm);
   
   vm = ku_new();
-  kul_init(vm, "var x=30; \n  x=\"hello\";");
-  kul_print_all(vm);
+  ku_lex_init(vm, "var x=30; \n  x=\"hello\";");
+  ku_lex_print_all(vm);
   ku_free(vm);
 
   vm = ku_new();
@@ -1176,91 +1176,91 @@ void ku_test() {
 
   // unterminated string
   vm = ku_new();
-  kul_init(vm, "\"hello");
-  kul_print_all(vm);
+  ku_lex_init(vm, "\"hello");
+  ku_lex_print_all(vm);
   ku_free(vm);
 
-  // ku_printv
+  // ku_print_val
   vm = ku_new();
   res = ku_exec(vm, "2+3");
   v = ku_pop(vm);
-  tval_eq(vm, v, NUM_VAL(5), "ku_printv ret");
-  ku_printv(vm, v);
+  tval_eq(vm, v, NUM_VAL(5), "ku_print_val ret");
+  ku_print_val(vm, v);
   ku_free(vm);
   
   vm = ku_new();
   res = ku_exec(vm, "12.3");
-  tval_eq(vm, ku_pop(vm), NUM_VAL(12.3), "kul_peeknext ret");
+  tval_eq(vm, ku_pop(vm), NUM_VAL(12.3), "ku_lex_peeknext ret");
   ku_free(vm);
   
   vm = ku_new();
-  kul_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
-  kutok t = kul_scan(vm);
+  ku_lex_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
+  kutok t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_AND, "[and]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_CLASS, "[class]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_ELSE, "[else]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_FALSE, "[false]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_FOR, "[for]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_FUN, "[fun]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_IF, "[if]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_NIL, "[nil]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_OR, "[or]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_PRINT, "[print]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_RETURN, "[return]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_SUPER, "[super]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_THIS, "[this]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_TRUE, "[true]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_WHILE, "[while]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_LBRACE, "[{]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_RBRACE, "[}]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_BANG, "[!]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_PLUS, "[+]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_MINUS, "[-]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_STAR, "[*]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_SLASH, "[/]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_EQ, "[=]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_NE, "[!=]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_GT, "[>]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_LT, "[<]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_GE, "[>=]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_LE, "[<=]");
 
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
-  t = kul_scan(vm);
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
   ku_free(vm);
   
   vm = ku_new();
-  kul_init(vm, "// this is a comment");
-  t = kul_scan(vm);
+  ku_lex_init(vm, "// this is a comment");
+  t = ku_lex_scan(vm);
   tint_eq(vm, t.type, TOK_EOF, "comment");
   ku_free(vm);
 
