@@ -289,7 +289,7 @@ var a2 = { 7, "banana", 9 };
     + N0003 kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
     - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
     - P0002 simplevars[27] per environment? 
-    - X0001 Switch to macros for TEST_TOP_EQ, TEST_TOP_EQ_STR
+    + X0001 EXPECT_INT(), EXPECT_VAL() functions
 */
 
 #ifndef KUMU_H

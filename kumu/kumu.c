@@ -1074,7 +1074,8 @@ static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
 static int ktest_pass = 0;
 int ktest_fail = 0;
 
-static void tint_eq(kuvm *vm, int v1, int v2, const char *m) {
+
+static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
   if (v1 == v2) {
     ktest_pass++;
     return;
@@ -1083,7 +1084,7 @@ static void tint_eq(kuvm *vm, int v1, int v2, const char *m) {
   printf("expected: %d found %d [%s]\n", v1, v2, m);
 }
 
-static void tval_eq(kuvm* vm, kuval v1, kuval v2, const char *msg) {
+static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
   if (ku_val_eq(v1, v2)) {
     ktest_pass++;
     return;
@@ -1120,17 +1121,17 @@ void ku_test() {
   ku_chunk_write(vm, &chunk, OP_DIV, line++);
   ku_chunk_write(vm, &chunk, OP_RET, line);
   kures res = ku_run(vm, &chunk);
-  tint_eq(vm, res, KVM_OK, "ku_run res");
+  EXPECT_INT(vm, res, KVM_OK, "ku_run res");
   kuval v = ku_pop(vm);
-  tval_eq(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
+  EXPECT_VAL(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
   ku_chunk_free(vm, &chunk);
   ku_free(vm);
   
   vm = ku_new();
   res = ku_exec(vm, "1+2");
-  tint_eq(vm, res, KVM_OK, "ku_exec res");
+  EXPECT_INT(vm, res, KVM_OK, "ku_exec res");
   v = ku_pop(vm);
-  tval_eq(vm, v, NUM_VAL(3), "ku_exec ret");
+  EXPECT_VAL(vm, v, NUM_VAL(3), "ku_exec ret");
   ku_free(vm);
   
   vm = ku_new();
@@ -1140,13 +1141,13 @@ void ku_test() {
   
   vm = ku_new();
   res = ku_exec(vm, "12+");
-  tint_eq(vm, res, KVM_ERR_SYNTAX, "12+");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "12+");
   ku_free(vm);
   
   vm = ku_new();
   res = ku_exec(vm, "(1+2)*3");
-  tint_eq(vm, res, KVM_OK, "grouping res");
-  tval_eq(vm, ku_pop(vm), NUM_VAL(9), "grouping ret");
+  EXPECT_INT(vm, res, KVM_OK, "grouping res");
+  EXPECT_VAL(vm, ku_pop(vm), NUM_VAL(9), "grouping ret");
   ku_free(vm);
   
   vm = ku_new();
@@ -1170,8 +1171,8 @@ void ku_test() {
 
   vm = ku_new();
   res = ku_exec(vm, "-2*3");
-  tint_eq(vm, res, KVM_OK, "unary res");
-  tval_eq(vm, ku_pop(vm), NUM_VAL(-6), "unary ret");
+  EXPECT_INT(vm, res, KVM_OK, "unary res");
+  EXPECT_VAL(vm, ku_pop(vm), NUM_VAL(-6), "unary ret");
   ku_free(vm);
 
   // unterminated string
@@ -1184,209 +1185,209 @@ void ku_test() {
   vm = ku_new();
   res = ku_exec(vm, "2+3");
   v = ku_pop(vm);
-  tval_eq(vm, v, NUM_VAL(5), "ku_print_val ret");
+  EXPECT_VAL(vm, v, NUM_VAL(5), "ku_print_val ret");
   ku_print_val(vm, v);
   ku_free(vm);
   
   vm = ku_new();
   res = ku_exec(vm, "12.3");
-  tval_eq(vm, ku_pop(vm), NUM_VAL(12.3), "ku_lex_peeknext ret");
+  EXPECT_VAL(vm, ku_pop(vm), NUM_VAL(12.3), "ku_lex_peeknext ret");
   ku_free(vm);
   
   vm = ku_new();
   ku_lex_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
   kutok t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_AND, "[and]");
+  EXPECT_INT(vm, t.type, TOK_AND, "[and]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_CLASS, "[class]");
+  EXPECT_INT(vm, t.type, TOK_CLASS, "[class]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_ELSE, "[else]");
+  EXPECT_INT(vm, t.type, TOK_ELSE, "[else]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_FALSE, "[false]");
+  EXPECT_INT(vm, t.type, TOK_FALSE, "[false]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_FOR, "[for]");
+  EXPECT_INT(vm, t.type, TOK_FOR, "[for]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_FUN, "[fun]");
+  EXPECT_INT(vm, t.type, TOK_FUN, "[fun]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_IF, "[if]");
+  EXPECT_INT(vm, t.type, TOK_IF, "[if]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_NIL, "[nil]");
+  EXPECT_INT(vm, t.type, TOK_NIL, "[nil]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_OR, "[or]");
+  EXPECT_INT(vm, t.type, TOK_OR, "[or]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_PRINT, "[print]");
+  EXPECT_INT(vm, t.type, TOK_PRINT, "[print]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_RETURN, "[return]");
+  EXPECT_INT(vm, t.type, TOK_RETURN, "[return]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_SUPER, "[super]");
+  EXPECT_INT(vm, t.type, TOK_SUPER, "[super]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_THIS, "[this]");
+  EXPECT_INT(vm, t.type, TOK_THIS, "[this]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_TRUE, "[true]");
+  EXPECT_INT(vm, t.type, TOK_TRUE, "[true]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_WHILE, "[while]");
+  EXPECT_INT(vm, t.type, TOK_WHILE, "[while]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_LBRACE, "[{]");
+  EXPECT_INT(vm, t.type, TOK_LBRACE, "[{]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_RBRACE, "[}]");
+  EXPECT_INT(vm, t.type, TOK_RBRACE, "[}]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_BANG, "[!]");
+  EXPECT_INT(vm, t.type, TOK_BANG, "[!]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_PLUS, "[+]");
+  EXPECT_INT(vm, t.type, TOK_PLUS, "[+]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_MINUS, "[-]");
+  EXPECT_INT(vm, t.type, TOK_MINUS, "[-]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_STAR, "[*]");
+  EXPECT_INT(vm, t.type, TOK_STAR, "[*]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_SLASH, "[/]");
+  EXPECT_INT(vm, t.type, TOK_SLASH, "[/]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_EQ, "[=]");
+  EXPECT_INT(vm, t.type, TOK_EQ, "[=]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_NE, "[!=]");
+  EXPECT_INT(vm, t.type, TOK_NE, "[!=]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_GT, "[>]");
+  EXPECT_INT(vm, t.type, TOK_GT, "[>]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_LT, "[<]");
+  EXPECT_INT(vm, t.type, TOK_LT, "[<]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_GE, "[>=]");
+  EXPECT_INT(vm, t.type, TOK_GE, "[>=]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_LE, "[<=]");
+  EXPECT_INT(vm, t.type, TOK_LE, "[<=]");
 
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
+  EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_IDENT, "[identifier]");
+  EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
   ku_free(vm);
   
   vm = ku_new();
   ku_lex_init(vm, "// this is a comment");
   t = ku_lex_scan(vm);
-  tint_eq(vm, t.type, TOK_EOF, "comment");
+  EXPECT_INT(vm, t.type, TOK_EOF, "comment");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "(12-2)/5");
-  tint_eq(vm, res, KVM_OK, "sub div res");
-  tval_eq(vm, ku_pop(vm), NUM_VAL(2), "sub div ret");
+  EXPECT_INT(vm, res, KVM_OK, "sub div res");
+  EXPECT_VAL(vm, ku_pop(vm), NUM_VAL(2), "sub div ret");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "-true");
-  tint_eq(vm, res, KVM_ERR_RUNTIME, "negate err");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "negate err");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "true");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "true literal eval");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "true literal eval");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "false");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "false literal eval");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "false literal eval");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "nil");
-  tval_eq(vm, ku_pop(vm), NIL_VAL, "nil literal eval");
+  EXPECT_VAL(vm, ku_pop(vm), NIL_VAL, "nil literal eval");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "!true");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "!true eval");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "!true eval");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "!false");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "!false eval");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "!false eval");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1==1");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "== true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "== true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1==2");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "== false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "== false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1!=2");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "!= true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "!= true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1!=1");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "!= false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "!= false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1<1");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "< false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "< false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "1<2");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "< true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "< true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "2<=1");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "<= false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "<= false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "2<=3");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "<= true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "<= true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "3>2");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "> true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "> true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "3>7");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "> false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "> false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "3>=7");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), ">= false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), ">= false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "3>=3");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), ">= true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), ">= true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "12 + true");
-  tint_eq(vm, res, KVM_ERR_RUNTIME, "add num expected");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "add num expected");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello \" + \"world\"");
   v = ku_pop(vm);
-  tint_eq(vm, v.type, VAL_OBJ, "stradd type obj");
-  tint_eq(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
+  EXPECT_INT(vm, v.type, VAL_OBJ, "stradd type obj");
+  EXPECT_INT(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
   char* chars = AS_CSTR(v);
-  tint_eq(vm, strcmp(chars, "hello world"), 0, "str val");
+  EXPECT_INT(vm, strcmp(chars, "hello world"), 0, "str val");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello \" == \"world\"");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(false), "str eq false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "str eq false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello\" == \"hello\"");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "str eq true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str eq true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello \" != \"world\"");
-  tval_eq(vm, ku_pop(vm), BOOL_VAL(true), "str ne true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str ne true");
   ku_free(vm);
 
   ku_test_summary();
