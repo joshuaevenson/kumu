@@ -38,10 +38,22 @@ static void ku_obj_free(kuvm* vm, kuobj* obj) {
   }
 }
 
-static kustr* ku_str_alloc(kuvm* vm, char* chars, int len) {
+// FNV-1a hashing function
+static uint32_t ku_str_hash(const char* key, int len) {
+  uint32_t hash = 2166136261u;
+  for (int i = 0; i < len; i++) {
+    hash ^= (uint8_t)key[i];
+    hash *= 16777619;
+  }
+  return hash;
+}
+
+static kustr* ku_str_alloc(kuvm* vm, char* chars, int len, uint32_t hash) {
   kustr* str = KALLOC_OBJ(vm, kustr, OBJ_STR);
   str->len = len;
   str->chars = chars;
+  str->hash = hash;
+  ku_map_set(vm, &vm->strings, str, NIL_VAL);
   return str;
 }
 
@@ -50,11 +62,20 @@ bool ku_obj_istype(kuval v, kuobjtype ot) {
 }
 
 static kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
+  uint32_t hash = ku_str_hash(chars, len);
+
+  kustr* interned = ku_map_find_str(vm, &vm->strings, chars, len, hash);
+  if (interned != NULL) {
+    return interned;
+  }
+
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, chars, len);
   buff[len] = '\0';
-  return ku_str_alloc(vm, buff, len);
+  return ku_str_alloc(vm, buff, len, hash);
 }
+
+
 bool ku_val_eq(kuval v1, kuval v2) {
   if (v1.type != v2.type) {
     return false;
@@ -63,21 +84,23 @@ bool ku_val_eq(kuval v1, kuval v2) {
     case VAL_NIL: return true;
     case VAL_BOOL: return v1.as.bval == v2.as.bval;
     case VAL_NUM: return v1.as.dval == v2.as.dval;
-    case VAL_OBJ: {
-      kustr* a = AS_STR(v1);
-      kustr* b = AS_STR(v2);
-      return a->len == b->len &&
-        memcmp(a->chars, b->chars, a->len) == 0;
-    default:
-      break;
-    }
+    case VAL_OBJ: return AS_OBJ(v1) == AS_OBJ(v2);
+    default: break;
   }
   return false;
 }
 
 static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
-  return ku_str_alloc(vm, buff, len);
+  uint32_t hash = ku_str_hash(buff, len);
+  kustr* interned = ku_map_find_str(vm, &vm->strings, buff, len, hash);
+  if (interned != NULL) {
+    ARRAY_FREE(vm, char, buff, len + 1);
+    return interned;
+  }
+
+  return ku_str_alloc(vm, buff, len, hash);
 }
+
 
 static void ku_str_cat(kuvm* vm) {
   kustr *b = AS_STR(ku_pop(vm));
@@ -91,6 +114,150 @@ static void ku_str_cat(kuvm* vm) {
   ku_push(vm, OBJ_VAL(res));
 }
 
+// ------------------------------------------------------------
+// Map / hash table
+// ------------------------------------------------------------
+void ku_map_init(kuvm* vm, kumap* map) {
+  map->count = 0;
+  map->capacity = 0;
+  map->entries = NULL;
+}
+
+void ku_map_free(kuvm* vm, kumap* map) {
+  ARRAY_FREE(vm, kuentry, map->entries, map->capacity);
+  ku_map_init(vm, map);
+}
+
+#define MAP_MAX_LOAD 0.75
+
+static kuentry* ku_map_find(kuvm* vm, kuentry* entries, int capacity, kustr* key) {
+  uint32_t index = key->hash % capacity;
+  kuentry* tombstone = NULL;
+
+  for (;;) {
+    kuentry* e = &entries[index];
+
+    if (e->key == NULL) {
+      if (IS_NIL(e->value)) { 
+        // empty entry and have a tombstone ~> return the tombstone
+        // otherwise return this entry. 
+        // this allows reusing tombstone slots for added efficiency
+        return tombstone != NULL ? tombstone : e;
+      }
+      else {
+        // a tombstone has NULL key and BOOL(true) value, remember 
+        // the first tombstone we found so we can reused it
+        if (tombstone == NULL) {
+          tombstone = e;
+        }
+      }
+    } else if (e->key == key) {
+      return e;
+    }
+    
+    index = (index + 1) % capacity;
+  }
+}
+
+static void ku_map_adjust(kuvm* vm, kumap* map, int capacity) {
+  kuentry* entries = KALLOC(vm, kuentry, capacity);
+  for (int i = 0; i < capacity; i++) {
+    entries[i].key = NULL;
+    entries[i].value = NIL_VAL;
+  }
+
+  map->count = 0;
+  for (int i = 0; i < map->capacity; i++) {
+    kuentry* src = &map->entries[i];
+    if (src->key == NULL) {
+      continue;
+    }
+
+    kuentry* dest = ku_map_find(vm, entries, capacity, src->key);
+    dest->key = src->key;
+    dest->value = src->value;
+    map->count++;
+  }
+
+  ARRAY_FREE(vm, kuentry, map->entries, map->capacity);
+  map->entries = entries;
+  map->capacity = capacity;
+}
+
+bool ku_map_set(kuvm* vm, kumap* map, kustr* key, kuval value) {
+  if (map->count + 1 > map->capacity * MAP_MAX_LOAD) {
+    int capacity = CAPACITY_GROW(map->capacity);
+    ku_map_adjust(vm, map, capacity);
+  }
+
+  kuentry* e = ku_map_find(vm, map->entries, map->capacity, key);
+  bool isnew = e->key == NULL;
+  // we don't increase the count if we use a tombstone slot
+  if (isnew && IS_NIL(e->value)) {
+    map->count++;
+  }
+  e->key = key;
+  e->value = value;
+  return isnew;
+}
+
+static void ku_map_copy(kuvm* vm, kumap* from, kumap* to) {
+  for (int i = 0; i < from->capacity; i++) {
+    kuentry* e = &from->entries[i];
+    if (e->key != NULL) {
+      ku_map_set(vm, to, e->key, e->value);
+    }
+  }
+}
+
+bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval* value) {
+  if (map->count == 0) {
+    return false;
+  }
+
+  kuentry* e = ku_map_find(vm, map->entries, map->capacity, key);
+  if (e->key == NULL) {
+    return false;
+  }
+
+  *value = e->value;
+  return true;
+}
+
+bool ku_map_del(kuvm* vm, kumap* map, kustr* key) {
+  if (map->count == 0) {
+    return false;
+  }
+
+  kuentry* e = ku_map_find(vm, map->entries, map->capacity, key);
+  if (e->key == NULL) {
+    return false;
+  }
+  e->key = NULL;
+  e->value = BOOL_VAL(true);
+  return true;
+}
+
+kustr* ku_map_find_str(kuvm* vm, kumap* map, const char* chars, int len, uint32_t hash) {
+  if (map->count == 0) {
+    return NULL;
+  }
+
+  uint32_t index = hash % map->capacity;
+  for (;;) {
+    kuentry* e = &map->entries[index];
+    if (e->key == NULL) {
+      if (IS_NIL(e->value)) {
+        return NULL;    // empty non-tombstone
+      }
+    }
+    else if (e->key->len == len && e->key->hash == hash &&
+      memcmp(e->key->chars, chars, len) == 0) {
+      return e->key;
+    }
+    index = (index + 1) % map->capacity;
+  }
+}
 
 // ------------------------------------------------------------
 // Scanner
@@ -569,6 +736,7 @@ kuvm *ku_new(void) {
   vm->stop = false;
   vm->chunk = NULL;
   vm->objects = NULL;
+  ku_map_init(vm, &vm->strings);
   ku_reset_stack(vm);
   return vm;
 }
@@ -592,6 +760,7 @@ static void ku_free_objects(kuvm* vm) {
 
 void ku_free(kuvm *vm) {
   ku_free_objects(vm);
+  ku_map_free(vm, &vm->strings);
   vm->freed += sizeof(kuvm);
   assert(vm->allocated - vm->freed == 0);
   free(vm);
@@ -1074,6 +1243,15 @@ static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
 static int ktest_pass = 0;
 int ktest_fail = 0;
 
+ 
+static void EXPECT_TRUE(kuvm* vm, bool b, const char* msg) {
+  if (b) {
+    ktest_pass++;
+    return;
+  }
+  ktest_fail++;
+  printf("expected true found false [%s]", msg);
+}
 
 static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
   if (v1 == v2) {
@@ -1377,19 +1555,41 @@ void ku_test() {
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello \" == \"world\"");
-  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "str eq false");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(false), "str == false");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello\" == \"hello\"");
-  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str eq true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str == true");
   ku_free(vm);
 
   vm = ku_new();
   res = ku_exec(vm, "\"hello \" != \"world\"");
-  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str ne true");
+  EXPECT_VAL(vm, ku_pop(vm), BOOL_VAL(true), "str != true");
   ku_free(vm);
 
+  vm = ku_new();
+  kumap map;
+  ku_map_init(vm, &map);
+  kustr* k1 = ku_str_copy(vm, "key1", 4);
+  kustr* k2 = ku_str_copy(vm, "key1", 4);
+  EXPECT_TRUE(vm, k1 == k2, "string intern equal");
+  kustr* k3 = ku_str_copy(vm, "key2", 4);
+  EXPECT_TRUE(vm, k3 != k2, "string intern not equal");
+  bool isnew = ku_map_set(vm, &map, k1, NUM_VAL(3.14));
+  EXPECT_TRUE(vm, isnew, "map set new");
+  bool found = ku_map_get(vm, &map, k1, &v);
+  EXPECT_TRUE(vm, found, "map get found");
+  EXPECT_VAL(vm, v, NUM_VAL(3.14), "map get found value");
+  found = ku_map_get(vm, &map, k3, &v);
+  EXPECT_TRUE(vm, !found, "map get not found");
+  found = ku_map_del(vm, &map, k1);
+  EXPECT_TRUE(vm, found, "map del found");
+  found = ku_map_get(vm, &map, k1, &v);
+  EXPECT_TRUE(vm, !found, "map del not found");
+
+  ku_map_free(vm, &map);
+  ku_free(vm);
   ku_test_summary();
 }
 

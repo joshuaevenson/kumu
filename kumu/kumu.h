@@ -287,6 +287,7 @@ var a2 = { 7, "banana", 9 };
     + N0001 kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
     + N0002 ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
     + N0003 kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
+    - N0004 adjust <type> *<val> to <type>* <val> VS auto correct
     - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
     - P0002 simplevars[27] per environment? 
     + X0001 EXPECT_INT(), EXPECT_VAL() functions
@@ -335,6 +336,7 @@ typedef struct {
   kuobj obj;
   int len;
   char* chars;
+  uint32_t hash;
 } kustr;
 
 typedef enum {
@@ -432,6 +434,27 @@ void ku_chunk_free(kuvm* vm, kuchunk* chunk);
 int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 
 // ------------------------------------------------------------
+// Map / Hash table
+// ------------------------------------------------------------
+typedef struct {
+  kustr* key;
+  kuval value;
+} kuentry;
+
+typedef struct {
+  int count;
+  int capacity;
+  kuentry* entries;
+} kumap;
+
+void ku_map_init(kuvm *vm, kumap* map);
+void ku_map_free(kuvm *vm, kumap* map);
+bool ku_map_set(kuvm* vm, kumap* map, kustr *key, kuval value);
+bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval *value);
+bool ku_map_del(kuvm* vm, kumap* map, kustr* key);
+kustr* ku_map_find_str(kuvm* vm, kumap* map, const char* chars, int len, uint32_t hash);
+
+// ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
 typedef enum {
@@ -501,6 +524,7 @@ typedef struct _vm {
   kuval* sp;
 
   kuobj* objects;
+  kumap strings;
 
   kulex scanner;
   kuparser parser;
