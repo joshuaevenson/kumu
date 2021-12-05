@@ -6,7 +6,13 @@
 
 int main(int argc, char **argv)
 {
+#ifdef KVM_MAIN
+	return ku_main(argc, argv);
+#endif
+
+#ifdef KVM_TEST
 	ku_test();
+#endif
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

@@ -284,12 +284,13 @@ var a2 = { 7, "banana", 9 };
 /*
     Backlog
     + T0001 remove type for now
+    - V0001 ku_save(), ku_load() state restoration for await(persist)
     + N0001 kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
     + N0002 ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
     + N0003 kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
     - N0004 adjust <type> *<val> to <type>* <val> VS auto correct
     - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
-    - P0002 simplevars[27] per environment? 
+    x P0002 simplevars[27] per global env? not worth it 
     + X0001 EXPECT_INT(), EXPECT_VAL() functions
 */
 
@@ -410,9 +411,14 @@ typedef enum {
   OP_DIV,
   OP_NOT,
   OP_NIL,
+  OP_PRINT,
+  OP_POP,
   OP_TRUE,
   OP_FALSE,
   OP_GT,
+  OP_DEF_GLOBAL,
+  OP_GET_GLOBAL,
+  OP_SET_GLOBAL,
   OP_LT,
   OP_EQ,
 } k_op;
@@ -495,7 +501,7 @@ typedef struct {
   bool panic;
 } kuparser;
 
-// ------------------------------------------------------------
+// ---------`---------------------------------------------------
 // VM
 // ------------------------------------------------------------
 #define STACK_MAX 256
@@ -507,9 +513,9 @@ typedef enum {
   KVM_FILE_NOTFOUND,
 } kures;
 
-#define KVM_F_TRACE 0x01    // trace each instruction as it runs
-#define KVM_F_STACK 0x02    // print stack in repl
-#define KVM_F_LIST  0x04    // list instructions after compile
+#define KVM_F_TRACE 0x01        // trace each instruction as it runs
+#define KVM_F_STACK 0x02        // print stack in repl
+#define KVM_F_LIST  0x04        // list instructions after compile
 
 typedef struct _vm {
   uint64_t flags;
@@ -525,6 +531,7 @@ typedef struct _vm {
 
   kuobj* objects;
   kumap strings;
+  kumap globals;
 
   kulex scanner;
   kuparser parser;
