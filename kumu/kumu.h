@@ -533,6 +533,7 @@ typedef struct _vm {
   kumap strings;
   kumap globals;
 
+  char* last_err;
   kulex scanner;
   kuparser parser;
 } kuvm;
