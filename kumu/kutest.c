@@ -426,7 +426,7 @@ void ku_test() {
   vm = kut_new();
   vm->flags = 0;
   res = ku_exec(vm, "{ var a = a; }");
-  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "local own init");  
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "local own init");
   ku_free(vm);
 
   ku_test_summary();
