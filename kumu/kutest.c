@@ -416,5 +416,18 @@ void ku_test() {
   res = ku_exec(vm, "print true;");
   ku_free(vm);
   
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "var x = 20; var y = 0; { var a=x*20; y = a; }");
+  EXPECT_INT(vm, res, KVM_OK, "local decl");
+  EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(400), "local init");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "{ var a = a; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "local own init");  
+  ku_free(vm);
+
   ku_test_summary();
 }
