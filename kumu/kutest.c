@@ -391,6 +391,9 @@ void ku_test() {
   ku_map_copy(vm, &map, &map2);
   ku_map_free(vm, &map);
   ku_map_free(vm, &map2);
+  ku_map_del(vm, &map, k1);
+  found = ku_map_get(vm, &map, k1, &v);
+  EXPECT_TRUE(vm, !found, "empty map get");
   ku_free(vm);
 
   vm = kut_new();
