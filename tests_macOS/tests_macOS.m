@@ -6,7 +6,7 @@
 //
 
 #import <XCTest/XCTest.h>
-#include "kumu.h"
+#include "kutest.h"
 
 void ktest(void);
 extern int ktest_pass;
@@ -19,7 +19,7 @@ extern int ktest_fail;
 @implementation tests_macOS
 
 - (void)testMain {
-  ktest();
+  ku_test();
   XCTAssertEqual(ktest_fail, 0);
 }
 

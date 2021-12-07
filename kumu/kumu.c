@@ -16,6 +16,20 @@
     (type*)ku_obj_alloc(vm, sizeof(type), objtype)
 #define FREE(vm, type, ptr) \
   ku_alloc(vm, ptr, sizeof(type), 0)
+
+static void ku_printf(kuvm *vm, const char *fmt, ...) {
+  va_list args;
+
+  if (vm->flags & KVM_F_QUIET) {
+    return;
+  }
+  
+  va_start(args, fmt);
+  vprintf(fmt, args);
+  va_end(args);
+}
+
+
 // ------------------------------------------------------------
 // Values
 // ------------------------------------------------------------
@@ -61,7 +75,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot) {
   return IS_OBJ(v) && AS_OBJ(v)->type == ot;
 }
 
-static kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
+kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
   uint32_t hash = ku_str_hash(chars, len);
 
   kustr* interned = ku_map_find_str(vm, &vm->strings, chars, len, hash);
@@ -201,7 +215,7 @@ bool ku_map_set(kuvm* vm, kumap* map, kustr* key, kuval value) {
   return isnew;
 }
 
-static void ku_map_copy(kuvm* vm, kumap* from, kumap* to) {
+void ku_map_copy(kuvm* vm, kumap* from, kumap* to) {
   for (int i = 0; i < from->capacity; i++) {
     kuentry* e = &from->entries[i];
     if (e->key != NULL) {
@@ -268,7 +282,7 @@ static char ku_lex_advance(kuvm *vm) {
 }
 
 
-static void ku_lex_init(kuvm *vm, const char *source) {
+void ku_lex_init(kuvm *vm, const char *source) {
   vm->scanner.start = source;
   vm->scanner.curr = source;
   vm->scanner.line = 1;
@@ -417,7 +431,7 @@ static kutok ku_lex_identifier(kuvm *vm) {
   return ku_lex_make(vm, ku_lex_identity_type(vm));
 }
 
-static kutok ku_lex_scan(kuvm *vm) {
+kutok ku_lex_scan(kuvm *vm) {
   ku_lex_skip_space(vm);
   vm->scanner.start = vm->scanner.curr;
   
@@ -461,11 +475,11 @@ void ku_lex_print_all(kuvm *vm) {
   while (true) {
     kutok token = ku_lex_scan(vm);
     if (token.line != line) {
-      kuprintf("%4d ", token.line);
+      ku_printf(vm, "%4d ", token.line);
     } else {
-      kuprintf("  |  ");
+      ku_printf(vm, "  |  ");
     }
-    kuprintf("%2d '%.*s'\n", token.type, token.len, token.start);
+    ku_printf(vm, "%2d '%.*s'\n", token.type, token.len, token.start);
     
     if (token.type == TOK_EOF) {
       break;
@@ -482,7 +496,10 @@ static void ku_set_last_err(kuvm* vm, char* buff) {
   if (vm->last_err) {
     vm->allocated += strlen(buff) + 1;
     strcpy(vm->last_err, buff);
-   // printf(vm->last_err);
+    
+    if (!(vm->flags & KVM_F_QUIET)) {
+      ku_printf(vm, "%s", vm->last_err);
+    }
   }
 }
 
@@ -880,13 +897,11 @@ kuvm *ku_new(void) {
   return vm;
 }
 
-#ifdef KVM_TRACE
 void ku_print_mem(kuvm *vm) {
-  printf("allocated: %d, freed: %d, delta: %d\n",
+  ku_printf(vm, "allocated: %ld, freed: %ld, delta: %ld\n",
          vm->allocated,
          vm->freed, vm->allocated - vm->freed);
 }
-#endif
 
 static void ku_free_objects(kuvm* vm) {
   kuobj* obj = vm->objects;
@@ -910,19 +925,18 @@ void ku_free(kuvm *vm) {
   free(vm);
 }
 
-#ifdef KVM_TRACE
 void ku_print_stack(kuvm *vm) {
-  printf(" [");
+  ku_printf(vm, " [");
   for (kuval* vp = vm->stack; vp < vm->sp; vp++) {
     ku_print_val(vm, *vp);
     if (vp < vm->sp - 1) {
-      printf(",");
+      ku_printf(vm, ",");
     }
   }
-  printf("]");
-  printf("\n");
+  ku_printf(vm, "]");
+  ku_printf(vm, "\n");
 }
-#endif
+
 
 static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_list args;
@@ -932,10 +946,9 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_start(args, fmt);
   vsprintf(out, fmt, args);
   va_end(args);
-  strcat(out, "\n");
   size_t instruction = vm->ip - vm->chunk->code - 1;
   int line = vm->chunk->lines[instruction];
-  sprintf(buff, "%s [line %d] in script\n", out, line);
+  sprintf(buff, "[line %d] %s\n", line, out);
   ku_set_last_err(vm, buff);
   ku_reset_stack(vm);
 }
@@ -961,11 +974,11 @@ static kures ku_runloop(kuvm *vm) {
   kures res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
-#ifdef KVM_TRACE
+
     if (vm->flags & KVM_F_TRACE) {
      ku_print_op(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
     }
-#endif
+
 
     switch(op = BYTE_READ(vm)) {
       case OP_NOP:
@@ -1007,7 +1020,7 @@ static kures ku_runloop(kuvm *vm) {
       }
       case OP_PRINT: {
         ku_print_val(vm, ku_pop(vm));
-        printf("\n");
+        ku_printf(vm, "\n");
         break;
       }
       
@@ -1068,15 +1081,14 @@ static kures ku_runloop(kuvm *vm) {
         ku_push(vm, BOOL_VAL(ku_is_falsy(ku_pop(vm))));
         break;
     }
-#ifdef KVM_TRACE
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      ku_print_stack(vm);
     } else {
       if (vm->flags & KVM_F_TRACE) {
-        kuprintf("\n");
+        ku_printf(vm, "\n");
       }
     }
-#endif
+
   }
   return KVM_OK;
 #undef BYTE_READ
@@ -1102,13 +1114,14 @@ static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
   }
   ku_parse_end(vm);
   
-#ifdef DEBUG_PRINT_CODE
-  ku_print_chunk(vm, ku_current_chunk(vm), "code");
-#endif
+  if (vm->flags & KVM_F_DISASM) {
+    ku_print_chunk(vm, ku_current_chunk(vm), "code");
+  }
+
   return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
 }
 
-static kures ku_exec(kuvm *vm, char *source) {
+kures ku_exec(kuvm *vm, char *source) {
   kuchunk chunk;
   
   ku_chunk_init(vm, &chunk);
@@ -1128,112 +1141,14 @@ static kures ku_exec(kuvm *vm, char *source) {
   return res;
 }
 
-#ifdef KVM_MAIN
-static char *ku_readfile(kuvm *vm, const char *path) {
-  FILE * file = fopen(path , "rb");
-  
-  if (file == NULL) {
-    return NULL;
-  }
-  fseek(file , 0L , SEEK_END);
-  size_t fsize = ftell(file);
-  rewind(file);
-  char * buffer = (char *) malloc(fsize + 1);
-
-  if (!buffer) {
-    fclose(file);
-    return NULL;
-  }
-
-  size_t read = fread(buffer , sizeof (char), fsize, file);
-  
-  if (read < fsize) {
-    free(buffer);
-    return NULL;
-  }
-  buffer [read] = '\0' ;
-  fclose(file);
-  return buffer ;
-}
-
-kures ku_runfile(kuvm *vm, const char *file) {
-  char *source = ku_readfile(vm, file);
-  
-  if (source == NULL) {
-    return KVM_FILE_NOTFOUND;
-  }
-  kures res = ku_exec(vm, source);
-  free(source);
-  return res;
-}
-
-
-static bool ku_check_flag(kuvm *vm, char *line,
-                       const char *name, uint64_t flag) {
-  char buff[256];
-  sprintf(buff, ".%s on\n", name);
-  if (strcmp(line, buff) == 0) {
-    vm->flags |= flag;
-    printf("%s on\n", name);
-    return true;
-  }
-  sprintf(buff, ".%s off\n", name);
-  if (strcmp(line, buff) == 0) {
-    vm->flags &= ~flag;
-    printf("%s off\n", name);
-    return true;
-  }
-  return false;
-}
-static void ku_repl(kuvm *vm) {
-  printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
-  char line[1024];
-  
-  while(true) {
-    printf("$ ");
-    
-    if (!fgets(line, sizeof(line), stdin)) {
-      printf("\n");
-      break;
-    }
-    
-    if (strcmp(line, ".quit\n") == 0) {
-      break;
-    }
-
-    if (strcmp(line, ".test\n") == 0) {
-      ku_test();
-      continue;
-    }
-    
-    if (ku_check_flag(vm, line, "trace", KVM_F_TRACE)) continue;
-    if (ku_check_flag(vm, line, "stack", KVM_F_STACK)) continue;
-    if (ku_check_flag(vm, line, "list", KVM_F_LIST)) continue;
-
-    if (strcmp(line, ".mem\n") == 0) {
-      ku_print_mem(vm);
-      continue;
-    }
-    
-    ku_exec(vm, line);
-    if (vm->sp > vm->stack) {
-      kuval v = ku_pop(vm);
-      ku_print_val(vm, v);
-      printf("\n");
-    }
-
-  }
-}
-#endif
-
 // ------------------------------------------------------------
 // Memory
 // ------------------------------------------------------------
 char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
   
-#ifdef MEMORY_TRACE
-  printf("malloc %d -> %d\n", (int)oldsize, (int)nsize);
-#endif
+  if (vm->flags & KVM_F_TRACEMEM) {
+    ku_printf(vm, "malloc %d -> %d\n", (int)oldsize, (int)nsize);
+  }
   
   vm->allocated += nsize;
   vm->freed += oldsize;
@@ -1286,7 +1201,7 @@ int ku_chunk_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
 static void ku_print_obj(kuvm* vm, kuval val) {
   switch (OBJ_TYPE(val)) {
   case OBJ_STR:
-    printf("%s", AS_CSTR(val));
+    ku_printf(vm, "%s", AS_CSTR(val));
     break;
   }
 }
@@ -1294,13 +1209,13 @@ static void ku_print_obj(kuvm* vm, kuval val) {
 void ku_print_val(kuvm *vm, kuval value) {
   switch (value.type) {
     case VAL_BOOL:
-      printf("%s", (value.as.bval) ? "true": "false");
+    ku_printf(vm, "%s", (value.as.bval) ? "true": "false");
       break;
     case VAL_NIL:
-      printf("nil");
+      ku_printf(vm, "nil");
       break;;
     case VAL_NUM:
-      printf("%g", value.as.dval);
+      ku_printf(vm, "%g", value.as.dval);
       break;
     case VAL_OBJ:
       ku_print_obj(vm, value);
@@ -1327,39 +1242,38 @@ void ku_arr_write(kuvm* vm, kuarr *array, kuval value) {
 // ------------------------------------------------------------
 // Debug
 // ------------------------------------------------------------
-#ifdef KVM_TRACE
 void ku_print_chunk(kuvm *vm, kuchunk *chunk, const char * name) {
-  printf("== %s ==\n", name);
+  ku_printf(vm, "== %s ==\n", name);
   for (int offset = 0; offset < chunk->count; ) {
     offset = ku_print_op(vm, chunk, offset);
-    printf("\n");
+    ku_printf(vm, "\n");
   }
 }
 
-static int ku_print_simple_op(const char *name, int offset) {
-  printf("%-17s", name);
+static int ku_print_simple_op(kuvm *vm, const char *name, int offset) {
+  ku_printf(vm, "%-17s", name);
   return offset + 1;
 }
 
 static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
-  printf("%-6s %4d '", name, con);
+  ku_printf(vm, "%-6s %4d '", name, con);
   ku_print_val(vm, chunk->constants.values[con]);
-  printf("'");
+  ku_printf(vm, "'");
   return offset+2;
 }
 
 int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
 #define OP_DEF1(o) \
 case o:\
-return ku_print_simple_op(#o, offset);
+return ku_print_simple_op(vm, #o, offset);
   
-  printf("%04d ", offset);
+  ku_printf(vm, "%04d ", offset);
 
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
-    printf("   | ");
+    ku_printf(vm, "   | ");
   } else {
-    printf("%4d ", chunk->lines[offset]);
+    ku_printf(vm, "%4d ", chunk->lines[offset]);
   }
   uint8_t op = chunk->code[offset];
   switch (op) {
@@ -1387,447 +1301,10 @@ return ku_print_simple_op(#o, offset);
     case OP_SET_GLOBAL:
       return ku_print_const(vm, "OP_SET_GLOBAL", chunk, offset);
     default:
-      printf("Unknown opcode %d\n", op);
+      ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;
   }
 #undef OP_DEF1
 }
-#endif
 
-// ------------------------------------------------------------
-// REPL
-// ------------------------------------------------------------
-#ifdef KVM_MAIN
-int ku_main(int argc, const char * argv[]) {
-  kuvm *vm = ku_new();
-  
-  if (argc == 2 && strcmp(argv[1],"--test") == 0) {
-    ku_test();
-    return 0;
-  }
-  
-  if (argc == 1) {
-    ku_repl(vm);
-  } else if (argc == 2) {
-    kures res = ku_runfile(vm, argv[1]);
-    if (res == KVM_ERR_RUNTIME) {
-      ku_free(vm);
-      exit(70);
-    }
-    if (res == KVM_ERR_SYNTAX)  {
-      ku_free(vm);
-      exit(65);
-    }
-    if (res == KVM_FILE_NOTFOUND) {
-      fprintf(stderr, "file error '%s'\n", argv[1]);
-      ku_free(vm);
-      exit(74);
-    }
-    
-  } else {
-    ku_free(vm);
-    fprintf(stderr, "usage kumu [file]\n");
-    exit(64);
-  }
-  ku_free(vm);
-  return 0;
-}
-#endif
-
-// ------------------------------------------------------------
-// TEST
-// ------------------------------------------------------------
-#ifdef KVM_TEST
-
-static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
-  int index = ku_chunk_add_const(vm, vm->chunk, NUM_VAL(cons));
-  ku_chunk_write(vm, vm->chunk, OP_CONST, line);
-  ku_chunk_write(vm, vm->chunk, index, line);
-}
-
-static int ktest_pass = 0;
-int ktest_fail = 0;
-
- 
-static void EXPECT_TRUE(kuvm* vm, bool b, const char* msg) {
-  if (b) {
-    ktest_pass++;
-    return;
-  }
-  ktest_fail++;
-  printf("expected true found false [%s]", msg);
-}
-
-static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
-  if (v1 == v2) {
-    ktest_pass++;
-    return;
-  }
-  ktest_fail++;
-  printf("expected: %d found %d [%s]\n", v1, v2, m);
-}
-
-static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
-  if (ku_val_eq(v1, v2)) {
-    ktest_pass++;
-    return;
-  }
-  
-  ktest_fail++;
-  printf("expected: ");
-  ku_print_val(vm, v2);
-  printf(" found: ");
-  ku_print_val(vm, v1);
-  printf(" [%s]\n", msg);
-}
-
-static void ku_test_summary() {
-  printf("tests %d passed %d failed\n", ktest_pass, ktest_fail);
-}
-
-kuval ku_get_global(kuvm* vm, const char* name) {
-  kuval value;
-  kustr* key = ku_str_copy(vm, name, (int)strlen(name));
-  if (!ku_map_get(vm, &vm->globals, key, &value)) {
-    return NIL_VAL;
-  }
-
-  return value;
-}
-
-
-kuval ku_test_eval(kuvm* vm, const char* expr) {
-  char buff[255];
-  sprintf(buff, "var x = %s;", expr);
-  kures res = ku_exec(vm, buff);
-  if (res != KVM_OK) {
-    return NIL_VAL;
-  }
-  return ku_get_global(vm, "x");
-}
-
-void ku_test() {
-  kuvm *vm = ku_new();
-  kuchunk chunk;
-  ku_chunk_init(vm, &chunk);
-  vm->chunk = &chunk;
-  int line = 1;
-  ku_chunk_write(vm, &chunk, OP_NOP, line++);
-  ku_chunk_write_const(vm, 1, line);
-  ku_chunk_write_const(vm, 2, line);
-  ku_chunk_write(vm, &chunk, OP_ADD, line);
-  ku_chunk_write(vm, &chunk, OP_NEG, line++);
-  ku_chunk_write_const(vm, 4, line);
-  ku_chunk_write(vm, &chunk, OP_SUB, line++);
-  ku_chunk_write_const(vm, 5, line);
-  ku_chunk_write(vm, &chunk, OP_MUL, line++);
-  ku_chunk_write_const(vm, 6, line);
-  ku_chunk_write(vm, &chunk, OP_DIV, line++);
-  ku_chunk_write(vm, &chunk, OP_RET, line);
-  kures res = ku_run(vm, &chunk);
-  EXPECT_INT(vm, res, KVM_OK, "ku_run res");
-  kuval v = ku_pop(vm);
-  EXPECT_VAL(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
-  ku_chunk_free(vm, &chunk);
-  ku_free(vm);
-  
-  vm = ku_new();
-  res = ku_exec(vm, "var x = 1+2;");
-  EXPECT_INT(vm, res, KVM_OK, "ku_exec res");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "ku_exec ret");
-  ku_free(vm);
-  
-  vm = ku_new();
-  ku_lex_init(vm, "var x = 12+3;");
-  ku_lex_print_all(vm);
-  ku_free(vm);
-  
-  vm = ku_new();
-  res = ku_exec(vm, "12+");
-  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "12+");
-  ku_free(vm);
-  
-  vm = ku_new();
-  res = ku_exec(vm, "var x = (1+2)*3;");
-  EXPECT_INT(vm, res, KVM_OK, "grouping res");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "grouping ret");
-  ku_free(vm);
-  
-  vm = ku_new();
-  vm->flags |= KVM_F_LIST;
-  res = ku_exec(vm, "(1+2)*3");
-  ku_free(vm);
-
-  vm = ku_new();
-  ku_print_mem(vm);
-  ku_free(vm);
-  
-  vm = ku_new();
-  ku_lex_init(vm, "var x=30; \n  x=\"hello\";");
-  ku_lex_print_all(vm);
-  ku_free(vm);
-
-  vm = ku_new();
-  ku_exec(vm, "2*3");
-  ku_print_stack(vm);
-  ku_free(vm);
-
-  vm = ku_new();
-  res = ku_exec(vm, "var x = -2*3;");
-  EXPECT_INT(vm, res, KVM_OK, "unary res");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(-6), "unary ret");
-  ku_free(vm);
-
-  // unterminated string
-  vm = ku_new();
-  ku_lex_init(vm, "\"hello");
-  ku_lex_print_all(vm);
-  ku_free(vm);
-
-  // ku_print_val
-  vm = ku_new();
-  res = ku_exec(vm, "var x = 2+3;");
-  v = ku_get_global(vm, "x");
-  EXPECT_VAL(vm, v, NUM_VAL(5), "ku_print_val ret");
-  ku_print_val(vm, v);
-  ku_free(vm);
-  
-  vm = ku_new();
-  res = ku_exec(vm, "var x = 12.3;");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12.3), "ku_lex_peeknext ret");
-  ku_free(vm);
-  
-  vm = ku_new();
-  ku_lex_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
-  kutok t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_AND, "[and]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_CLASS, "[class]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_ELSE, "[else]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_FALSE, "[false]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_FOR, "[for]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_FUN, "[fun]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_IF, "[if]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_NIL, "[nil]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_OR, "[or]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_PRINT, "[print]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_RETURN, "[return]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_SUPER, "[super]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_THIS, "[this]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_TRUE, "[true]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_WHILE, "[while]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_LBRACE, "[{]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_RBRACE, "[}]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_BANG, "[!]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_PLUS, "[+]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_MINUS, "[-]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_STAR, "[*]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_SLASH, "[/]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_EQ, "[=]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_NE, "[!=]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_GT, "[>]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_LT, "[<]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_GE, "[>=]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_LE, "[<=]");
-
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
-  ku_free(vm);
-  
-  vm = ku_new();
-  ku_lex_init(vm, "// this is a comment");
-  t = ku_lex_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_EOF, "comment");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "(12-2)/5");
-  EXPECT_VAL(vm, v, NUM_VAL(2), "sub div ret");
-  ku_free(vm);
-
-  vm = ku_new();
-  res = ku_exec(vm, "-true");
-  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "negate err");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "true");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "true literal eval");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "false");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "false literal eval");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "nil");
-  EXPECT_VAL(vm, v, NIL_VAL, "nil literal eval");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "!true");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "!true eval");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "!false");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "!false eval");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1==1");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "== true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1==2");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "== false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1!=2");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "!= true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1!=1");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "!= false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1<1");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "< false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "1<2");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "< true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "2<=1");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "<= false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "2<=3");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "<= true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "3>2");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "> true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "3>7");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "> false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "3>=7");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), ">= false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "3>=3");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), ">= true");
-  ku_free(vm);
-
-  vm = ku_new();
-  res = ku_exec(vm, "var x = 12 + true;");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "add num expected");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "\"hello \" + \"world\"");
-  EXPECT_INT(vm, v.type, VAL_OBJ, "stradd type obj");
-  EXPECT_INT(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
-  char* chars = AS_CSTR(v);
-  EXPECT_INT(vm, strcmp(chars, "hello world"), 0, "str val");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "\"hello \" == \"world\"");
-  EXPECT_VAL(vm, v, BOOL_VAL(false), "str == false");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "\"hello\" == \"hello\"");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "str == true");
-  ku_free(vm);
-
-  vm = ku_new();
-  v = ku_test_eval(vm, "\"hello \" != \"world\"");
-  EXPECT_VAL(vm, v, BOOL_VAL(true), "str != true");
-  ku_free(vm);
-
-  vm = ku_new();
-  kumap map;
-  ku_map_init(vm, &map);
-  kustr* k1 = ku_str_copy(vm, "key1", 4);
-  kustr* k2 = ku_str_copy(vm, "key1", 4);
-  EXPECT_TRUE(vm, k1 == k2, "string intern equal");
-  kustr* k3 = ku_str_copy(vm, "key2", 4);
-  EXPECT_TRUE(vm, k3 != k2, "string intern not equal");
-  bool isnew = ku_map_set(vm, &map, k1, NUM_VAL(3.14));
-  EXPECT_TRUE(vm, isnew, "map set new");
-  bool found = ku_map_get(vm, &map, k1, &v);
-  EXPECT_TRUE(vm, found, "map get found");
-  EXPECT_VAL(vm, v, NUM_VAL(3.14), "map get found value");
-  found = ku_map_get(vm, &map, k3, &v);
-  EXPECT_TRUE(vm, !found, "map get not found");
-  found = ku_map_del(vm, &map, k1);
-  EXPECT_TRUE(vm, found, "map del found");
-  found = ku_map_get(vm, &map, k1, &v);
-  EXPECT_TRUE(vm, !found, "map del not found");
-  ku_map_free(vm, &map);
-  ku_free(vm);
-
-  vm = ku_new();
-  res = ku_exec(vm, "x = 20;");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "undeclard global assign");
-  ku_free(vm);
-
-  vm = ku_new();
-  res = ku_exec(vm, "var x = 20;");
-  EXPECT_INT(vm, res, KVM_OK, "global decl");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(20), "global init");
-  res = ku_exec(vm, "x = 30;");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(30), "global set");
-  ku_free(vm);
-
-  ku_test_summary();
-}
-
-#endif
 

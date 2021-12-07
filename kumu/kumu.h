@@ -463,6 +463,7 @@ void ku_map_free(kuvm *vm, kumap* map);
 bool ku_map_set(kuvm* vm, kumap* map, kustr *key, kuval value);
 bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval *value);
 bool ku_map_del(kuvm* vm, kumap* map, kustr* key);
+void ku_map_copy(kuvm* vm, kumap* from, kumap* to);
 kustr* ku_map_find_str(kuvm* vm, kumap* map, const char* chars, int len, uint32_t hash);
 
 // ------------------------------------------------------------
@@ -518,9 +519,12 @@ typedef enum {
   KVM_FILE_NOTFOUND,
 } kures;
 
-#define KVM_F_TRACE 0x01        // trace each instruction as it runs
-#define KVM_F_STACK 0x02        // print stack in repl
-#define KVM_F_LIST  0x04        // list instructions after compile
+#define KVM_F_TRACE     0x0001        // trace each instruction as it runs
+#define KVM_F_STACK     0x0002        // print stack in repl
+#define KVM_F_LIST      0x0004        // list instructions after compile
+#define KVM_F_QUIET     0x0008        // Supress error output (for tests)
+#define KVM_F_TRACEMEM  0x0010        // Trace memory
+#define KVM_F_DISASM    0x0020        // Disassemble after compile
 
 typedef struct _vm {
   uint64_t flags;
@@ -566,29 +570,17 @@ int ku_print_op(kuvm* vm, kuchunk* chunk, int offset);
 // ------------------------------------------------------------
 // Config
 // ------------------------------------------------------------
-#ifdef KVM_MAIN
-int ku_main(int argc, const char* argv[]);
-#else
-#define ku_main(a,v)
-#endif
 
-#ifdef KVM_TRACE
-#define kuprintf(...) printf (__VA_ARGS__)
 void ku_print_mem(kuvm* vm);
 void ku_print_stack(kuvm* vm);
 void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
-#else
-#define kuprintf(...)
-#define ku_print_mem(v)
-#define ku_print_stack(v)
-#define ku_print_chunk(v,c,n)
-#endif
 
-#ifdef KVM_TEST
-    void ku_test(void);
-#else
-#define ku_test()
-#endif
+
+kures ku_exec(kuvm *vm, char *source);
+kustr* ku_str_copy(kuvm* vm, const char* chars, int len);
+void ku_lex_init(kuvm *vm, const char *source);
+void ku_lex_print_all(kuvm *vm);
+kutok ku_lex_scan(kuvm *vm);
 
 #endif /* KUMU_H */
 

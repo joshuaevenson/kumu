@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		82E8AB83275FC069003A7A54 /* kutest.c in Sources */ = {isa = PBXBuildFile; fileRef = 82E8AB82275FC069003A7A54 /* kutest.c */; };
+		82E8AB84275FC1A7003A7A54 /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
+		82E8AB87275FCA23003A7A54 /* kumain.c in Sources */ = {isa = PBXBuildFile; fileRef = 82E8AB86275FCA23003A7A54 /* kumain.c */; };
 		82EE3AF2274EE08100D6B09E /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF1274EE08100D6B09E /* main.c */; };
 		82EE3AFA274EE0B600D6B09E /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
 		82F283B927531F77008A1DBD /* tests_macOS.m in Sources */ = {isa = PBXBuildFile; fileRef = 82F283B827531F77008A1DBD /* tests_macOS.m */; };
-		82F283BF275320F9008A1DBD /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,6 +28,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		82E8AB81275FC069003A7A54 /* kutest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kutest.h; sourceTree = "<group>"; };
+		82E8AB82275FC069003A7A54 /* kutest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kutest.c; sourceTree = "<group>"; };
+		82E8AB85275FCA23003A7A54 /* kumain.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kumain.h; sourceTree = "<group>"; };
+		82E8AB86275FCA23003A7A54 /* kumain.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kumain.c; sourceTree = "<group>"; };
 		82EE3AEE274EE08100D6B09E /* kumu */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kumu; sourceTree = BUILT_PRODUCTS_DIR; };
 		82EE3AF1274EE08100D6B09E /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		82EE3AF8274EE0B600D6B09E /* kumu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kumu.h; sourceTree = "<group>"; };
@@ -76,6 +82,10 @@
 				82EE3AF1274EE08100D6B09E /* main.c */,
 				82EE3AF8274EE0B600D6B09E /* kumu.h */,
 				82EE3AF9274EE0B600D6B09E /* kumu.c */,
+				82E8AB81275FC069003A7A54 /* kutest.h */,
+				82E8AB82275FC069003A7A54 /* kutest.c */,
+				82E8AB85275FCA23003A7A54 /* kumain.h */,
+				82E8AB86275FCA23003A7A54 /* kumain.c */,
 			);
 			path = kumu;
 			sourceTree = "<group>";
@@ -176,6 +186,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				82E8AB87275FCA23003A7A54 /* kumain.c in Sources */,
 				82EE3AF2274EE08100D6B09E /* main.c in Sources */,
 				82EE3AFA274EE0B600D6B09E /* kumu.c in Sources */,
 			);
@@ -186,7 +197,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				82F283B927531F77008A1DBD /* tests_macOS.m in Sources */,
-				82F283BF275320F9008A1DBD /* kumu.c in Sources */,
+				82E8AB84275FC1A7003A7A54 /* kumu.c in Sources */,
+				82E8AB83275FC069003A7A54 /* kutest.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,11 +320,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					KVM_MAIN,
-					KVM_TRACE,
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -321,10 +329,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					KVM_MAIN,
-					KVM_TRACE,
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -335,10 +340,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					KVM_TEST,
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1";
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -358,7 +360,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GCC_PREPROCESSOR_DEFINITIONS = KVM_TEST;
+				GCC_PREPROCESSOR_DEFINITIONS = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
