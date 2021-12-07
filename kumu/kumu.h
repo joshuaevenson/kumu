@@ -424,9 +424,13 @@ typedef enum {
   OP_DEF_GLOBAL,
   OP_GET_GLOBAL,
   OP_SET_GLOBAL,
+  OP_GET_LOCAL,
+  OP_SET_LOCAL,
   OP_LT,
   OP_EQ,
 } k_op;
+
+
 
 // ------------------------------------------------------------
 // Chunk
@@ -497,6 +501,34 @@ typedef struct {
   int line;
 } kulex;
 
+
+// ------------------------------------------------------------
+// Locals
+// ------------------------------------------------------------
+#define MAX_LOCALS    (UINT8_MAX + 1)
+
+typedef struct {
+  kutok name;
+  int depth;
+} kulocal;
+
+typedef struct {
+  kulocal locals[MAX_LOCALS];
+  int count;
+  int depth;
+} kuscopes;
+
+void ku_initscopes(kuvm *vm, kuscopes *scopes);
+void ku_block(kuvm *vm);
+void ku_beginscope(kuvm *vm);
+void ku_endscope(kuvm *vm);
+void ku_vardecl(kuvm *vm);
+void ku_addlocal(kuvm *vm, kutok name);
+bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
+int ku_resolvelocal(kuvm *vm, kutok *name);
+void ku_markinit(kuvm *vm);
+int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset);
+
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
@@ -542,6 +574,7 @@ typedef struct _vm {
   kumap strings;
   kumap globals;
 
+  kuscopes scopes;
   char* last_err;
   kulex scanner;
   kuparser parser;

@@ -698,8 +698,11 @@ static void ku_parse_print_statement(kuvm* vm) {
 static void ku_parse_statement(kuvm* vm) {
   if (ku_parse_match(vm, TOK_PRINT)) {
     ku_parse_print_statement(vm);
-  }
-  else {
+  } else if (ku_parse_match(vm, TOK_LBRACE)) {
+    ku_beginscope(vm);
+    ku_block(vm);
+    ku_endscope(vm);
+  } else {
     ku_parse_expression_statement(vm);
   }
 }
@@ -736,10 +739,18 @@ static uint8_t ku_parse_identifier_const(kuvm* vm, kutok* name) {
 
 static uint8_t ku_parse_var(kuvm* vm, const char* msg) {
   ku_parse_consume(vm, TOK_IDENT, msg);
+  ku_vardecl(vm);
+  if (vm->scopes.depth > 0) {
+    return 0;
+  }
   return ku_parse_identifier_const(vm, &vm->parser.prev);
 }
 
 static void ku_parse_var_def(kuvm* vm, uint8_t index) {
+  if (vm->scopes.depth > 0) {
+    ku_markinit(vm);
+    return;
+  }
   ku_parse_emit_bytes(vm, OP_DEF_GLOBAL, index);
 }
 
@@ -769,14 +780,23 @@ static void ku_parse_declaration(kuvm* vm) {
 }
 
 static void ku_named_var(kuvm* vm, kutok name, bool lhs) {
-  uint8_t arg = ku_parse_identifier_const(vm, &name);
-
+  int arg = ku_resolvelocal(vm, &name);
+  uint8_t set, get;
+  
+  if (arg != -1) {
+    get = OP_GET_LOCAL;
+    set = OP_SET_LOCAL;
+  } else {
+    arg = ku_parse_identifier_const(vm, &name);
+    get = OP_GET_GLOBAL;
+    set = OP_SET_GLOBAL;
+  }
   if (lhs && ku_parse_match(vm, TOK_EQ)) {
     ku_parse_expression(vm);
-    ku_parse_emit_bytes(vm, OP_SET_GLOBAL, arg);
+    ku_parse_emit_bytes(vm, set, (uint8_t)arg);
   }
   else {
-    ku_parse_emit_bytes(vm, OP_GET_GLOBAL, arg);
+    ku_parse_emit_bytes(vm, get, (uint8_t)arg);
   }
 }
 
@@ -893,6 +913,7 @@ kuvm *ku_new(void) {
   vm->last_err = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
+  ku_initscopes(vm, &vm->scopes);
   ku_reset_stack(vm);
   return vm;
 }
@@ -1057,6 +1078,17 @@ static kures ku_runloop(kuvm *vm) {
         break;
       }
 
+      case OP_GET_LOCAL: {
+        uint8_t slot = BYTE_READ(vm);
+        ku_push(vm, vm->stack[slot]);
+        break;
+      }
+      case OP_SET_LOCAL: {
+        uint8_t slot = BYTE_READ(vm);
+        vm->stack[slot] = ku_peek_stack(vm, slot);
+        break;
+      }
+        
       case OP_ADD: {
         if (IS_STR(ku_peek_stack(vm, 0)) && IS_STR(ku_peek_stack(vm, 1))) {
           ku_str_cat(vm);
@@ -1277,21 +1309,21 @@ return ku_print_simple_op(vm, #o, offset);
   }
   uint8_t op = chunk->code[offset];
   switch (op) {
-      OP_DEF1(OP_NOP)
-      OP_DEF1(OP_RET)
-      OP_DEF1(OP_NEG)
-      OP_DEF1(OP_ADD)
-      OP_DEF1(OP_SUB)
-      OP_DEF1(OP_MUL)
-      OP_DEF1(OP_DIV)
-      OP_DEF1(OP_NIL)
-      OP_DEF1(OP_TRUE)
-      OP_DEF1(OP_FALSE)
-      OP_DEF1(OP_GT)
-      OP_DEF1(OP_LT)
-      OP_DEF1(OP_EQ)
-      OP_DEF1(OP_PRINT)
-      OP_DEF1(OP_POP)
+    case OP_NOP: return ku_print_simple_op(vm, "OP_NOP", offset);
+    case OP_RET: return ku_print_simple_op(vm, "OP_RET", offset);
+    case OP_NEG: return ku_print_simple_op(vm, "OP_NEG", offset);
+    case OP_ADD: return ku_print_simple_op(vm, "OP_ADD", offset);
+    case OP_SUB: return ku_print_simple_op(vm, "OP_SUB", offset);
+    case OP_MUL: return ku_print_simple_op(vm, "OP_MUL", offset);
+    case OP_DIV: return ku_print_simple_op(vm, "OP_DIV", offset);
+    case OP_NIL: return ku_print_simple_op(vm, "OP_NIL", offset);
+    case OP_TRUE: return ku_print_simple_op(vm, "OP_TRUE", offset);
+    case OP_FALSE: return ku_print_simple_op(vm, "OP_FALSE", offset);
+    case OP_GT: return ku_print_simple_op(vm, "OP_GT", offset);
+    case OP_LT: return ku_print_simple_op(vm, "OP_LT", offset);
+    case OP_EQ: return ku_print_simple_op(vm, "OP_EQ", offset);
+    case OP_PRINT: return ku_print_simple_op(vm, "OP_PRINT", offset);
+    case OP_POP: return ku_print_simple_op(vm, "OP_POP", offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
     case OP_DEF_GLOBAL:
@@ -1300,6 +1332,10 @@ return ku_print_simple_op(vm, #o, offset);
       return ku_print_const(vm, "OP_GET_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL:
       return ku_print_const(vm, "OP_SET_GLOBAL", chunk, offset);
+    case OP_GET_LOCAL:
+      return ku_print_byte_op(vm, "OP_GET_LOCAL", chunk, offset);
+    case OP_SET_LOCAL:
+      return ku_print_byte_op(vm, "OP_SET_LOCAL", chunk, offset);
     default:
       ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;
@@ -1308,3 +1344,92 @@ return ku_print_simple_op(vm, #o, offset);
 }
 
 
+// ------------------------------------------------------------
+// Locals
+// ------------------------------------------------------------
+void ku_initscopes(kuvm *vm, kuscopes *scopes) {
+  scopes->count = 0;
+  scopes->depth = 0;
+}
+
+void ku_block(kuvm *vm) {
+  while (!ku_parse_checktype(vm, TOK_RBRACE) && !ku_parse_checktype(vm, TOK_EOF)) {
+    ku_parse_declaration(vm);
+  }
+  ku_parse_consume(vm, TOK_RBRACE, "'}' expected");
+}
+
+void ku_beginscope(kuvm *vm) {
+  vm->scopes.depth++;
+}
+
+void ku_endscope(kuvm *vm) {
+  vm->scopes.depth--;
+  
+  while (vm->scopes.count > 0 &&
+         vm->scopes.locals[vm->scopes.count - 1].depth >
+    vm->scopes.depth) {
+    ku_parse_emit_byte(vm, OP_POP);
+    vm->scopes.count--;
+    }
+}
+
+void ku_vardecl(kuvm *vm) {
+  if (vm->scopes.depth == 0) {
+    return;
+  }
+  kutok *name = &vm->parser.prev;
+  for (int i = vm->scopes.count - 1; i >= 0; i--) {
+    kulocal *local = &vm->scopes.locals[i];
+    if (local->depth != -1 && local->depth < vm->scopes.depth) {
+      break;
+    }
+    
+    if (ku_identeq(vm, name, &local->name)) {
+      ku_parse_err(vm, "local already defined");
+    }
+  }
+  ku_addlocal(vm, *name);
+}
+
+void ku_addlocal(kuvm *vm, kutok name) {
+  if (vm->scopes.count == MAX_LOCALS) {
+    ku_parse_err(vm, "too many locals");
+    return;
+  }
+  
+  kulocal *local = &vm->scopes.locals[vm->scopes.count++];
+  local->name = name;
+  local->depth = -1;
+}
+
+bool ku_identeq(kuvm *vm, kutok *a, kutok *b) {
+  if (a->len != b->len) {
+    return false;
+  }
+  
+  return memcmp(a->start, b->start, a->len) == 0;
+}
+
+int ku_resolvelocal(kuvm *vm, kutok *name) {
+  for (int i = vm->scopes.count - 1; i >= 0; i--) {
+    kulocal *local = &vm->scopes.locals[i];
+    if (ku_identeq(vm, name, &local->name)) {
+      if (local->depth == -1) {
+        ku_parse_err(vm, "own initialization disallowed");
+      }
+      return i;
+    }
+  }
+  return -1;
+}
+
+void ku_markinit(kuvm *vm) {
+  vm->scopes.locals[vm->scopes.count - 1].depth = vm->scopes.depth;
+}
+
+int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
+  uint8_t slot = chunk->code[offset + 1];
+  ku_printf(vm, "%-16s %4d\n", name, slot);
+  return offset + 2;
+}
