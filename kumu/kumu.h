@@ -283,15 +283,20 @@ var a2 = { 7, "banana", 9 };
 
 /*
     Backlog
-    + T0001 remove type for now
-    - V0001 ku_save(), ku_load() state restoration for await(persist)
-    + N0001 kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
-    + N0002 ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
-    + N0003 kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
-    - N0004 adjust <type> *<val> to <type>* <val> VS auto correct
-    - P0001 Tune hash TABLE_MAX_LOAD based on benchmarks
-    x P0002 simplevars[27] per global env? not worth it 
-    + X0001 EXPECT_INT(), EXPECT_VAL() functions
+    - ku_save(), ku_load() state restoration for await(persist)
+    - adjust <type> *<val> to <type>* <val> VS auto correct
+    - Tune hash TABLE_MAX_LOAD based on benchmarks
+    - Runtime flag for print last error
+    - Print statement to buffer into vm optional string
+    - Code coverage ku_test.c #include "kumu.c"
+    - OP_POPN to remove all variables end of scope
+
+    + remove type for now
+    + kuvm, kuvar, kuvartype, kutable, kuarray, kuchunk, kuobj
+    + ku_fn(vm), kuv_fn(value), kul_fn(lex), kup_fn(parse), kua_fn(arr)
+    + kuc_* => ku_chunk_*, kul_* => ku_lex_*, ... etc.
+    x simplevars[27] per global env? not worth it 
+    + EXPECT_INT(), EXPECT_VAL() functions
 */
 
 #ifndef KUMU_H
