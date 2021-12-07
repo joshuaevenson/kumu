@@ -429,5 +429,11 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "local own init");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->flags = KVM_F_DISASM;
+  res = ku_exec(vm, "{ var a = 1; var b = 2; }");
+  EXPECT_INT(vm, res, KVM_OK, "local op print");
+  ku_free(vm);
+
   ku_test_summary();
 }
