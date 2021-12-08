@@ -410,27 +410,25 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags |= KVM_F_TRACE | KVM_F_DISASM;
+  vm->flags |= KVM_F_TRACE | KVM_F_DISASM | KVM_F_QUIET;
   res = ku_exec(vm, "print 12/3;");
   res = ku_exec(vm, "print \"hello\";");
   res = ku_exec(vm, "print true;");
   ku_free(vm);
   
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "var x = 20; var y = 0; { var a=x*20; y = a; }");
   EXPECT_INT(vm, res, KVM_OK, "local decl");
   EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(400), "local init");
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "{ var a = a; }");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "local own init");
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = KVM_F_DISASM;
+  vm->flags = KVM_F_DISASM | KVM_F_QUIET;
   res = ku_exec(vm, "{ var a = 1; var b = 2; }");
   EXPECT_INT(vm, res, KVM_OK, "local op print");
   ku_free(vm);
