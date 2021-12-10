@@ -518,8 +518,31 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  res = ku_exec(vm, "var x = 1; (while x < 20 { x = x + 1; }");
+  res = ku_exec(vm, "var x = 1; while (x < 20 { x = x + 1; }");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "while no rpar");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 0; for(var j=0; j < 10; j=j+1) x = j;");
+  EXPECT_INT(vm, res, KVM_OK, "for parse");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "for simple");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 0; for var j=0; j < 10; j=j+1) x = j;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "for no lpar");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 0; for(; x < 10; x=x+1) print x;");
+  EXPECT_INT(vm, res, KVM_OK, "for no init");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "for no init");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 0; for(; x < 10; ) x=x+1;");
+  EXPECT_INT(vm, res, KVM_OK, "for no inc");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "for no inc");
   ku_free(vm);
 
   ku_test_summary();

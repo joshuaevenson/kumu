@@ -706,6 +706,8 @@ static void ku_parse_statement(kuvm* vm) {
     ku_ifstatement(vm);
   } else if (ku_parse_match(vm, TOK_WHILE)) {
     ku_whilestatement(vm);
+  } else if (ku_parse_match(vm, TOK_FOR)) {
+    ku_forstatement(vm);
   } else if (ku_parse_match(vm, TOK_LBRACE)) {
     ku_beginscope(vm);
     ku_block(vm);
@@ -1535,7 +1537,44 @@ void ku_whilestatement(kuvm *vm) {
 }
 
 void ku_forstatement(kuvm *vm) {
+  ku_beginscope(vm);
+  ku_parse_consume(vm, TOK_LPAR, "'(' expected after 'for'");
+  if (ku_parse_match(vm, TOK_SEMI)) {
+    // no init
+  } else if (ku_parse_match(vm, TOK_VAR)) {
+    ku_parse_var_decl(vm);
+  } else {
+    ku_parse_expression_statement(vm);
+  }
+  int loop_start = vm->chunk->count;
+  int exit_jump = -1;
   
+  if (!ku_parse_match(vm, TOK_SEMI)) {
+    ku_parse_expression(vm);
+    ku_parse_consume(vm, TOK_SEMI, "';' expected");
+    exit_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+    ku_parse_emit_byte(vm, OP_POP);
+  }
+  
+  if (!ku_parse_match(vm, TOK_RPAR)) {
+    int body_jump = ku_emitjump(vm, OP_JUMP);
+    int inc_start = vm->chunk->count;
+    ku_parse_expression(vm);
+    ku_parse_emit_byte(vm, OP_POP);
+    ku_parse_consume(vm, TOK_RPAR, "')' expected");
+    ku_emitloop(vm, loop_start);
+    loop_start = inc_start;
+    ku_patchjump(vm, body_jump);
+  }
+  
+  ku_parse_statement(vm);
+  ku_emitloop(vm, loop_start);
+  
+  if (exit_jump != -1) {
+    ku_patchjump(vm, exit_jump);
+    ku_parse_emit_byte(vm, OP_POP);
+  }
+  ku_endscope(vm);
 }
 
 void ku_parse_and(kuvm *vm, bool lhs) {
