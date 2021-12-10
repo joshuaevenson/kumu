@@ -853,7 +853,7 @@ ku_parse_rule rules[] = {
   [TOK_IDENT] =     { ku_parse_variable,        NULL,     P_NONE },
   [TOK_STR] =       { ku_parse_string,     NULL,     P_NONE },
   [TOK_NUM] =       { ku_parse_number,     NULL,     P_NONE },
-  [TOK_AND] =       { NULL,        NULL,     P_NONE },
+  [TOK_AND] =       { NULL,        ku_parse_and,     P_AND },
   [TOK_CLASS] =     { NULL,        NULL,     P_NONE },
   [TOK_ELSE] =      { NULL,        NULL,     P_NONE },
   [TOK_FALSE] =     { ku_parse_literal,    NULL,     P_NONE },
@@ -861,7 +861,7 @@ ku_parse_rule rules[] = {
   [TOK_FUN] =       { NULL,        NULL,     P_NONE },
   [TOK_IF] =        { NULL,        NULL,     P_NONE },
   [TOK_NIL] =       { ku_parse_literal,    NULL,     P_NONE },
-  [TOK_OR] =        { NULL,        NULL,     P_NONE },
+  [TOK_OR] =        { NULL,        ku_parse_or,     P_OR },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
   [TOK_THIS] =      { NULL,        NULL,     P_NONE },
@@ -1512,5 +1512,21 @@ void ku_whilestatement(kuvm *vm) {
 
 void ku_forstatement(kuvm *vm) {
   
+}
+
+void ku_parse_and(kuvm *vm, bool lhs) {
+  int end_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  ku_parse_emit_byte(vm, OP_POP);
+  ku_parse_process(vm, P_AND);
+  ku_patchjump(vm, end_jump);
+}
+
+void ku_parse_or(kuvm *vm, bool lhs) {
+  int else_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  int end_jump = ku_emitjump(vm, OP_JUMP);
+  ku_patchjump(vm, else_jump);
+  ku_parse_emit_byte(vm, OP_POP);
+  ku_parse_process(vm, P_OR);
+  ku_patchjump(vm, end_jump);
 }
 

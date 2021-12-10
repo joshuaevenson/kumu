@@ -42,12 +42,15 @@ static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
     return;
   }
   
+  uint64_t f = vm->flags;
+  vm->flags &= ~KVM_F_QUIET;
   ktest_fail++;
   printf("expected: ");
   ku_print_val(vm, v2);
   printf(" found: ");
   ku_print_val(vm, v1);
   printf(" [%s]\n", msg);
+  vm->flags = f;
 }
 
 static void ku_test_summary() {
@@ -456,6 +459,46 @@ void ku_test() {
   vm = kut_new();
   res = ku_exec(vm, "if (true { print 222; }");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "if no )");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = false and true;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(false), "false and true");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = false and false;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(false), "false and false");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = true and false;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(false), "true and false");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = true and true;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(true), "true and true");
+  ku_free(vm);
+  
+  vm = kut_new();
+  res = ku_exec(vm, "var x = false or true;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(true), "false or true");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = false or false;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(false), "false or false");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = true or false;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(true), "true or false");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = true or true;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(true), "true or true");
   ku_free(vm);
 
   ku_test_summary();

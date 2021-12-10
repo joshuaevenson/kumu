@@ -542,8 +542,10 @@ void ku_patchjump(kuvm *vm, int offset);
 void ku_emitloop(kuvm *vm, int start);
 void ku_whilestatement(kuvm *vm);
 void ku_forstatement(kuvm *vm);
-int ku_print_jump_op(kuvm *vm, const char *name, int sign, kuchunk *chunk,
-                     int offset);
+int ku_print_jump_op(kuvm *vm, const char *name,
+                     int sign, kuchunk *chunk, int offset);
+void ku_parse_and(kuvm *vm, bool lhs);
+void ku_parse_or(kuvm *vm, bool lhs);
 
 // ------------------------------------------------------------
 // Parser
