@@ -80,7 +80,7 @@ kuval ku_test_eval(kuvm* vm, const char* expr) {
 
 kuvm *kut_new(void) {
   kuvm *vm = ku_new();
-  vm->flags |= KVM_F_QUIET;
+  vm->flags |= KVM_F_QUIET | KVM_F_LIST;
   return vm;
 }
 
@@ -499,6 +499,22 @@ void ku_test() {
   vm = kut_new();
   res = ku_exec(vm, "var x = true or true;");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), BOOL_VAL(true), "true or true");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 1; while(x < 20) { x = x + 1; }");
+  EXPECT_INT(vm, res, KVM_OK, "while parse");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(20), "while simple");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 1; while x < 20) { x = x + 1; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "while no lpar");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 1; (while x < 20 { x = x + 1; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "while no rpar");
   ku_free(vm);
 
   ku_test_summary();

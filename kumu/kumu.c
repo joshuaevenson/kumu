@@ -522,7 +522,7 @@ static void ku_parse_err_at(kuvm *vm, kutok *tok, const char *msg) {
   sprintf(out, "[line %d] error", tok->line);
   
   if (tok->type == TOK_EOF) {
-    sprintf(buff, "%s at end", out);
+    sprintf(buff, "%s at end ", out);
   } else if (tok->type == TOK_ERR) {
     // nothing
   } else {
@@ -704,6 +704,8 @@ static void ku_parse_statement(kuvm* vm) {
     ku_parse_print_statement(vm);
   } else if (ku_parse_match(vm, TOK_IF)) {
     ku_ifstatement(vm);
+  } else if (ku_parse_match(vm, TOK_WHILE)) {
+    ku_whilestatement(vm);
   } else if (ku_parse_match(vm, TOK_LBRACE)) {
     ku_beginscope(vm);
     ku_block(vm);
@@ -1131,6 +1133,11 @@ static kures ku_runloop(kuvm *vm) {
         vm->ip += offset;
         break;
       }
+      case OP_LOOP: {
+        uint16_t offset = READ_SHORT(vm);
+        vm->ip -= offset;
+        break;
+      }
     }
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      ku_print_stack(vm);
@@ -1358,6 +1365,8 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_jump_op(vm, "OP_JUMP", 1, chunk, offset);
     case OP_JUMP_IF_FALSE:
       return ku_print_jump_op(vm, "OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OP_LOOP:
+      return ku_print_jump_op(vm, "OP_LOOP", -1, chunk, offset);
     default:
       ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;
@@ -1503,11 +1512,26 @@ void ku_patchjump(kuvm *vm, int offset) {
 }
 
 void ku_emitloop(kuvm *vm, int start) {
-  
+  ku_parse_emit_byte(vm, OP_LOOP);
+  int offset = vm->chunk->count - start + 2;
+  if (offset > UINT16_MAX) {
+    ku_parse_err(vm, "loop body too large");
+  }
+  ku_parse_emit_byte(vm, (offset >> 8) & 0xff);
+  ku_parse_emit_byte(vm, offset  & 0xff);
 }
 
 void ku_whilestatement(kuvm *vm) {
-  
+  int loop_start = vm->chunk->count;
+  ku_parse_consume(vm, TOK_LPAR, "'(' expected after 'while'");
+  ku_parse_expression(vm);
+  ku_parse_consume(vm, TOK_RPAR, "')' expected after 'while'");
+  int jump_exit = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  ku_parse_emit_byte(vm, OP_POP);
+  ku_parse_statement(vm);
+  ku_emitloop(vm, loop_start);
+  ku_patchjump(vm, jump_exit);
+  ku_parse_emit_byte(vm, OP_POP);
 }
 
 void ku_forstatement(kuvm *vm) {
