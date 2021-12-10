@@ -1463,7 +1463,7 @@ int ku_print_jump_op(kuvm *vm, const char *name, int sign, kuchunk *chunk,
 int offset) {
   uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
   jump |= chunk->code[offset + 2];
-  ku_printf(vm, "%-16s %4d -> %d\n", name, offset,
+  ku_printf(vm, "%-16s %4d -> %d", name, offset,
             offset + 3 + sign * jump);
   return offset + 3;
 }

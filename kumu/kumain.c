@@ -51,6 +51,13 @@ kures ku_runfile(kuvm *vm, const char *file) {
 static bool ku_check_flag(kuvm *vm, char *line,
                        const char *name, uint64_t flag) {
   char buff[256];
+  
+  sprintf(buff, ".%s\n", name);
+  if (strcmp(line, buff) == 0) {
+    printf("%s is %s\n", name, (vm->flags & flag) ? "on" : "off");
+    return true;
+  }
+  
   sprintf(buff, ".%s on\n", name);
   if (strcmp(line, buff) == 0) {
     vm->flags |= flag;
