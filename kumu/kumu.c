@@ -1125,6 +1125,12 @@ static kures ku_runloop(kuvm *vm) {
         }
         break;
       }
+        
+      case OP_JUMP: {
+        uint16_t offset = READ_SHORT(vm);
+        vm->ip += offset;
+        break;
+      }
     }
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      ku_print_stack(vm);
@@ -1176,8 +1182,11 @@ kures ku_exec(kuvm *vm, char *source) {
     return KVM_ERR_SYNTAX;
   }
   
-  vm->ip = chunk.code;
-  kures res = ku_run(vm, &chunk);
+  kures res = KVM_OK;
+  if (! (vm->flags  & KVM_F_NOEXEC)) {
+    vm->ip = chunk.code;
+    res = ku_run(vm, &chunk);
+  }
   
   if (vm->flags & KVM_F_LIST) {
     ku_print_chunk(vm, ku_current_chunk(vm), "code");
@@ -1309,10 +1318,6 @@ static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset
 }
 
 int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
-#define OP_DEF1(o) \
-case o:\
-return ku_print_simple_op(vm, #o, offset);
-  
   ku_printf(vm, "%04d ", offset);
 
   if (offset > 0 && chunk->lines[offset] == chunk->lines[offset-1]) {
@@ -1349,6 +1354,10 @@ return ku_print_simple_op(vm, #o, offset);
       return ku_print_byte_op(vm, "OP_GET_LOCAL", chunk, offset);
     case OP_SET_LOCAL:
       return ku_print_byte_op(vm, "OP_SET_LOCAL", chunk, offset);
+    case OP_JUMP:
+      return ku_print_jump_op(vm, "OP_JUMP", 1, chunk, offset);
+    case OP_JUMP_IF_FALSE:
+      return ku_print_jump_op(vm, "OP_JUMP_IF_FALSE", 1, chunk, offset);
     default:
       ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;
@@ -1450,13 +1459,29 @@ int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
 // ------------------------------------------------------------
 // Branching
 // ------------------------------------------------------------
+int ku_print_jump_op(kuvm *vm, const char *name, int sign, kuchunk *chunk,
+int offset) {
+  uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
+  jump |= chunk->code[offset + 2];
+  ku_printf(vm, "%-16s %4d -> %d\n", name, offset,
+            offset + 3 + sign * jump);
+  return offset + 3;
+}
+
 void ku_ifstatement(kuvm *vm) {
   ku_parse_consume(vm, TOK_LPAR, "'(' expected after 'if'");
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_RPAR, "'R' expected after condition");
-  int offset = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  int then_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  ku_parse_emit_byte(vm, OP_POP);
   ku_parse_statement(vm);
-  ku_patchjump(vm, offset);
+  int else_jump = ku_emitjump(vm, OP_JUMP);
+  ku_patchjump(vm, then_jump);
+  ku_parse_emit_byte(vm, OP_POP);
+  if (ku_parse_match(vm, TOK_ELSE)) {
+    ku_parse_statement(vm);
+  }
+  ku_patchjump(vm, else_jump);
 }
 
 int ku_emitjump(kuvm *vm, k_op op) {
@@ -1474,7 +1499,7 @@ void ku_patchjump(kuvm *vm, int offset) {
   }
   
   vm->chunk->code[offset] = (jump >> 8) & 0xff;
-  vm->chunk->code[offset] = jump & 0xff;
+  vm->chunk->code[offset + 1] = jump & 0xff;
 }
 
 void ku_emitloop(kuvm *vm, int start) {

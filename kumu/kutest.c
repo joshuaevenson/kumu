@@ -443,5 +443,10 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "if false");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "if (true) { print 222; }");
+  EXPECT_INT(vm, res, KVM_OK, "if print");
+  ku_free(vm);
+
   ku_test_summary();
 }

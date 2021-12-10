@@ -542,6 +542,8 @@ void ku_patchjump(kuvm *vm, int offset);
 void ku_emitloop(kuvm *vm, int start);
 void ku_whilestatement(kuvm *vm);
 void ku_forstatement(kuvm *vm);
+int ku_print_jump_op(kuvm *vm, const char *name, int sign, kuchunk *chunk,
+                     int offset);
 
 // ------------------------------------------------------------
 // Parser
@@ -571,6 +573,7 @@ typedef enum {
 #define KVM_F_QUIET     0x0008        // Supress error output (for tests)
 #define KVM_F_TRACEMEM  0x0010        // Trace memory
 #define KVM_F_DISASM    0x0020        // Disassemble after compile
+#define KVM_F_NOEXEC    0x0040        // Disable execution only compile
 
 typedef struct _vm {
   uint64_t flags;

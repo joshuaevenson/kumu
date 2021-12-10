@@ -84,6 +84,7 @@ static void ku_repl(kuvm *vm) {
     if (ku_check_flag(vm, line, "trace", KVM_F_TRACE)) continue;
     if (ku_check_flag(vm, line, "stack", KVM_F_STACK)) continue;
     if (ku_check_flag(vm, line, "list", KVM_F_LIST)) continue;
+    if (ku_check_flag(vm, line, "noexec", KVM_F_NOEXEC)) continue;
 
     if (strcmp(line, ".mem\n") == 0) {
       ku_print_mem(vm);
