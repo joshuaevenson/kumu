@@ -447,6 +447,11 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
+  res = ku_exec(vm, "var x = 10; if (false) x = 30;  else x = 20;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(20), "else");
+  ku_free(vm);
+
+  vm = kut_new();
   res = ku_exec(vm, "if (true) { print 222; }");
   EXPECT_INT(vm, res, KVM_OK, "if print");
   ku_free(vm);
