@@ -433,5 +433,15 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_OK, "local op print");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 10; if (true) { x = 30; }");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(30), "if true");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = 10; if (false) { x = 30; }");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "if false");
+  ku_free(vm);
+
   ku_test_summary();
 }

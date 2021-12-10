@@ -17,6 +17,10 @@
 #define FREE(vm, type, ptr) \
   ku_alloc(vm, ptr, sizeof(type), 0)
 
+#define READ_SHORT(vm) \
+(vm->ip += 2, (uint16_t)((vm->ip[-2] << 8) | vm->ip[-1]))
+
+
 static void ku_printf(kuvm *vm, const char *fmt, ...) {
   va_list args;
 
@@ -698,6 +702,8 @@ static void ku_parse_print_statement(kuvm* vm) {
 static void ku_parse_statement(kuvm* vm) {
   if (ku_parse_match(vm, TOK_PRINT)) {
     ku_parse_print_statement(vm);
+  } else if (ku_parse_match(vm, TOK_IF)) {
+    ku_ifstatement(vm);
   } else if (ku_parse_match(vm, TOK_LBRACE)) {
     ku_beginscope(vm);
     ku_block(vm);
@@ -1112,6 +1118,13 @@ static kures ku_runloop(kuvm *vm) {
       case OP_NOT:
         ku_push(vm, BOOL_VAL(ku_is_falsy(ku_pop(vm))));
         break;
+      case OP_JUMP_IF_FALSE: {
+        uint16_t offset = READ_SHORT(vm);
+        if (ku_is_falsy(ku_peek_stack(vm, 0))) {
+          vm->ip += offset;
+        }
+        break;
+      }
     }
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      ku_print_stack(vm);
@@ -1433,3 +1446,46 @@ int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   ku_printf(vm, "%-16s %4d\n", name, slot);
   return offset + 2;
 }
+
+// ------------------------------------------------------------
+// Branching
+// ------------------------------------------------------------
+void ku_ifstatement(kuvm *vm) {
+  ku_parse_consume(vm, TOK_LPAR, "'(' expected after 'if'");
+  ku_parse_expression(vm);
+  ku_parse_consume(vm, TOK_RPAR, "'R' expected after condition");
+  int offset = ku_emitjump(vm, OP_JUMP_IF_FALSE);
+  ku_parse_statement(vm);
+  ku_patchjump(vm, offset);
+}
+
+int ku_emitjump(kuvm *vm, k_op op) {
+  ku_parse_emit_byte(vm, op);
+  ku_parse_emit_byte(vm, 0xff);
+  ku_parse_emit_byte(vm, 0xff);
+  return vm->chunk->count - 2;
+}
+
+void ku_patchjump(kuvm *vm, int offset) {
+  int jump = vm->chunk->count - offset - 2;
+  
+  if (jump > UINT16_MAX) {
+    ku_parse_err(vm, "too much code to jump over");
+  }
+  
+  vm->chunk->code[offset] = (jump >> 8) & 0xff;
+  vm->chunk->code[offset] = jump & 0xff;
+}
+
+void ku_emitloop(kuvm *vm, int start) {
+  
+}
+
+void ku_whilestatement(kuvm *vm) {
+  
+}
+
+void ku_forstatement(kuvm *vm) {
+  
+}
+

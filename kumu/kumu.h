@@ -428,6 +428,9 @@ typedef enum {
   OP_SET_LOCAL,
   OP_LT,
   OP_EQ,
+  OP_JUMP_IF_FALSE,
+  OP_JUMP,
+  OP_LOOP,
 } k_op;
 
 
@@ -528,6 +531,17 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
 int ku_resolvelocal(kuvm *vm, kutok *name);
 void ku_markinit(kuvm *vm);
 int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset);
+
+
+// ------------------------------------------------------------
+// Branching
+// ------------------------------------------------------------
+void ku_ifstatement(kuvm *vm);
+int ku_emitjump(kuvm *vm, k_op op);
+void ku_patchjump(kuvm *vm, int offset);
+void ku_emitloop(kuvm *vm, int start);
+void ku_whilestatement(kuvm *vm);
+void ku_forstatement(kuvm *vm);
 
 // ------------------------------------------------------------
 // Parser
