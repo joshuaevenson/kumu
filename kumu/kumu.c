@@ -750,14 +750,14 @@ static uint8_t ku_parse_identifier_const(kuvm* vm, kutok* name) {
 static uint8_t ku_parse_var(kuvm* vm, const char* msg) {
   ku_parse_consume(vm, TOK_IDENT, msg);
   ku_vardecl(vm);
-  if (vm->scopes.depth > 0) {
+  if (vm->compiler.depth > 0) {
     return 0;
   }
   return ku_parse_identifier_const(vm, &vm->parser.prev);
 }
 
 static void ku_parse_var_def(kuvm* vm, uint8_t index) {
-  if (vm->scopes.depth > 0) {
+  if (vm->compiler.depth > 0) {
     ku_markinit(vm);
     return;
   }
@@ -923,7 +923,7 @@ kuvm *ku_new(void) {
   vm->last_err = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
-  ku_initscopes(vm, &vm->scopes);
+  ku_compiler_init(vm, &vm->compiler);
   ku_reset_stack(vm);
   return vm;
 }
@@ -1380,9 +1380,9 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
 // ------------------------------------------------------------
 // Locals
 // ------------------------------------------------------------
-void ku_initscopes(kuvm *vm, kuscopes *scopes) {
-  scopes->count = 0;
-  scopes->depth = 0;
+void ku_compiler_init(kuvm *vm, kucompiler *compiler) {
+  compiler->count = 0;
+  compiler->depth = 0;
 }
 
 void ku_block(kuvm *vm) {
@@ -1393,28 +1393,28 @@ void ku_block(kuvm *vm) {
 }
 
 void ku_beginscope(kuvm *vm) {
-  vm->scopes.depth++;
+  vm->compiler.depth++;
 }
 
 void ku_endscope(kuvm *vm) {
-  vm->scopes.depth--;
+  vm->compiler.depth--;
   
-  while (vm->scopes.count > 0 &&
-         vm->scopes.locals[vm->scopes.count - 1].depth >
-    vm->scopes.depth) {
+  while (vm->compiler.count > 0 &&
+         vm->compiler.locals[vm->compiler.count - 1].depth >
+    vm->compiler.depth) {
     ku_parse_emit_byte(vm, OP_POP);
-    vm->scopes.count--;
+    vm->compiler.count--;
     }
 }
 
 void ku_vardecl(kuvm *vm) {
-  if (vm->scopes.depth == 0) {
+  if (vm->compiler.depth == 0) {
     return;
   }
   kutok *name = &vm->parser.prev;
-  for (int i = vm->scopes.count - 1; i >= 0; i--) {
-    kulocal *local = &vm->scopes.locals[i];
-    if (local->depth != -1 && local->depth < vm->scopes.depth) {
+  for (int i = vm->compiler.count - 1; i >= 0; i--) {
+    kulocal *local = &vm->compiler.locals[i];
+    if (local->depth != -1 && local->depth < vm->compiler.depth) {
       break;
     }
     
@@ -1426,12 +1426,12 @@ void ku_vardecl(kuvm *vm) {
 }
 
 void ku_addlocal(kuvm *vm, kutok name) {
-  if (vm->scopes.count == MAX_LOCALS) {
+  if (vm->compiler.count == MAX_LOCALS) {
     ku_parse_err(vm, "too many locals");
     return;
   }
   
-  kulocal *local = &vm->scopes.locals[vm->scopes.count++];
+  kulocal *local = &vm->compiler.locals[vm->compiler.count++];
   local->name = name;
   local->depth = -1;
 }
@@ -1445,8 +1445,8 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b) {
 }
 
 int ku_resolvelocal(kuvm *vm, kutok *name) {
-  for (int i = vm->scopes.count - 1; i >= 0; i--) {
-    kulocal *local = &vm->scopes.locals[i];
+  for (int i = vm->compiler.count - 1; i >= 0; i--) {
+    kulocal *local = &vm->compiler.locals[i];
     if (ku_identeq(vm, name, &local->name)) {
       if (local->depth == -1) {
         ku_parse_err(vm, "own initialization disallowed");
@@ -1458,7 +1458,7 @@ int ku_resolvelocal(kuvm *vm, kutok *name) {
 }
 
 void ku_markinit(kuvm *vm) {
-  vm->scopes.locals[vm->scopes.count - 1].depth = vm->scopes.depth;
+  vm->compiler.locals[vm->compiler.count - 1].depth = vm->compiler.depth;
 }
 
 int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {

@@ -519,9 +519,9 @@ typedef struct {
   kulocal locals[MAX_LOCALS];
   int count;
   int depth;
-} kuscopes;
+} kucompiler;
 
-void ku_initscopes(kuvm *vm, kuscopes *scopes);
+void ku_compiler_init(kuvm *vm, kucompiler *compiler);
 void ku_block(kuvm *vm);
 void ku_beginscope(kuvm *vm);
 void ku_endscope(kuvm *vm);
@@ -593,7 +593,7 @@ typedef struct _vm {
   kumap strings;
   kumap globals;
 
-  kuscopes scopes;
+  kucompiler compiler;
   char* last_err;
   kulex scanner;
   kuparser parser;
