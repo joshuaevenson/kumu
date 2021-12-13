@@ -557,12 +557,12 @@ static void ku_parse_consume(kuvm *vm, kutoktype type, const char *msg) {
   ku_parse_err(vm, msg);
 }
 
-kuchunk *ku_current_chunk(kuvm *vm) {
+kuchunk *ku_chunk(kuvm *vm) {
   return vm->chunk;
 }
 
 static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
-  ku_chunk_write(vm, ku_current_chunk(vm), byte, vm->parser.prev.line);
+  ku_chunk_write(vm, ku_chunk(vm), byte, vm->parser.prev.line);
 }
 
 static void ku_parse_end(kuvm *vm) {
@@ -576,7 +576,7 @@ static void ku_parse_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
 
 
 static uint8_t ku_parse_make_const(kuvm *vm, kuval val) {
-  int cons = ku_chunk_add_const(vm, ku_current_chunk(vm), val);
+  int cons = ku_chunk_add_const(vm, ku_chunk(vm), val);
   if (cons > UINT8_MAX) {
     ku_parse_err(vm, "out of constant space");
     return 0;
@@ -977,8 +977,8 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_start(args, fmt);
   vsprintf(out, fmt, args);
   va_end(args);
-  size_t instruction = vm->ip - vm->chunk->code - 1;
-  int line = vm->chunk->lines[instruction];
+  size_t instruction = vm->ip - ku_chunk(vm)->code - 1;
+  int line = ku_chunk(vm)->lines[instruction];
   sprintf(buff, "[line %d] %s\n", line, out);
   ku_set_last_err(vm, buff);
   ku_reset_stack(vm);
@@ -986,7 +986,7 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
 
 static kures ku_runloop(kuvm *vm) {
 #define BYTE_READ(vm) (*(vm->ip++))
-#define CONST_READ(vm) (vm->chunk->constants.values[BYTE_READ(vm)])
+#define CONST_READ(vm) (ku_chunk(vm)->constants.values[BYTE_READ(vm)])
 #define READ_STRING(vm) AS_STR(CONST_READ(vm))
 
 #define BIN_OP(v, vt, op) \
@@ -1007,7 +1007,7 @@ static kures ku_runloop(kuvm *vm) {
     uint8_t op;
 
     if (vm->flags & KVM_F_TRACE) {
-     ku_print_op(vm, vm->chunk, (int) (vm->ip - vm->chunk->code));
+     ku_print_op(vm, ku_chunk(vm), (int) (vm->ip - ku_chunk(vm)->code));
     }
 
 
@@ -1175,7 +1175,7 @@ static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
   ku_parse_end(vm);
   
   if (vm->flags & KVM_F_DISASM) {
-    ku_print_chunk(vm, ku_current_chunk(vm), "code");
+    ku_print_chunk(vm, ku_chunk(vm), "code");
   }
 
   return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
@@ -1198,7 +1198,7 @@ kures ku_exec(kuvm *vm, char *source) {
   }
   
   if (vm->flags & KVM_F_LIST) {
-    ku_print_chunk(vm, ku_current_chunk(vm), "code");
+    ku_print_chunk(vm, ku_chunk(vm), "code");
   }
   ku_chunk_free(vm, &chunk);
   return res;
@@ -1499,23 +1499,23 @@ int ku_emitjump(kuvm *vm, k_op op) {
   ku_parse_emit_byte(vm, op);
   ku_parse_emit_byte(vm, 0xff);
   ku_parse_emit_byte(vm, 0xff);
-  return vm->chunk->count - 2;
+  return ku_chunk(vm)->count - 2;
 }
 
 void ku_patchjump(kuvm *vm, int offset) {
-  int jump = vm->chunk->count - offset - 2;
+  int jump = ku_chunk(vm)->count - offset - 2;
   
   if (jump > UINT16_MAX) {
     ku_parse_err(vm, "too much code to jump over");
   }
   
-  vm->chunk->code[offset] = (jump >> 8) & 0xff;
-  vm->chunk->code[offset + 1] = jump & 0xff;
+  ku_chunk(vm)->code[offset] = (jump >> 8) & 0xff;
+  ku_chunk(vm)->code[offset + 1] = jump & 0xff;
 }
 
 void ku_emitloop(kuvm *vm, int start) {
   ku_parse_emit_byte(vm, OP_LOOP);
-  int offset = vm->chunk->count - start + 2;
+  int offset = ku_chunk(vm)->count - start + 2;
   if (offset > UINT16_MAX) {
     ku_parse_err(vm, "loop body too large");
   }
@@ -1524,7 +1524,7 @@ void ku_emitloop(kuvm *vm, int start) {
 }
 
 void ku_whilestatement(kuvm *vm) {
-  int loop_start = vm->chunk->count;
+  int loop_start = ku_chunk(vm)->count;
   ku_parse_consume(vm, TOK_LPAR, "'(' expected after 'while'");
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_RPAR, "')' expected after 'while'");
@@ -1546,7 +1546,7 @@ void ku_forstatement(kuvm *vm) {
   } else {
     ku_parse_expression_statement(vm);
   }
-  int loop_start = vm->chunk->count;
+  int loop_start = ku_chunk(vm)->count;
   int exit_jump = -1;
   
   if (!ku_parse_match(vm, TOK_SEMI)) {

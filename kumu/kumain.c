@@ -47,6 +47,18 @@ kures ku_runfile(kuvm *vm, const char *file) {
   return res;
 }
 
+typedef struct {
+  const char *name;
+  uint64_t mask;
+} ku_repl_flag;
+
+
+static ku_repl_flag ku_repl_flags[] = {
+  { "trace", KVM_F_TRACE },
+  { "list", KVM_F_LIST },
+  { "stack", KVM_F_STACK },
+  { "noexec", KVM_F_NOEXEC },
+};
 
 static bool ku_check_flag(kuvm *vm, char *line,
                        const char *name, uint64_t flag) {
@@ -72,6 +84,18 @@ static bool ku_check_flag(kuvm *vm, char *line,
   }
   return false;
 }
+
+
+static bool ku_check_flags(kuvm *vm, char *line) {
+  for (int i = 0; i < sizeof(ku_repl_flags)/sizeof(ku_repl_flag); i++) {
+    ku_repl_flag *flag = &ku_repl_flags[i];
+    if (ku_check_flag(vm, line, flag->name, flag->mask)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void ku_repl(kuvm *vm) {
   printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
   char line[1024];
@@ -87,11 +111,16 @@ static void ku_repl(kuvm *vm) {
     if (strcmp(line, ".quit\n") == 0) {
       break;
     }
+    
+    if (strcmp(line, ".help\n") == 0) {
+      for (int i = 0; i < sizeof(ku_repl_flags)/sizeof(ku_repl_flag); i++) {
+        ku_repl_flag *flag = &ku_repl_flags[i];
+        printf(".%s\n", flag->name);
+      }
+      continue;
+    }
 
-    if (ku_check_flag(vm, line, "trace", KVM_F_TRACE)) continue;
-    if (ku_check_flag(vm, line, "stack", KVM_F_STACK)) continue;
-    if (ku_check_flag(vm, line, "list", KVM_F_LIST)) continue;
-    if (ku_check_flag(vm, line, "noexec", KVM_F_NOEXEC)) continue;
+    if (ku_check_flags(vm, line)) continue;;
 
     if (strcmp(line, ".mem\n") == 0) {
       ku_print_mem(vm);
