@@ -334,6 +334,11 @@ typedef enum {
   OBJ_STR,
 } kuobjtype;
 
+typedef enum {
+  FUNC_STD,
+  FUNC_MAIN,
+} kufunctype;
+
 typedef struct {
   kuobjtype type;
   struct kuobj *next;
@@ -532,6 +537,9 @@ typedef struct {
 } kulocal;
 
 typedef struct {
+  kufunc *function;
+  kufunctype type;
+  
   kulocal locals[MAX_LOCALS];
   int count;
   int depth;
