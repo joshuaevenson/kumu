@@ -47,6 +47,13 @@ static kuobj* ku_obj_alloc(kuvm* vm, size_t size, kuobjtype type) {
 
 static void ku_obj_free(kuvm* vm, kuobj* obj) {
   switch (obj->type) {
+    case OBJ_FUNC: {
+      kufunc *fn = (kufunc*)obj;
+      ku_chunk_free(vm, &fn->chunk);
+      FREE(vm, kufunc, obj);
+      break;
+    }
+      
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
@@ -1263,6 +1270,9 @@ int ku_chunk_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
 // ------------------------------------------------------------
 static void ku_print_obj(kuvm* vm, kuval val) {
   switch (OBJ_TYPE(val)) {
+    case OBJ_FUNC:
+      ku_print_func(vm, AS_FUNC(val));
+      break;
   case OBJ_STR:
     ku_printf(vm, "%s", AS_CSTR(val));
     break;
@@ -1593,3 +1603,17 @@ void ku_parse_or(kuvm *vm, bool lhs) {
   ku_patchjump(vm, end_jump);
 }
 
+// ------------------------------------------------------------
+// Functions
+// ------------------------------------------------------------
+kufunc *ku_func_new(kuvm *vm) {
+  kufunc *fn = (kufunc*)KALLOC_OBJ(vm, kufunc, OBJ_FUNC);
+  fn->arity = 0;
+  fn->name = NULL;
+  ku_chunk_init(vm, &fn->chunk);
+  return fn;
+}
+
+void ku_print_func(kuvm *vm, kufunc *fn) {
+  ku_printf(vm, "<fn %s>", fn->name->chars);
+}
