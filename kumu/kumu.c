@@ -701,7 +701,8 @@ static void ku_parse_grouping(kuvm *vm, bool lhs) {
 static void ku_parse_unary(kuvm *vm, bool lhs) {
   kutoktype optype = vm->parser.prev.type;
   
-  ku_parse_expression(vm);
+//  ku_parse_expression(vm);
+  ku_parse_process(vm, P_UNARY);
   
   switch(optype) {
     case TOK_MINUS: ku_parse_emit_byte(vm, OP_NEG); break;
