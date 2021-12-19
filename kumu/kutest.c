@@ -8,12 +8,6 @@
 #include "kumu.h"
 #include "kutest.h"
 
-static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
-  int index = ku_chunk_add_const(vm, ku_chunk(vm), NUM_VAL(cons));
-  ku_chunk_write(vm, ku_chunk(vm), OP_CONST, line);
-  ku_chunk_write(vm, ku_chunk(vm), index, line);
-}
-
 static int ktest_pass = 0;
 int ktest_fail = 0;
 
@@ -87,8 +81,12 @@ kuvm *kut_new(void) {
 
 void ku_test() {
   kuvm *vm = kut_new();
+  kures res = ku_exec(vm, "print -1+4;");
+  EXPECT_INT(vm, res, KVM_OK, "print -1+4 res");
+  ku_free(vm);
 
-  kures res = ku_exec(vm, "var x = -1+4;");
+  vm = kut_new();
+  res = ku_exec(vm, "var x = -1+4;");
   EXPECT_INT(vm, res, KVM_OK, "-1+4 res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(-1+4), "-1+4 ret");
   ku_free(vm);
