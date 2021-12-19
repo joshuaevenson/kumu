@@ -24,7 +24,7 @@ static void EXPECT_TRUE(kuvm* vm, bool b, const char* msg) {
     return;
   }
   ktest_fail++;
-  printf("expected true found false [%s]", msg);
+  printf(">>> expected true found false [%s]", msg);
 }
 
 static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
@@ -33,7 +33,7 @@ static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
     return;
   }
   ktest_fail++;
-  printf("expected: %d found %d [%s]\n", v1, v2, m);
+  printf(">>> expected: %d found %d [%s]\n", v1, v2, m);
 }
 
 static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
@@ -45,7 +45,7 @@ static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
   uint64_t f = vm->flags;
   vm->flags &= ~KVM_F_QUIET;
   ktest_fail++;
-  printf("expected: ");
+  printf(">>> expected: ");
   ku_print_val(vm, v2);
   printf(" found: ");
   ku_print_val(vm, v1);
@@ -87,27 +87,16 @@ kuvm *kut_new(void) {
 
 void ku_test() {
   kuvm *vm = kut_new();
-  
-  kucompiler compiler;
-  ku_compiler_init(vm, &compiler, FUNC_MAIN);
-  kuchunk *chunk = &compiler.function->chunk;
-  int line = 1;
-  ku_chunk_write(vm, chunk, OP_NOP, line++);
-  ku_chunk_write_const(vm, 1, line);
-  ku_chunk_write_const(vm, 2, line);
-  ku_chunk_write(vm, chunk, OP_ADD, line);
-  ku_chunk_write(vm, chunk, OP_NEG, line++);
-  ku_chunk_write_const(vm, 4, line);
-  ku_chunk_write(vm, chunk, OP_SUB, line++);
-  ku_chunk_write_const(vm, 5, line);
-  ku_chunk_write(vm, chunk, OP_MUL, line++);
-  ku_chunk_write_const(vm, 6, line);
-  ku_chunk_write(vm, chunk, OP_DIV, line++);
-  ku_chunk_write(vm, chunk, OP_RET, line);
-  kures res = ku_run(vm, chunk);
+
+  kures res = ku_exec(vm, "var x = -1+4;");
+  EXPECT_INT(vm, res, KVM_OK, "-1+4 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(-1+4), "-1+4 ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = (-(1+2)-4)*5/6;");
   EXPECT_INT(vm, res, KVM_OK, "ku_run res");
-  kuval v = ku_pop(vm);
-  EXPECT_VAL(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
   ku_free(vm);
   
   vm = kut_new();
@@ -166,7 +155,7 @@ void ku_test() {
   // ku_print_val
   vm = kut_new();
   res = ku_exec(vm, "var x = 2+3;");
-  v = ku_get_global(vm, "x");
+  kuval v = ku_get_global(vm, "x");
   EXPECT_VAL(vm, v, NUM_VAL(5), "ku_print_val ret");
   ku_print_val(vm, v);
   ku_free(vm);

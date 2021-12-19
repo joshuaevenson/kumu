@@ -583,10 +583,18 @@ typedef struct {
   bool panic;
 } kuparser;
 
-// ---------`---------------------------------------------------
+// ------------------------------------------------------------
+// Functions
+// ------------------------------------------------------------
+typedef struct {
+  kufunc *func;
+  uint8_t *ip;
+  kuval *bp;
+} kuframe;
+
+// ------------------------------------------------------------
 // VM
 // ------------------------------------------------------------
-#define STACK_MAX 256
 typedef enum {
   KVM_OK,
   KVM_CONT,
@@ -603,14 +611,18 @@ typedef enum {
 #define KVM_F_DISASM    0x0020        // Disassemble after compile
 #define KVM_F_NOEXEC    0x0040        // Disable execution only compile
 
+#define FRAMES_MAX 64
+#define UINT8_COUNT (UINT8_MAX + 1)
+#define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
+
 typedef struct _vm {
   uint64_t flags;
   bool stop;
   size_t allocated;
   size_t freed;
 
-  uint8_t* ip;
-
+  kuframe frames[FRAMES_MAX];
+  int framecount;
   kuval stack[STACK_MAX];
   kuval* sp;
 
@@ -626,7 +638,7 @@ typedef struct _vm {
 
 kuvm* ku_new(void);
 void ku_free(kuvm* vm);
-kures ku_run(kuvm* vm, kuchunk* chunk);
+kures ku_run(kuvm* vm);
 kures ku_runfile(kuvm* vm, const char* file);
 
 // ------------------------------------------------------------

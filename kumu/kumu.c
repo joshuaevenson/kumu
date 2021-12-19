@@ -18,7 +18,21 @@
   ku_alloc(vm, ptr, sizeof(type), 0)
 
 #define READ_SHORT(vm) \
-(vm->ip += 2, (uint16_t)((vm->ip[-2] << 8) | vm->ip[-1]))
+(frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+#define BYTE_READ(vm) (*(frame->ip++))
+#define CONST_READ(vm) (frame->func->chunk.constants.values[BYTE_READ(vm)])
+#define READ_STRING(vm) AS_STR(CONST_READ(vm))
+
+#define BIN_OP(v, vt, op) \
+  do { \
+  if (!IS_NUM(ku_peek_stack(v,0)) || !IS_NUM(ku_peek_stack(v,1))) { \
+    ku_err(v, "numbers expected"); \
+    return KVM_ERR_RUNTIME; \
+  } \
+  double b = AS_NUM(ku_pop(v)); \
+  double a = AS_NUM(ku_pop(v)); \
+  ku_push(v, vt(a op b)); \
+} while (false)
 
 
 static void ku_printf(kuvm *vm, const char *fmt, ...) {
@@ -894,6 +908,7 @@ static ku_parse_rule *ku_parse_get_rule(kuvm *vm, kutoktype optype) {
 // ------------------------------------------------------------
 void ku_reset_stack(kuvm *vm) {
   vm->sp = vm->stack;
+  vm->framecount = 0;
 }
 
 void ku_push(kuvm *vm, kuval val) {
@@ -984,37 +999,23 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_start(args, fmt);
   vsprintf(out, fmt, args);
   va_end(args);
-  size_t instruction = vm->ip - ku_chunk(vm)->code - 1;
-  int line = ku_chunk(vm)->lines[instruction];
+  kuframe *frame = &vm->frames[vm->framecount - 1];
+  size_t instruction = frame->ip - ku_chunk(vm)->code - 1;
+  int line = frame->func->chunk.lines[instruction];
   sprintf(buff, "[line %d] %s\n", line, out);
   ku_set_last_err(vm, buff);
   ku_reset_stack(vm);
 }
 
-static kures ku_runloop(kuvm *vm) {
-#define BYTE_READ(vm) (*(vm->ip++))
-#define CONST_READ(vm) (ku_chunk(vm)->constants.values[BYTE_READ(vm)])
-#define READ_STRING(vm) AS_STR(CONST_READ(vm))
-
-#define BIN_OP(v, vt, op) \
-  do { \
-  if (!IS_NUM(ku_peek_stack(v,0)) || !IS_NUM(ku_peek_stack(v,1))) { \
-    ku_err(v, "numbers expected"); \
-    return KVM_ERR_RUNTIME; \
-  } \
-  double b = AS_NUM(ku_pop(v)); \
-  double a = AS_NUM(ku_pop(v)); \
-  ku_push(v, vt(a op b)); \
-} while (false)
-
+kures ku_run(kuvm *vm) {
+  kuframe *frame = &vm->frames[vm->framecount - 1];
   
-
   kures res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
 
     if (vm->flags & KVM_F_TRACE) {
-     ku_print_op(vm, ku_chunk(vm), (int) (vm->ip - ku_chunk(vm)->code));
+     ku_print_op(vm, ku_chunk(vm), (int) (frame->ip - ku_chunk(vm)->code));
     }
 
 
@@ -1097,12 +1098,12 @@ static kures ku_runloop(kuvm *vm) {
 
       case OP_GET_LOCAL: {
         uint8_t slot = BYTE_READ(vm);
-        ku_push(vm, vm->stack[slot]);
+        ku_push(vm, frame->bp[slot]);
         break;
       }
       case OP_SET_LOCAL: {
         uint8_t slot = BYTE_READ(vm);
-        vm->stack[slot] = ku_peek_stack(vm, slot);
+        frame->bp[slot] = ku_peek_stack(vm, 0);
         break;
       }
         
@@ -1132,19 +1133,19 @@ static kures ku_runloop(kuvm *vm) {
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT(vm);
         if (ku_is_falsy(ku_peek_stack(vm, 0))) {
-          vm->ip += offset;
+          frame->ip += offset;
         }
         break;
       }
         
       case OP_JUMP: {
         uint16_t offset = READ_SHORT(vm);
-        vm->ip += offset;
+        frame->ip += offset;
         break;
       }
       case OP_LOOP: {
         uint16_t offset = READ_SHORT(vm);
-        vm->ip -= offset;
+        frame->ip -= offset;
         break;
       }
     }
@@ -1158,18 +1159,9 @@ static kures ku_runloop(kuvm *vm) {
 
   }
   return KVM_OK;
-#undef BYTE_READ
-#undef CONST_READ
-#undef READ_STRING
-#undef BIN_OP
 }
 
-kures ku_run(kuvm *vm, kuchunk *chunk) {
-  vm->ip = vm->compiler->function->chunk.code;
-  return ku_runloop(vm);
-}
-
-static kufunc *ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
+static kufunc *ku_compile(kuvm *vm, char *source) {
   kucompiler compiler;
   ku_compiler_init(vm, &compiler, FUNC_MAIN);
   ku_lex_init(vm, source);
@@ -1189,26 +1181,18 @@ static kufunc *ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
 }
 
 kures ku_exec(kuvm *vm, char *source) {
-  kuchunk chunk;
-  
-  ku_chunk_init(vm, &chunk);
-  
-  if (ku_compile(vm, source, &chunk) == NULL) {
-    ku_chunk_free(vm, &chunk);
+  kufunc *fn = ku_compile(vm, source);
+  if (fn == NULL) {
     return KVM_ERR_SYNTAX;
   }
+
+  ku_push(vm, OBJ_VAL(fn));
+  kuframe *frame = &vm->frames[vm->framecount++];
+  frame->func = fn;
+  frame->ip = fn->chunk.code;
+  frame->bp = vm->stack;
   
-  kures res = KVM_OK;
-  if (! (vm->flags  & KVM_F_NOEXEC)) {
-    vm->ip = chunk.code;
-    res = ku_run(vm, &chunk);
-  }
-  
-  if (vm->flags & KVM_F_LIST) {
-    ku_print_chunk(vm, ku_chunk(vm), "code");
-  }
-  ku_chunk_free(vm, &chunk);
-  return res;
+  return ku_run(vm);
 }
 
 // ------------------------------------------------------------
@@ -1625,5 +1609,5 @@ kufunc *ku_func_new(kuvm *vm) {
 }
 
 void ku_print_func(kuvm *vm, kufunc *fn) {
-  ku_printf(vm, "<fn %s>", fn->name->chars);
+  ku_printf(vm, "<fn %s>", fn->name ? fn->name->chars : "__main__");
 }
