@@ -1186,12 +1186,19 @@ kures ku_exec(kuvm *vm, char *source) {
     return KVM_ERR_SYNTAX;
   }
 
+  if (vm->flags & KVM_F_LIST) {
+    ku_print_chunk(vm, &fn->chunk, fn->name ? fn->name->chars : "__main__");
+  }
+    
+  if (vm->flags & KVM_F_NOEXEC) {
+    return KVM_OK;
+  }
+  
   ku_push(vm, OBJ_VAL(fn));
   kuframe *frame = &vm->frames[vm->framecount++];
   frame->func = fn;
   frame->ip = fn->chunk.code;
   frame->bp = vm->stack;
-  
   return ku_run(vm);
 }
 
