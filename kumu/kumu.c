@@ -45,7 +45,7 @@ static kuobj* ku_obj_alloc(kuvm* vm, size_t size, kuobjtype type) {
   return obj;
 }
 
-static void ku_obj_free(kuvm* vm, kuobj* obj) {
+void ku_obj_free(kuvm* vm, kuobj* obj) {
   switch (obj->type) {
     case OBJ_FUNC: {
       kufunc *fn = (kufunc*)obj;
@@ -565,15 +565,17 @@ static void ku_parse_consume(kuvm *vm, kutoktype type, const char *msg) {
 }
 
 kuchunk *ku_chunk(kuvm *vm) {
-  return vm->chunk;
+  return &vm->compiler->function->chunk;
 }
 
 static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
   ku_chunk_write(vm, ku_chunk(vm), byte, vm->parser.prev.line);
 }
 
-static void ku_parse_end(kuvm *vm) {
+static kufunc *ku_parse_end(kuvm *vm) {
   ku_parse_emit_byte(vm, OP_RET);
+  kufunc *fn = vm->compiler->function;
+  return fn;
 }
 
 static void ku_parse_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
@@ -757,14 +759,14 @@ static uint8_t ku_parse_identifier_const(kuvm* vm, kutok* name) {
 static uint8_t ku_parse_var(kuvm* vm, const char* msg) {
   ku_parse_consume(vm, TOK_IDENT, msg);
   ku_vardecl(vm);
-  if (vm->compiler.depth > 0) {
+  if (vm->compiler->depth > 0) {
     return 0;
   }
   return ku_parse_identifier_const(vm, &vm->parser.prev);
 }
 
 static void ku_parse_var_def(kuvm* vm, uint8_t index) {
-  if (vm->compiler.depth > 0) {
+  if (vm->compiler->depth > 0) {
     ku_markinit(vm);
     return;
   }
@@ -925,12 +927,10 @@ kuvm *ku_new(void) {
 
   vm->freed = 0;
   vm->stop = false;
-  vm->chunk = NULL;
   vm->objects = NULL;
   vm->last_err = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
-  ku_compiler_init(vm, &vm->compiler);
   ku_reset_stack(vm);
   return vm;
 }
@@ -1165,27 +1165,27 @@ static kures ku_runloop(kuvm *vm) {
 }
 
 kures ku_run(kuvm *vm, kuchunk *chunk) {
-  vm->chunk = chunk;
-  vm->ip = vm->chunk->code;
+  vm->ip = vm->compiler->function->chunk.code;
   return ku_runloop(vm);
 }
 
-static kures ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
+static kufunc *ku_compile(kuvm *vm, char *source, kuchunk *chunk) {
+  kucompiler compiler;
+  ku_compiler_init(vm, &compiler, FUNC_MAIN);
   ku_lex_init(vm, source);
   vm->parser.err = false;
   vm->parser.panic = false;
-  vm->chunk = chunk;
   ku_parse_advance(vm);
   while (!ku_parse_match(vm, TOK_EOF)) {
     ku_parse_declaration(vm);
   }
-  ku_parse_end(vm);
+  kufunc *fn = ku_parse_end(vm);
   
   if (vm->flags & KVM_F_DISASM) {
     ku_print_chunk(vm, ku_chunk(vm), "code");
   }
 
-  return (vm->parser.err ? KVM_ERR_SYNTAX : KVM_OK);
+  return vm->parser.err ? NULL : fn;
 }
 
 kures ku_exec(kuvm *vm, char *source) {
@@ -1193,7 +1193,7 @@ kures ku_exec(kuvm *vm, char *source) {
   
   ku_chunk_init(vm, &chunk);
   
-  if (ku_compile(vm, source, &chunk) != KVM_OK) {
+  if (ku_compile(vm, source, &chunk) == NULL) {
     ku_chunk_free(vm, &chunk);
     return KVM_ERR_SYNTAX;
   }
@@ -1390,9 +1390,19 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
 // ------------------------------------------------------------
 // Locals
 // ------------------------------------------------------------
-void ku_compiler_init(kuvm *vm, kucompiler *compiler) {
+void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type) {
+  compiler->function = NULL; // for GC
   compiler->count = 0;
   compiler->depth = 0;
+  compiler->type = type;
+  compiler->function = ku_func_new(vm);
+  
+  vm->compiler = compiler;
+
+  kulocal *local = &vm->compiler->locals[vm->compiler->count++];
+  local->depth = 0;
+  local->name.start = "";
+  local->name.len = 0;
 }
 
 void ku_block(kuvm *vm) {
@@ -1403,28 +1413,28 @@ void ku_block(kuvm *vm) {
 }
 
 void ku_beginscope(kuvm *vm) {
-  vm->compiler.depth++;
+  vm->compiler->depth++;
 }
 
 void ku_endscope(kuvm *vm) {
-  vm->compiler.depth--;
+  vm->compiler->depth--;
   
-  while (vm->compiler.count > 0 &&
-         vm->compiler.locals[vm->compiler.count - 1].depth >
-    vm->compiler.depth) {
+  while (vm->compiler->count > 0 &&
+         vm->compiler->locals[vm->compiler->count - 1].depth >
+         vm->compiler->depth) {
     ku_parse_emit_byte(vm, OP_POP);
-    vm->compiler.count--;
+    vm->compiler->count--;
     }
 }
 
 void ku_vardecl(kuvm *vm) {
-  if (vm->compiler.depth == 0) {
+  if (vm->compiler->depth == 0) {
     return;
   }
   kutok *name = &vm->parser.prev;
-  for (int i = vm->compiler.count - 1; i >= 0; i--) {
-    kulocal *local = &vm->compiler.locals[i];
-    if (local->depth != -1 && local->depth < vm->compiler.depth) {
+  for (int i = vm->compiler->count - 1; i >= 0; i--) {
+    kulocal *local = &vm->compiler->locals[i];
+    if (local->depth != -1 && local->depth < vm->compiler->depth) {
       break;
     }
     
@@ -1436,12 +1446,12 @@ void ku_vardecl(kuvm *vm) {
 }
 
 void ku_addlocal(kuvm *vm, kutok name) {
-  if (vm->compiler.count == MAX_LOCALS) {
+  if (vm->compiler->count == MAX_LOCALS) {
     ku_parse_err(vm, "too many locals");
     return;
   }
   
-  kulocal *local = &vm->compiler.locals[vm->compiler.count++];
+  kulocal *local = &vm->compiler->locals[vm->compiler->count++];
   local->name = name;
   local->depth = -1;
 }
@@ -1455,8 +1465,8 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b) {
 }
 
 int ku_resolvelocal(kuvm *vm, kutok *name) {
-  for (int i = vm->compiler.count - 1; i >= 0; i--) {
-    kulocal *local = &vm->compiler.locals[i];
+  for (int i = vm->compiler->count - 1; i >= 0; i--) {
+    kulocal *local = &vm->compiler->locals[i];
     if (ku_identeq(vm, name, &local->name)) {
       if (local->depth == -1) {
         ku_parse_err(vm, "own initialization disallowed");
@@ -1468,7 +1478,7 @@ int ku_resolvelocal(kuvm *vm, kutok *name) {
 }
 
 void ku_markinit(kuvm *vm) {
-  vm->compiler.locals[vm->compiler.count - 1].depth = vm->compiler.depth;
+  vm->compiler->locals[vm->compiler->count - 1].depth = vm->compiler->depth;
 }
 
 int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
@@ -1568,7 +1578,7 @@ void ku_forstatement(kuvm *vm) {
   
   if (!ku_parse_match(vm, TOK_RPAR)) {
     int body_jump = ku_emitjump(vm, OP_JUMP);
-    int inc_start = vm->chunk->count;
+    int inc_start = ku_chunk(vm)->count;
     ku_parse_expression(vm);
     ku_parse_emit_byte(vm, OP_POP);
     ku_parse_consume(vm, TOK_RPAR, "')' expected");

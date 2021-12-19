@@ -344,6 +344,8 @@ typedef struct {
   struct kuobj *next;
 } kuobj;
 
+void ku_obj_free(kuvm* vm, kuobj* obj);
+
 typedef struct {
   kuobj obj;
   int len;
@@ -545,7 +547,7 @@ typedef struct {
   int depth;
 } kucompiler;
 
-void ku_compiler_init(kuvm *vm, kucompiler *compiler);
+void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type);
 void ku_block(kuvm *vm);
 void ku_beginscope(kuvm *vm);
 void ku_endscope(kuvm *vm);
@@ -607,7 +609,6 @@ typedef struct _vm {
   size_t allocated;
   size_t freed;
 
-  kuchunk* chunk;
   uint8_t* ip;
 
   kuval stack[STACK_MAX];
@@ -617,7 +618,7 @@ typedef struct _vm {
   kumap strings;
   kumap globals;
 
-  kucompiler compiler;
+  kucompiler *compiler;
   char* last_err;
   kulex scanner;
   kuparser parser;
@@ -657,6 +658,8 @@ kustr* ku_str_copy(kuvm* vm, const char* chars, int len);
 void ku_lex_init(kuvm *vm, const char *source);
 void ku_lex_print_all(kuvm *vm);
 kutok ku_lex_scan(kuvm *vm);
+
+kuchunk *ku_chunk(kuvm *vm);
 
 #endif /* KUMU_H */
 

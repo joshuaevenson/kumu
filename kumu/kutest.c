@@ -9,9 +9,9 @@
 #include "kutest.h"
 
 static void ku_chunk_write_const(kuvm *vm, int cons, int line) {
-  int index = ku_chunk_add_const(vm, vm->chunk, NUM_VAL(cons));
-  ku_chunk_write(vm, vm->chunk, OP_CONST, line);
-  ku_chunk_write(vm, vm->chunk, index, line);
+  int index = ku_chunk_add_const(vm, ku_chunk(vm), NUM_VAL(cons));
+  ku_chunk_write(vm, ku_chunk(vm), OP_CONST, line);
+  ku_chunk_write(vm, ku_chunk(vm), index, line);
 }
 
 static int ktest_pass = 0;
@@ -87,27 +87,27 @@ kuvm *kut_new(void) {
 
 void ku_test() {
   kuvm *vm = kut_new();
-  kuchunk chunk;
-  ku_chunk_init(vm, &chunk);
-  vm->chunk = &chunk;
+  
+  kucompiler compiler;
+  ku_compiler_init(vm, &compiler, FUNC_MAIN);
+  kuchunk *chunk = &compiler.function->chunk;
   int line = 1;
-  ku_chunk_write(vm, &chunk, OP_NOP, line++);
+  ku_chunk_write(vm, chunk, OP_NOP, line++);
   ku_chunk_write_const(vm, 1, line);
   ku_chunk_write_const(vm, 2, line);
-  ku_chunk_write(vm, &chunk, OP_ADD, line);
-  ku_chunk_write(vm, &chunk, OP_NEG, line++);
+  ku_chunk_write(vm, chunk, OP_ADD, line);
+  ku_chunk_write(vm, chunk, OP_NEG, line++);
   ku_chunk_write_const(vm, 4, line);
-  ku_chunk_write(vm, &chunk, OP_SUB, line++);
+  ku_chunk_write(vm, chunk, OP_SUB, line++);
   ku_chunk_write_const(vm, 5, line);
-  ku_chunk_write(vm, &chunk, OP_MUL, line++);
+  ku_chunk_write(vm, chunk, OP_MUL, line++);
   ku_chunk_write_const(vm, 6, line);
-  ku_chunk_write(vm, &chunk, OP_DIV, line++);
-  ku_chunk_write(vm, &chunk, OP_RET, line);
-  kures res = ku_run(vm, &chunk);
+  ku_chunk_write(vm, chunk, OP_DIV, line++);
+  ku_chunk_write(vm, chunk, OP_RET, line);
+  kures res = ku_run(vm, chunk);
   EXPECT_INT(vm, res, KVM_OK, "ku_run res");
   kuval v = ku_pop(vm);
   EXPECT_VAL(vm, v, NUM_VAL((-(1.0+2.0)-4.0)*5.0/6.0), "ku_run ret");
-  ku_chunk_free(vm, &chunk);
   ku_free(vm);
   
   vm = kut_new();
