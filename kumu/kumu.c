@@ -512,24 +512,6 @@ void ku_lex_print_all(kuvm *vm) {
   }
 }
 
-static void ku_set_last_err(kuvm* vm, char* buff) {
-  if (vm->last_err) {
-    vm->freed += strlen(vm->last_err) + 1;
-    free(vm->last_err);
-  }
-  vm->last_err = malloc(strlen(buff) + 1);
-  if (vm->last_err) {
-    vm->allocated += strlen(buff) + 1;
-    strcpy(vm->last_err, buff);
-    
-    if (!(vm->flags & KVM_F_QUIET)) {
-      ku_printf(vm, "%s", vm->last_err);
-    }
-  }
-}
-
-
-
 // ------------------------------------------------------------
 // Parser
 // ------------------------------------------------------------
@@ -552,7 +534,6 @@ static void ku_parse_err_at(kuvm *vm, kutok *tok, const char *msg) {
   
   strcat(buff, msg);
   strcat(buff, "\n");
-  ku_set_last_err(vm, buff);
   vm->parser.err = true;
 }
 
@@ -695,6 +676,27 @@ static void ku_parse_number(kuvm *vm, bool lhs) {
 
 static void ku_parse_expression(kuvm *vm) {
   ku_parse_process(vm, P_ASSIGN);
+}
+
+static uint8_t ku_arglist(kuvm *vm) {
+  uint8_t argc = 0;
+  if (!ku_parse_checktype(vm, TOK_RPAR)) {
+    do {
+      ku_parse_expression(vm);
+      if (argc > vm->max_params) {
+        ku_parse_err(vm, "too many parameters");
+      }
+      argc++;
+    } while (ku_parse_match(vm, TOK_COMMA));
+  }
+  
+  ku_parse_consume(vm, TOK_RPAR, "')' expected");
+  return argc;
+}
+
+static void ku_call(kuvm *vm, bool lhs) {
+  uint8_t argc = ku_arglist(vm);
+  ku_parse_emit_bytes(vm, OP_CALL, argc);
 }
 
 static void ku_parse_grouping(kuvm *vm, bool lhs) {
@@ -894,7 +896,7 @@ static void ku_parse_binary(kuvm *vm, bool lhs) {
 }
 
 ku_parse_rule rules[] = {
-  [TOK_LPAR] =      { ku_parse_grouping,   NULL,     P_NONE },
+  [TOK_LPAR] =      { ku_parse_grouping,   ku_call,     P_CALL },
   [TOK_RPAR] =      { NULL,        NULL,     P_NONE },
   [TOK_LBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_RBRACE] =    { NULL,        NULL,     P_NONE },
@@ -980,7 +982,6 @@ kuvm *ku_new(void) {
   vm->freed = 0;
   vm->stop = false;
   vm->objects = NULL;
-  vm->last_err = NULL;
   vm->compiler = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
@@ -1007,10 +1008,6 @@ void ku_free(kuvm *vm) {
   ku_free_objects(vm);
   ku_map_free(vm, &vm->strings);
   ku_map_free(vm, &vm->globals);
-  if (vm->last_err) {
-    vm->freed += strlen(vm->last_err) + 1;
-    free(vm->last_err);
-  }
   vm->freed += sizeof(kuvm);
   assert(vm->allocated - vm->freed == 0);
   free(vm);
@@ -1032,17 +1029,56 @@ void ku_print_stack(kuvm *vm) {
 static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_list args;
   char out[1024];
-  char buff[1024];
 
   va_start(args, fmt);
   vsprintf(out, fmt, args);
   va_end(args);
-  kuframe *frame = &vm->frames[vm->framecount - 1];
-  size_t instruction = frame->ip - ku_chunk(vm)->code - 1;
-  int line = frame->func->chunk.lines[instruction];
-  sprintf(buff, "[line %d] %s\n", line, out);
-  ku_set_last_err(vm, buff);
+  
+  ku_printf(vm, "error %s\n", out);
+  for (int f = vm->framecount - 1; f >= 0; f--) {
+    kuframe *frame = &vm->frames[f];
+    kufunc *fn = frame->func;
+    size_t inst = frame->ip - fn->chunk.code - 1;
+    ku_printf(vm, "[line %d] in ", fn->chunk.lines[inst]);
+    if (fn->name == NULL) {
+      ku_printf(vm, "__main__\n");
+    } else {
+      ku_printf(vm, "%s()\n", fn->name->chars);
+    }
+  }
+  
   ku_reset_stack(vm);
+}
+
+static bool ku_docall(kuvm *vm, kufunc *fn, int argc) {
+  if (argc != fn->arity) {
+    ku_err(vm, "%d expected got %d", fn->arity, argc);
+    return false;
+  }
+  
+  if (vm->framecount == FRAMES_MAX) { // @todo: make vm field
+    ku_err(vm, "stack overflow");
+    return false;
+  }
+  
+  kuframe *frame = &vm->frames[vm->framecount++];
+  frame->func = fn;
+  frame->ip = fn->chunk.code;
+  frame->bp = vm->stack - argc; // @todo: -1 when adding methods?
+  return true;
+}
+
+static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
+  if (IS_OBJ(callee)) {
+    switch (OBJ_TYPE(callee)) {
+      case OBJ_FUNC:
+        return ku_docall(vm, AS_FUNC(callee), argc);
+      default:
+        break;
+    }
+  }
+  ku_err(vm, "not callable");
+  return false;
 }
 
 kures ku_run(kuvm *vm) {
@@ -1060,6 +1096,14 @@ kures ku_run(kuvm *vm) {
     switch(op = BYTE_READ(vm)) {
       case OP_NOP:
         break;
+      case OP_CALL: {
+        int argc = BYTE_READ(vm);
+        if (!ku_callvalue(vm, ku_peek_stack(vm, argc), argc)) {
+          return KVM_ERR_RUNTIME;
+        }
+        frame = &vm->frames[vm->framecount - 1];
+        break;
+      }
       case OP_NIL:
         ku_push(vm, NIL_VAL);
         break;
@@ -1233,10 +1277,11 @@ kures ku_exec(kuvm *vm, char *source) {
   }
   
   ku_push(vm, OBJ_VAL(fn));
-  kuframe *frame = &vm->frames[vm->framecount++];
-  frame->func = fn;
-  frame->ip = fn->chunk.code;
-  frame->bp = vm->stack;
+  ku_docall(vm, fn, 0);
+//  kuframe *frame = &vm->frames[vm->framecount++];
+//  frame->func = fn;
+//  frame->ip = fn->chunk.code;
+//  frame->bp = vm->stack;
   return ku_run(vm);
 }
 
@@ -1408,6 +1453,8 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_jump_op(vm, "OP_JUMP_IF_FALSE", 1, chunk, offset);
     case OP_LOOP:
       return ku_print_jump_op(vm, "OP_LOOP", -1, chunk, offset);
+    case OP_CALL:
+      return ku_print_byte_op(vm, "OP_CALL", chunk, offset);
     default:
       ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;

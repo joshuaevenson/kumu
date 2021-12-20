@@ -545,5 +545,17 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "too many params");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "fun foo(a,b) { print 2; }");
+  EXPECT_INT(vm, res, KVM_OK, "func call def");
+  res = ku_exec(vm, "foo(1,2,3);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "func call mismatch");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "a=7; a();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-func call");
+  ku_free(vm);
+
   ku_test_summary();
 }

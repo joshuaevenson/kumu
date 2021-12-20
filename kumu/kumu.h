@@ -417,6 +417,7 @@ char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
 // ------------------------------------------------------------
 typedef enum {
   OP_NOP,
+  OP_CALL,
   OP_CONST,
   OP_RET,
   OP_NEG,
@@ -633,7 +634,6 @@ typedef struct _vm {
   kumap globals;
 
   kucompiler *compiler;
-  char* last_err;
   kulex scanner;
   kuparser parser;
 } kuvm;
