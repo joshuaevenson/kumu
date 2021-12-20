@@ -618,6 +618,7 @@ typedef enum {
 
 typedef struct _vm {
   uint64_t flags;
+  uint8_t max_params;
   bool stop;
   size_t allocated;
   size_t freed;

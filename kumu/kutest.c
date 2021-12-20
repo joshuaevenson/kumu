@@ -539,5 +539,11 @@ void ku_test() {
   EXPECT_INT(vm, v.type,VAL_OBJ, "fun object");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->max_params = 1;
+  res = ku_exec(vm, "fun foo(a,b) { print \"ok\"; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "too many params");
+  ku_free(vm);
+
   ku_test_summary();
 }

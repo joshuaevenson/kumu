@@ -812,7 +812,7 @@ static void ku_function(kuvm *vm, kufunctype type) {
   if (!ku_parse_checktype(vm, TOK_RPAR)) {
     do {
       vm->compiler->function->arity++;
-      if (vm->compiler->function->arity > 255) {
+      if (vm->compiler->function->arity > vm->max_params) {
         ku_parse_err(vm, "too many params");
       }
       
@@ -971,6 +971,7 @@ kuvm *ku_new(void) {
     return NULL;
   }
   vm->allocated = sizeof(kuvm);
+  vm->max_params = 255;
   vm->flags = 0;
   if (!vm) {
     return NULL;
