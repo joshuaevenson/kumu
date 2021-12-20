@@ -557,5 +557,10 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-func call");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "fun a() { b(); }\nfun b() { b(12); }\na();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "too many args print");
+  ku_free(vm);
+
   ku_test_summary();
 }
