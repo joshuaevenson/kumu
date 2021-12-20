@@ -589,6 +589,10 @@ static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
 static kufunc *ku_parse_end(kuvm *vm) {
   ku_parse_emit_byte(vm, OP_RET);
   kufunc *fn = vm->compiler->function;
+  // @todo: supposed to be vm->compiler = vm->compiler->enclosing
+  //        but this crashes if we have a runtime error after
+  //        a successful parse since the root compiler is gone
+  vm->compiler = vm->compiler->enclosing ? vm->compiler->enclosing : vm->compiler;
   return fn;
 }
 
@@ -701,7 +705,6 @@ static void ku_parse_grouping(kuvm *vm, bool lhs) {
 static void ku_parse_unary(kuvm *vm, bool lhs) {
   kutoktype optype = vm->parser.prev.type;
   
-//  ku_parse_expression(vm);
   ku_parse_process(vm, P_UNARY);
   
   switch(optype) {
@@ -801,8 +804,40 @@ static void ku_parse_var_decl(kuvm* vm) {
   ku_parse_var_def(vm, g);
 }
 
+static void ku_function(kuvm *vm, kufunctype type) {
+  kucompiler compiler;
+  ku_compiler_init(vm, &compiler, type);
+  ku_beginscope(vm);
+  ku_parse_consume(vm, TOK_LPAR, "'(' expected after function name");
+  if (!ku_parse_checktype(vm, TOK_RPAR)) {
+    do {
+      vm->compiler->function->arity++;
+      if (vm->compiler->function->arity > 255) {
+        ku_parse_err(vm, "too many params");
+      }
+      
+      uint8_t constant = ku_parse_var(vm, "expected parameter name");
+      ku_parse_var_def(vm, constant);
+    } while(ku_parse_match(vm, TOK_COMMA));
+  }
+  ku_parse_consume(vm, TOK_RPAR, "')' expected after parameters");
+  ku_parse_consume(vm, TOK_LBRACE, "'{' expected before function body");
+  ku_block(vm);
+  kufunc *fn = ku_parse_end(vm);
+  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, OBJ_VAL(fn)));
+}
+
+static void ku_func_decl(kuvm *vm) {
+  uint8_t global = ku_parse_var(vm, "function name expected");
+  ku_markinit(vm);
+  ku_function(vm, FUNC_STD);
+  ku_parse_var_def(vm, global);
+}
+
 static void ku_parse_declaration(kuvm* vm) {
-  if (ku_parse_match(vm, TOK_VAR)) {
+  if (ku_parse_match(vm, TOK_FUN)) {
+    ku_func_decl(vm);
+  } else if (ku_parse_match(vm, TOK_VAR)) {
     ku_parse_var_decl(vm);
   }
   else {
@@ -945,6 +980,7 @@ kuvm *ku_new(void) {
   vm->stop = false;
   vm->objects = NULL;
   vm->last_err = NULL;
+  vm->compiler = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
   ku_reset_stack(vm);
@@ -1384,13 +1420,16 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
 // ------------------------------------------------------------
 void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type) {
   compiler->function = NULL; // for GC
+  compiler->enclosing = vm->compiler;
   compiler->count = 0;
   compiler->depth = 0;
   compiler->type = type;
   compiler->function = ku_func_new(vm);
   
   vm->compiler = compiler;
-
+  if (type != FUNC_MAIN) {
+    compiler->function->name = ku_str_copy(vm, vm->parser.prev.start, vm->parser.prev.len);
+  }
   kulocal *local = &vm->compiler->locals[vm->compiler->count++];
   local->depth = 0;
   local->name.start = "";
@@ -1470,6 +1509,10 @@ int ku_resolvelocal(kuvm *vm, kutok *name) {
 }
 
 void ku_markinit(kuvm *vm) {
+  // functions can reference themselves unlike global
+  // variables which can't use their own value in their
+  // initialization
+  if (vm->compiler->depth == 0) return;
   vm->compiler->locals[vm->compiler->count - 1].depth = vm->compiler->depth;
 }
 

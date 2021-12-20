@@ -532,5 +532,12 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "for no inc");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "fun foo(a) { print \"ok\"; }");
+  EXPECT_INT(vm, res, KVM_OK, "fun def");
+  v = ku_get_global(vm, "foo");
+  EXPECT_INT(vm, v.type,VAL_OBJ, "fun object");
+  ku_free(vm);
+
   ku_test_summary();
 }

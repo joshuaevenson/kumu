@@ -538,7 +538,8 @@ typedef struct {
   int depth;
 } kulocal;
 
-typedef struct {
+typedef struct kucompiler {
+  struct kucompiler *enclosing;
   kufunc *function;
   kufunctype type;
   
