@@ -68,6 +68,10 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       break;
     }
       
+    case OBJ_CFUNC:
+      FREE(vm, kucfunc, obj);
+      break;
+      
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
@@ -1094,6 +1098,13 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
     switch (OBJ_TYPE(callee)) {
       case OBJ_FUNC:
         return ku_docall(vm, AS_FUNC(callee), argc);
+      case OBJ_CFUNC: {
+        cfunc cf = AS_CFUNC(callee);
+        kuval res = cf(vm, argc, vm->sp - argc);
+        vm->sp -= argc + 1;
+        ku_push(vm, res);
+        return true;
+      }
       default:
         break;
     }
@@ -1372,6 +1383,9 @@ static void ku_print_obj(kuvm* vm, kuval val) {
   switch (OBJ_TYPE(val)) {
     case OBJ_FUNC:
       ku_print_func(vm, AS_FUNC(val));
+      break;
+    case OBJ_CFUNC:
+      ku_printf(vm, "<cfunc>");
       break;
   case OBJ_STR:
     ku_printf(vm, "%s", AS_CSTR(val));
@@ -1735,4 +1749,41 @@ kufunc *ku_func_new(kuvm *vm) {
 
 void ku_print_func(kuvm *vm, kufunc *fn) {
   ku_printf(vm, "<fn %s>", fn->name ? fn->name->chars : "__main__");
+}
+
+// ------------------------------------------------------------
+// C Functions
+// ------------------------------------------------------------
+kucfunc *ku_cfunc_new(kuvm *vm, cfunc f) {
+  kucfunc *cf = KALLOC_OBJ(vm, kucfunc, OBJ_CFUNC);
+  cf->fn = f;
+  return cf;
+}
+
+void ku_cfunc_def(kuvm *vm, const char *name, cfunc f) {
+  int len = (int)strlen(name);
+  kustr *sname = ku_str_copy(vm, name, len);
+  ku_push(vm, OBJ_VAL(sname));
+  ku_push(vm, OBJ_VAL(ku_cfunc_new(vm, f)));
+  ku_map_set(vm, &vm->globals, AS_STR(vm->stack[0]), vm->stack[1]);
+  ku_pop(vm);
+  ku_pop(vm);
+}
+
+#include <time.h>
+static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
+  return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
+}
+
+static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
+  for (int a = 0; a < argc; a++) {
+    kuval v = argv[a];
+    ku_print_val(vm, v);
+  }
+  return NIL_VAL;
+}
+
+void ku_reglibs(kuvm *vm) {
+  ku_cfunc_def(vm, "clock", ku_clock);
+  ku_cfunc_def(vm, "printf", ku_print);
 }

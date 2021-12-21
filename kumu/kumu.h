@@ -331,6 +331,7 @@ typedef struct _vm kuvm;
 // ------------------------------------------------------------
 typedef enum {
   OBJ_FUNC,
+  OBJ_CFUNC,
   OBJ_STR,
 } kuobjtype;
 
@@ -382,6 +383,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_OBJ(v) ((v).type == VAL_OBJ)
 #define IS_STR(v) (ku_obj_istype(v, OBJ_STR))
 #define IS_FUNC(v) (ku_obj_istype(v, OBJ_FUNC))
+#define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -389,6 +391,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define AS_STR(v) ((kustr*)AS_OBJ(v))
 #define AS_CSTR(v) (((kustr*)AS_OBJ(v))->chars)
 #define AS_FUNC(v) ((kufunc*)AS_OBJ(v))
+#define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -445,7 +448,6 @@ typedef enum {
 } k_op;
 
 
-
 // ------------------------------------------------------------
 // Chunk
 // ------------------------------------------------------------
@@ -474,6 +476,20 @@ typedef struct {
 
 kufunc *ku_func_new(kuvm *vm);
 void ku_print_func(kuvm *vm, kufunc *fn);
+
+// ------------------------------------------------------------
+// C Functions
+// ------------------------------------------------------------
+typedef kuval (*cfunc)(kuvm *vm, int argc, kuval *argv);
+
+typedef struct {
+  kuobj obj;
+  cfunc fn;
+} kucfunc;
+
+kucfunc *ku_cfunc_new(kuvm *vm, cfunc f);
+void ku_cfunc_def(kuvm *vm, const char *name, cfunc f);
+void ku_reglibs(kuvm *vm);
 
 // ------------------------------------------------------------
 // Map / Hash table

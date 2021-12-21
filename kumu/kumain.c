@@ -140,6 +140,7 @@ static void ku_repl(kuvm *vm) {
 int ku_main(int argc, const char * argv[]) {
   kuvm *vm = ku_new();
   
+  ku_reglibs(vm);
   if (argc == 1) {
     ku_repl(vm);
   } else if (argc == 2) {

@@ -78,6 +78,11 @@ kuvm *kut_new(void) {
   return vm;
 }
 
+static kuval kutest_native_add(kuvm *vm, int argc, kuval *argv) {
+  kuval b = argv[0];
+  kuval a = argv[1];
+  return NUM_VAL(a.as.dval + b.as.dval);
+}
 
 void ku_test() {
   kuvm *vm = kut_new();
@@ -577,6 +582,21 @@ void ku_test() {
   res = ku_exec(vm, "fun f(a) { var z = 2; }\nvar x = f(3);");
   EXPECT_INT(vm, res, KVM_OK, "implicit return res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "implicit return val");
+  ku_free(vm);
+
+  vm = kut_new();
+  ku_cfunc_def(vm, "nadd", kutest_native_add);
+  res = ku_exec(vm, "var x = nadd(3,4);");
+  EXPECT_INT(vm, res, KVM_OK, "cfunc res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(7), "cfunc return");
+  ku_free(vm);
+
+  vm = kut_new();
+  ku_reglibs(vm);
+  res = ku_exec(vm, "var x = clock();");
+  EXPECT_INT(vm, res, KVM_OK, "clock res");
+  v = ku_get_global(vm, "x");
+  EXPECT_INT(vm, v.type, VAL_NUM, "clock return");
   ku_free(vm);
 
   ku_test_summary();
