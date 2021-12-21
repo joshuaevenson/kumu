@@ -599,5 +599,11 @@ void ku_test() {
   EXPECT_INT(vm, v.type, VAL_NUM, "clock return");
   ku_free(vm);
 
+  vm = kut_new();
+  ku_reglibs(vm);
+  res = ku_exec(vm, "printf(12);");
+  EXPECT_INT(vm, res, KVM_OK, "printf res");
+  ku_free(vm);
+
   ku_test_summary();
 }
