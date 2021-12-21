@@ -567,8 +567,13 @@ static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
   ku_chunk_write(vm, ku_chunk(vm), byte, vm->parser.prev.line);
 }
 
-static kufunc *ku_parse_end(kuvm *vm) {
+static void ku_emit_ret(kuvm *vm) {
+  ku_parse_emit_byte(vm, OP_NIL);
   ku_parse_emit_byte(vm, OP_RET);
+}
+
+static kufunc *ku_parse_end(kuvm *vm) {
+  ku_emit_ret(vm);
   kufunc *fn = vm->compiler->function;
   // @todo: supposed to be vm->compiler = vm->compiler->enclosing
   //        but this crashes if we have a runtime error after
@@ -728,11 +733,27 @@ static void ku_parse_print_statement(kuvm* vm) {
   ku_parse_emit_byte(vm, OP_PRINT);
 }
 
+static void ku_return(kuvm *vm) {
+  if (vm->compiler->type == FUNC_MAIN) {
+    ku_parse_err(vm, "can't return from top-level");
+  }
+  
+  if (ku_parse_match(vm, TOK_SEMI)) {
+    ku_emit_ret(vm);
+  } else {
+    ku_parse_expression(vm);
+    ku_parse_consume(vm, TOK_SEMI, "';' expected");
+    ku_parse_emit_byte(vm, OP_RET);
+  }
+}
+
 static void ku_parse_statement(kuvm* vm) {
   if (ku_parse_match(vm, TOK_PRINT)) {
     ku_parse_print_statement(vm);
   } else if (ku_parse_match(vm, TOK_IF)) {
     ku_ifstatement(vm);
+  } else if (ku_parse_match(vm, TOK_RETURN)) {
+    ku_return(vm);
   } else if (ku_parse_match(vm, TOK_WHILE)) {
     ku_whilestatement(vm);
   } else if (ku_parse_match(vm, TOK_FOR)) {
@@ -1064,7 +1085,7 @@ static bool ku_docall(kuvm *vm, kufunc *fn, int argc) {
   kuframe *frame = &vm->frames[vm->framecount++];
   frame->func = fn;
   frame->ip = fn->chunk.code;
-  frame->bp = vm->stack - argc; // @todo: -1 when adding methods?
+  frame->bp = vm->sp - argc - 1;
   return true;
 }
 
@@ -1120,7 +1141,16 @@ kures ku_run(kuvm *vm) {
         break;
       }
       case OP_RET: {
-        res = KVM_OK;
+        kuval v = ku_pop(vm);
+        vm->framecount--;
+        if (vm->framecount == 0) {
+          ku_pop(vm);
+          res = KVM_OK;
+          break;
+        }
+        vm->sp = frame->bp;
+        ku_push(vm, v);
+        frame = &vm->frames[vm->framecount - 1];
         break;
       }
       case OP_CONST: {
@@ -1278,10 +1308,6 @@ kures ku_exec(kuvm *vm, char *source) {
   
   ku_push(vm, OBJ_VAL(fn));
   ku_docall(vm, fn, 0);
-//  kuframe *frame = &vm->frames[vm->framecount++];
-//  frame->func = fn;
-//  frame->ip = fn->chunk.code;
-//  frame->bp = vm->stack;
   return ku_run(vm);
 }
 
@@ -1398,13 +1424,13 @@ void ku_print_chunk(kuvm *vm, kuchunk *chunk, const char * name) {
 }
 
 static int ku_print_simple_op(kuvm *vm, const char *name, int offset) {
-  ku_printf(vm, "%-17s", name);
+  ku_printf(vm, "%-16s", name);
   return offset + 1;
 }
 
 static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint8_t con = chunk->code[offset+1];
-  ku_printf(vm, "%-6s %4d '", name, con);
+  ku_printf(vm, "%-16s %4d '", name, con);
   ku_print_val(vm, chunk->constants.values[con]);
   ku_printf(vm, "'");
   return offset+2;
@@ -1566,7 +1592,7 @@ void ku_markinit(kuvm *vm) {
 
 int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint8_t slot = chunk->code[offset + 1];
-  ku_printf(vm, "%-16s %4d\n", name, slot);
+  ku_printf(vm, "%-16s %4d", name, slot);
   return offset + 2;
 }
 

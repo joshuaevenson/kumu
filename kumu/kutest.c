@@ -27,7 +27,7 @@ static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
     return;
   }
   ktest_fail++;
-  printf(">>> expected: %d found %d [%s]\n", v1, v2, m);
+  printf(">>> expected: %d found %d [%s]\n", v2, v1, m);
 }
 
 static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
@@ -560,6 +560,23 @@ void ku_test() {
   vm = kut_new();
   res = ku_exec(vm, "fun a() { b(); }\nfun b() { b(12); }\na();");
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "too many args print");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "return 2;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "return from __main__");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun f(a) { return a*2; }\nvar x = f(3);");
+  EXPECT_INT(vm, res, KVM_OK, "return expr res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(6), "return expr val");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun f(a) { var z = 2; }\nvar x = f(3);");
+  EXPECT_INT(vm, res, KVM_OK, "implicit return res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "implicit return val");
   ku_free(vm);
 
   ku_test_summary();
