@@ -1,12 +1,16 @@
 // ------------------------------------------------------------
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
-
+// ------------------------------------------------------------
 // [ ] ku_save(), ku_load() for await(persist)
 // [ ] ku_suspend(), ku_resume() for await(memory)
-// [ ] string escape sequences \n\r\t\0
+// [ ] string escape sequences \n, \r, \t, \0, \\
 // [ ] printf(format, ...)
-
+// [ ] REPL readline support?
+// [ ] REPL syntax errors not showing
+// [ ] Arrays?
+// [ ] Types?
+// ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
 
@@ -40,6 +44,7 @@ typedef struct _vm kuvm;
 typedef enum {
   OBJ_FUNC,
   OBJ_CFUNC,
+  OBJ_CLOSURE,
   OBJ_STR,
 } kuobjtype;
 
@@ -92,6 +97,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_STR(v) (ku_obj_istype(v, OBJ_STR))
 #define IS_FUNC(v) (ku_obj_istype(v, OBJ_FUNC))
 #define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
+#define IS_CLOSURE(v) (ku_obj_istype(v, OBJ_CLOSURE))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -100,6 +106,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define AS_CSTR(v) (((kustr*)AS_OBJ(v))->chars)
 #define AS_FUNC(v) ((kufunc*)AS_OBJ(v))
 #define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
+#define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -129,6 +136,7 @@ char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
 typedef enum {
   OP_NOP,
   OP_CALL,
+  OP_CLOSURE,
   OP_CONST,
   OP_RET,
   OP_NEG,
@@ -184,6 +192,16 @@ typedef struct {
 
 kufunc *ku_func_new(kuvm *vm);
 void ku_print_func(kuvm *vm, kufunc *fn);
+
+// ------------------------------------------------------------
+// Closures
+// ------------------------------------------------------------
+typedef struct {
+  kuobj obj;
+  kufunc *func;
+} kuclosure;
+
+kuclosure *ku_closure_new(kuvm *vm, kufunc *f);
 
 // ------------------------------------------------------------
 // C Functions
@@ -313,7 +331,7 @@ typedef struct {
 // Functions
 // ------------------------------------------------------------
 typedef struct {
-  kufunc *func;
+  kuclosure *closure;
   uint8_t *ip;
   kuval *bp;
 } kuframe;

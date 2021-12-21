@@ -20,7 +20,7 @@
 #define READ_SHORT(vm) \
 (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 #define BYTE_READ(vm) (*(frame->ip++))
-#define CONST_READ(vm) (frame->func->chunk.constants.values[BYTE_READ(vm)])
+#define CONST_READ(vm) (frame->closure->func->chunk.constants.values[BYTE_READ(vm)])
 #define READ_STRING(vm) AS_STR(CONST_READ(vm))
 
 #define BIN_OP(v, vt, op) \
@@ -70,6 +70,10 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       
     case OBJ_CFUNC:
       FREE(vm, kucfunc, obj);
+      break;
+     
+    case OBJ_CLOSURE:
+      FREE(vm, kuclosure, obj);
       break;
       
   case OBJ_STR: {
@@ -851,7 +855,8 @@ static void ku_function(kuvm *vm, kufunctype type) {
   ku_parse_consume(vm, TOK_LBRACE, "'{' expected before function body");
   ku_block(vm);
   kufunc *fn = ku_parse_end(vm);
-  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, OBJ_VAL(fn)));
+  ku_parse_emit_bytes(vm, OP_CLOSURE, ku_parse_make_const(vm, OBJ_VAL(fn)));
+//  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, OBJ_VAL(fn)));
 }
 
 static void ku_func_decl(kuvm *vm) {
@@ -1062,7 +1067,7 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   ku_printf(vm, "error %s\n", out);
   for (int f = vm->framecount - 1; f >= 0; f--) {
     kuframe *frame = &vm->frames[f];
-    kufunc *fn = frame->func;
+    kufunc *fn = frame->closure->func;
     size_t inst = frame->ip - fn->chunk.code - 1;
     ku_printf(vm, "[line %d] in ", fn->chunk.lines[inst]);
     if (fn->name == NULL) {
@@ -1075,9 +1080,9 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   ku_reset_stack(vm);
 }
 
-static bool ku_docall(kuvm *vm, kufunc *fn, int argc) {
-  if (argc != fn->arity) {
-    ku_err(vm, "%d expected got %d", fn->arity, argc);
+static bool ku_docall(kuvm *vm, kuclosure *cl, int argc) {
+  if (argc != cl->func->arity) {
+    ku_err(vm, "%d expected got %d", cl->func->arity, argc);
     return false;
   }
   
@@ -1087,8 +1092,8 @@ static bool ku_docall(kuvm *vm, kufunc *fn, int argc) {
   }
   
   kuframe *frame = &vm->frames[vm->framecount++];
-  frame->func = fn;
-  frame->ip = fn->chunk.code;
+  frame->closure = cl;
+  frame->ip = cl->func->chunk.code;
   frame->bp = vm->sp - argc - 1;
   return true;
 }
@@ -1096,8 +1101,6 @@ static bool ku_docall(kuvm *vm, kufunc *fn, int argc) {
 static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
-      case OBJ_FUNC:
-        return ku_docall(vm, AS_FUNC(callee), argc);
       case OBJ_CFUNC: {
         cfunc cf = AS_CFUNC(callee);
         kuval res = cf(vm, argc, vm->sp - argc);
@@ -1105,6 +1108,9 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
         ku_push(vm, res);
         return true;
       }
+      case OBJ_CLOSURE:
+        return ku_docall(vm, AS_CLOSURE(callee), argc);
+      case OBJ_FUNC: // not allowed anymore
       default:
         break;
     }
@@ -1134,6 +1140,12 @@ kures ku_run(kuvm *vm) {
           return KVM_ERR_RUNTIME;
         }
         frame = &vm->frames[vm->framecount - 1];
+        break;
+      }
+      case OP_CLOSURE: {
+        kufunc *fn = AS_FUNC(CONST_READ(vm));
+        kuclosure *cl = ku_closure_new(vm, fn);
+        ku_push(vm, OBJ_VAL(cl));
         break;
       }
       case OP_NIL:
@@ -1318,7 +1330,10 @@ kures ku_exec(kuvm *vm, char *source) {
   }
   
   ku_push(vm, OBJ_VAL(fn));
-  ku_docall(vm, fn, 0);
+  kuclosure *closure = ku_closure_new(vm, fn);
+  ku_pop(vm);
+  ku_push(vm, OBJ_VAL(closure));
+  ku_docall(vm, closure, 0);
   return ku_run(vm);
 }
 
@@ -1386,6 +1401,9 @@ static void ku_print_obj(kuvm* vm, kuval val) {
       break;
     case OBJ_CFUNC:
       ku_printf(vm, "<cfunc>");
+      break;
+    case OBJ_CLOSURE:
+      ku_print_func(vm, AS_CLOSURE(val)->func);
       break;
   case OBJ_STR:
     ku_printf(vm, "%s", AS_CSTR(val));
@@ -1495,6 +1513,14 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_jump_op(vm, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:
       return ku_print_byte_op(vm, "OP_CALL", chunk, offset);
+    case OP_CLOSURE: {
+      offset++;
+      uint8_t con = chunk->code[offset++];
+      ku_printf(vm, "%-16s %4d", "OP_CLOSURE", con);
+      ku_print_val(vm, chunk->constants.values[con]);
+      ku_printf(vm, "\n");
+      return offset;
+    }
     default:
       ku_printf(vm, "Unknown opcode %d\n", op);
       return offset + 1;
@@ -1786,4 +1812,13 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
 void ku_reglibs(kuvm *vm) {
   ku_cfunc_def(vm, "clock", ku_clock);
   ku_cfunc_def(vm, "printf", ku_print);
+}
+
+// ------------------------------------------------------------
+// Closures
+// ------------------------------------------------------------
+kuclosure *ku_closure_new(kuvm *vm, kufunc *f) {
+  kuclosure *cl = KALLOC_OBJ(vm, kuclosure, OBJ_CLOSURE);
+  cl->func = f;
+  return cl;
 }
