@@ -2,6 +2,7 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
+// [ ] KVM_F_LIST should list all code not just current compiler
 // [ ] ku_save(), ku_load() for await(persist)
 // [ ] ku_suspend(), ku_resume() for await(memory)
 // [ ] string escape sequences \n, \r, \t, \0, \\
