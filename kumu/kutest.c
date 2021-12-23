@@ -611,6 +611,24 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(15), "closure val");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "fun o() { var a=7; var b=8; fun i() { return a+b; } return i; }\n var z = o(); var x = z();");
+  EXPECT_INT(vm, res, KVM_OK, "closure2 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(15), "closure2 val");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun f1(){var a1=1; fun f2() {var a2=2; fun f3(){ return a1+a2; } return f3; } return f2; }\n var v1=f1(); var v2=v1(); var v3=v2();");
+  EXPECT_INT(vm, res, KVM_OK, "closure3 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "v3"), NUM_VAL(3), "closure3 val");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun M(x) { var m = x; fun e() { return m*m; } return e; }\n var z = M(5); var x = z();");
+  EXPECT_INT(vm, res, KVM_OK, "closure4 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(25), "closure4 val");
+  ku_free(vm);
+
   
   ku_test_summary();
 }
