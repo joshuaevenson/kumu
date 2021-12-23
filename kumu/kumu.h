@@ -189,9 +189,11 @@ int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 // ------------------------------------------------------------
 // Upvalues
 // ------------------------------------------------------------
-typedef struct {
+typedef struct kuupobj {
   kuobj obj;
   kuval *location;
+  kuval closed;
+  struct kuupobj *next;
 } kuupobj;
 
 kuupobj *ku_upobj_new(kuvm *vm, kuval *slot);
@@ -401,6 +403,8 @@ typedef struct _vm {
   kumap strings;
   kumap globals;
 
+  kuupobj *openupvals;
+  
   kucompiler *compiler;
   kulex scanner;
   kuparser parser;

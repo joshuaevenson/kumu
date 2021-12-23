@@ -1059,6 +1059,7 @@ kuvm *ku_new(void) {
   vm->freed = 0;
   vm->stop = false;
   vm->objects = NULL;
+  vm->openupvals = NULL;
   vm->compiler = NULL;
   ku_map_init(vm, &vm->strings);
   ku_map_init(vm, &vm->globals);
@@ -1172,8 +1173,37 @@ static kuchunk *ku_chunk_runtime(kuvm *vm) {
 }
 
 static kuupobj *ku_upval_capture(kuvm *vm, kuval *local) {
-  kuupobj *ou = ku_upobj_new(vm, local);
-  return ou;
+  kuupobj *prev = NULL;
+  kuupobj *uv = vm->openupvals;
+  
+  while (uv != NULL && uv->location > local) {
+    prev = uv;
+    uv = uv->next;
+  }
+  
+  if (uv != NULL && uv->location == local) {
+    return uv;
+  }
+  
+  kuupobj *created = ku_upobj_new(vm, local);
+  
+  created->next = uv;
+  
+  if (prev == NULL) {
+    vm->openupvals = created;
+  } else {
+    prev->next = created;
+  }
+  return created;
+}
+
+static void ku_upvals_close(kuvm *vm, kuval *last) {
+  while (vm->openupvals != NULL && vm->openupvals->location >= last) {
+    kuupobj *uo = vm->openupvals;
+    uo->closed = *uo->location;
+    uo->location = &uo->closed;
+    vm->openupvals = uo->next;
+  }
 }
 
 kures ku_run(kuvm *vm) {
@@ -1215,6 +1245,11 @@ kures ku_run(kuvm *vm) {
         }
         break;
       }
+      case OP_CLOSE_UPVAL: {
+        ku_upvals_close(vm, vm->sp - 1);
+        ku_pop(vm);
+        break;
+      }
       case OP_NIL:
         ku_push(vm, NIL_VAL);
         break;
@@ -1232,6 +1267,7 @@ kures ku_run(kuvm *vm) {
       }
       case OP_RET: {
         kuval v = ku_pop(vm);
+        ku_upvals_close(vm, frame->bp);
         vm->framecount--;
         if (vm->framecount == 0) {
           ku_pop(vm);
@@ -1942,5 +1978,7 @@ kuclosure *ku_closure_new(kuvm *vm, kufunc *f) {
 kuupobj *ku_upobj_new(kuvm *vm, kuval *slot) {
   kuupobj *uo = KALLOC_OBJ(vm, kuupobj, OBJ_UPVAL);
   uo->location = slot;
+  uo->next = NULL;
+  uo->closed = NIL_VAL;
   return uo;
 }
