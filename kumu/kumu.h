@@ -32,6 +32,8 @@
 #define KVM_MAJOR          0
 #define KVM_MINOR          1
 
+#define UINT8_COUNT (UINT8_MAX + 1)
+
 // ------------------------------------------------------------
 // Forward
 // ------------------------------------------------------------
@@ -156,6 +158,8 @@ typedef enum {
   OP_SET_GLOBAL,
   OP_GET_LOCAL,
   OP_SET_LOCAL,
+  OP_GET_UPVAL,
+  OP_SET_UPVAL,
   OP_LT,
   OP_EQ,
   OP_JUMP_IF_FALSE,
@@ -186,6 +190,7 @@ int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 typedef struct {
   kuobj obj;
   int arity;
+  int upcount;
   kuchunk chunk;
   kustr *name;
 } kufunc;
@@ -281,6 +286,11 @@ typedef struct {
   int depth;
 } kulocal;
 
+typedef struct {
+  uint8_t index;
+  bool local;
+} kuupval;
+
 typedef struct kucompiler {
   struct kucompiler *enclosing;
   kufunc *function;
@@ -288,6 +298,7 @@ typedef struct kucompiler {
   
   kulocal locals[MAX_LOCALS];
   int count;
+  kuupval upvals[UINT8_COUNT];
   int depth;
 } kucompiler;
 
@@ -298,7 +309,7 @@ void ku_endscope(kuvm *vm);
 void ku_vardecl(kuvm *vm);
 void ku_addlocal(kuvm *vm, kutok name);
 bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
-int ku_resolvelocal(kuvm *vm, kutok *name);
+int ku_resolvelocal(kuvm *vm, kucompiler *compiler, kutok *name);
 void ku_markinit(kuvm *vm);
 int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset);
 
@@ -356,7 +367,6 @@ typedef enum {
 #define KVM_F_NOEXEC    0x0040        // Disable execution only compile
 
 #define FRAMES_MAX 64
-#define UINT8_COUNT (UINT8_MAX + 1)
 #define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
 
 typedef struct _vm {

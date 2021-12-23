@@ -34,6 +34,7 @@
   ku_push(v, vt(a op b)); \
 } while (false)
 
+static void ku_err(kuvm *vm, const char *fmt, ...);
 
 static void ku_printf(kuvm *vm, const char *fmt, ...) {
   va_list args;
@@ -586,7 +587,7 @@ static kufunc *ku_parse_end(kuvm *vm) {
   // @todo: supposed to be vm->compiler = vm->compiler->enclosing
   //        but this crashes if we have a runtime error after
   //        a successful parse since the root compiler is gone
-  vm->compiler = vm->compiler->enclosing ? vm->compiler->enclosing : vm->compiler;
+  vm->compiler = vm->compiler->enclosing; //  ? vm->compiler->enclosing : vm->compiler;
   return fn;
 }
 
@@ -880,13 +881,52 @@ static void ku_parse_declaration(kuvm* vm) {
   }
 }
 
+static int ku_upval_add(kuvm *vm, kucompiler *compiler, uint8_t index, bool local) {
+  int upcount = compiler->function->upcount;
+  
+  for (int i = 0; i < upcount; i++) {
+    kuupval *uv = &compiler->upvals[i];
+    if (uv->index == index && uv->local == local) {
+      return i;
+    }
+  }
+  
+  if (upcount == UINT8_COUNT) {
+    ku_err(vm, "too many closures");
+    return 0;
+  }
+  compiler->upvals[upcount].local = local;
+  compiler->upvals[upcount].index = index;
+  return compiler->function->upcount++;
+}
+
+static int ku_upval_resolve(kuvm *vm, kucompiler *compiler, kutok *name) {
+  if (compiler->enclosing == NULL) {
+    return -1;
+  }
+  
+  int local = ku_resolvelocal(vm, compiler->enclosing, name);
+  if (local != -1) {
+    return ku_upval_add(vm, compiler->enclosing, (uint8_t)local, name);
+  }
+  
+  int upv = ku_upval_resolve(vm, compiler->enclosing, name);
+  if (upv != -1) {
+    return ku_upval_add(vm, compiler, (uint8_t)upv, false);
+  }
+  return -1;
+}
+
 static void ku_named_var(kuvm* vm, kutok name, bool lhs) {
-  int arg = ku_resolvelocal(vm, &name);
+  int arg = ku_resolvelocal(vm, vm->compiler, &name);
   uint8_t set, get;
   
   if (arg != -1) {
     get = OP_GET_LOCAL;
     set = OP_SET_LOCAL;
+  } else if ((arg = ku_upval_resolve(vm, vm->compiler, &name)) != -1) {
+    get = OP_GET_UPVAL;
+    set = OP_SET_UPVAL;
   } else {
     arg = ku_parse_identifier_const(vm, &name);
     get = OP_GET_GLOBAL;
@@ -1119,6 +1159,10 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
   return false;
 }
 
+// We can't use vm->compiler at runtime
+static kuchunk *ku_chunk_runtime(kuvm *vm) {
+  return &vm->frames[vm->framecount-1].closure->func->chunk;
+}
 kures ku_run(kuvm *vm) {
   kuframe *frame = &vm->frames[vm->framecount - 1];
   
@@ -1127,7 +1171,8 @@ kures ku_run(kuvm *vm) {
     uint8_t op;
 
     if (vm->flags & KVM_F_TRACE) {
-     ku_print_op(vm, ku_chunk(vm), (int) (frame->ip - ku_chunk(vm)->code));
+      kuchunk *ck = ku_chunk_runtime(vm);
+      ku_print_op(vm, ck, (int) (frame->ip - ck->code));
     }
 
 
@@ -1306,11 +1351,13 @@ static kufunc *ku_compile(kuvm *vm, char *source) {
   while (!ku_parse_match(vm, TOK_EOF)) {
     ku_parse_declaration(vm);
   }
-  kufunc *fn = ku_parse_end(vm);
-  
+
   if (vm->flags & KVM_F_DISASM) {
     ku_print_chunk(vm, ku_chunk(vm), "code");
   }
+
+  kufunc *fn = ku_parse_end(vm);
+  
 
   return vm->parser.err ? NULL : fn;
 }
@@ -1609,9 +1656,9 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b) {
   return memcmp(a->start, b->start, a->len) == 0;
 }
 
-int ku_resolvelocal(kuvm *vm, kutok *name) {
-  for (int i = vm->compiler->count - 1; i >= 0; i--) {
-    kulocal *local = &vm->compiler->locals[i];
+int ku_resolvelocal(kuvm *vm, kucompiler *compiler, kutok *name) {
+  for (int i = compiler->count - 1; i >= 0; i--) {
+    kulocal *local = &compiler->locals[i];
     if (ku_identeq(vm, name, &local->name)) {
       if (local->depth == -1) {
         ku_parse_err(vm, "own initialization disallowed");
@@ -1768,6 +1815,7 @@ void ku_parse_or(kuvm *vm, bool lhs) {
 kufunc *ku_func_new(kuvm *vm) {
   kufunc *fn = (kufunc*)KALLOC_OBJ(vm, kufunc, OBJ_FUNC);
   fn->arity = 0;
+  fn->upcount = 0;
   fn->name = NULL;
   ku_chunk_init(vm, &fn->chunk);
   return fn;
