@@ -73,14 +73,21 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       FREE(vm, kucfunc, obj);
       break;
      
-    case OBJ_CLOSURE:
+    case OBJ_CLOSURE: {
+      kuclosure *cl = (kuclosure*)obj;
+      ARRAY_FREE(vm, kuupobj*, cl->upvals, cl->upcount);
       FREE(vm, kuclosure, obj);
       break;
+    }
       
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
     FREE(vm, kustr, obj);
+    break;
+    
+  case OBJ_UPVAL:
+    FREE(vm, kuupobj, obj);
     break;
   }
   }
@@ -584,10 +591,7 @@ static void ku_emit_ret(kuvm *vm) {
 static kufunc *ku_parse_end(kuvm *vm) {
   ku_emit_ret(vm);
   kufunc *fn = vm->compiler->function;
-  // @todo: supposed to be vm->compiler = vm->compiler->enclosing
-  //        but this crashes if we have a runtime error after
-  //        a successful parse since the root compiler is gone
-  vm->compiler = vm->compiler->enclosing; //  ? vm->compiler->enclosing : vm->compiler;
+  vm->compiler = vm->compiler->enclosing;
   return fn;
 }
 
@@ -857,7 +861,10 @@ static void ku_function(kuvm *vm, kufunctype type) {
   ku_block(vm);
   kufunc *fn = ku_parse_end(vm);
   ku_parse_emit_bytes(vm, OP_CLOSURE, ku_parse_make_const(vm, OBJ_VAL(fn)));
-//  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, OBJ_VAL(fn)));
+  for (int i = 0; i < fn->upcount; i++) {
+    ku_parse_emit_byte(vm, compiler.upvals[i].local ? 1: 0);
+    ku_parse_emit_byte(vm, compiler.upvals[i].index);
+  }
 }
 
 static void ku_func_decl(kuvm *vm) {
@@ -907,7 +914,7 @@ static int ku_upval_resolve(kuvm *vm, kucompiler *compiler, kutok *name) {
   
   int local = ku_resolvelocal(vm, compiler->enclosing, name);
   if (local != -1) {
-    return ku_upval_add(vm, compiler->enclosing, (uint8_t)local, name);
+    return ku_upval_add(vm, compiler->enclosing, (uint8_t)local, true);
   }
   
   int upv = ku_upval_resolve(vm, compiler->enclosing, name);
@@ -1163,6 +1170,12 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
 static kuchunk *ku_chunk_runtime(kuvm *vm) {
   return &vm->frames[vm->framecount-1].closure->func->chunk;
 }
+
+static kuupobj *ku_upval_capture(kuvm *vm, kuval *local) {
+  kuupobj *ou = ku_upobj_new(vm, local);
+  return ou;
+}
+
 kures ku_run(kuvm *vm) {
   kuframe *frame = &vm->frames[vm->framecount - 1];
   
@@ -1191,6 +1204,15 @@ kures ku_run(kuvm *vm) {
         kufunc *fn = AS_FUNC(CONST_READ(vm));
         kuclosure *cl = ku_closure_new(vm, fn);
         ku_push(vm, OBJ_VAL(cl));
+        for (int i = 0; i < cl->upcount; i++) {
+          uint8_t local = BYTE_READ(vm);
+          uint8_t index = BYTE_READ(vm);
+          if (local) {
+            cl->upvals[i] = ku_upval_capture(vm, frame->bp + index);
+          } else {
+            cl->upvals[i] = frame->closure->upvals[index];
+          }
+        }
         break;
       }
       case OP_NIL:
@@ -1284,6 +1306,18 @@ kures ku_run(kuvm *vm) {
       case OP_SET_LOCAL: {
         uint8_t slot = BYTE_READ(vm);
         frame->bp[slot] = ku_peek_stack(vm, 0);
+        break;
+      }
+        
+      case OP_GET_UPVAL: {
+        uint8_t slot = BYTE_READ(vm);
+        ku_push(vm, *frame->closure->upvals[slot]->location);
+        break;
+      }
+        
+      case OP_SET_UPVAL: {
+        uint8_t slot = BYTE_READ(vm);
+        *frame->closure->upvals[slot]->location = ku_peek_stack(vm, 0);
         break;
       }
         
@@ -1455,6 +1489,10 @@ static void ku_print_obj(kuvm* vm, kuval val) {
   case OBJ_STR:
     ku_printf(vm, "%s", AS_CSTR(val));
     break;
+  
+    case OBJ_UPVAL:
+      ku_printf(vm, "upvalue");
+      break;
   }
 }
 
@@ -1552,6 +1590,10 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_byte_op(vm, "OP_GET_LOCAL", chunk, offset);
     case OP_SET_LOCAL:
       return ku_print_byte_op(vm, "OP_SET_LOCAL", chunk, offset);
+    case OP_GET_UPVAL:
+      return ku_print_byte_op(vm, "OP_GET_UPVAL", chunk, offset);
+    case OP_SET_UPVAL:
+      return ku_print_byte_op(vm, "OP_SET_UPVAL", chunk, offset);
     case OP_JUMP:
       return ku_print_jump_op(vm, "OP_JUMP", 1, chunk, offset);
     case OP_JUMP_IF_FALSE:
@@ -1560,12 +1602,21 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_jump_op(vm, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:
       return ku_print_byte_op(vm, "OP_CALL", chunk, offset);
+    case OP_CLOSE_UPVAL:
+      return ku_print_simple_op(vm, "OP_CLOSE_UPVAL", offset);
     case OP_CLOSURE: {
       offset++;
       uint8_t con = chunk->code[offset++];
       ku_printf(vm, "%-16s %4d", "OP_CLOSURE", con);
       ku_print_val(vm, chunk->constants.values[con]);
       ku_printf(vm, "\n");
+      kufunc *fn = AS_FUNC(chunk->constants.values[con]);
+      for (int j = 0; j < fn->upcount; j++) {
+        int local = chunk->code[offset++];
+        int index = chunk->code[offset++];
+        ku_printf(vm, "%04d | %s %d\n", offset - 2, local ? "local" : "upval", index);
+      }
+      
       return offset;
     }
     default:
@@ -1593,6 +1644,7 @@ void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type) {
   }
   kulocal *local = &vm->compiler->locals[vm->compiler->count++];
   local->depth = 0;
+  local->captured = false;
   local->name.start = "";
   local->name.len = 0;
 }
@@ -1614,7 +1666,12 @@ void ku_endscope(kuvm *vm) {
   while (vm->compiler->count > 0 &&
          vm->compiler->locals[vm->compiler->count - 1].depth >
          vm->compiler->depth) {
-    ku_parse_emit_byte(vm, OP_POP);
+    
+    if (vm->compiler->locals[vm->compiler->count - 1].captured) {
+      ku_parse_emit_byte(vm, OP_CLOSE_UPVAL);
+    } else {
+      ku_parse_emit_byte(vm, OP_POP);
+    }
     vm->compiler->count--;
     }
 }
@@ -1646,6 +1703,7 @@ void ku_addlocal(kuvm *vm, kutok name) {
   kulocal *local = &vm->compiler->locals[vm->compiler->count++];
   local->name = name;
   local->depth = -1;
+  local->captured = false;
 }
 
 bool ku_identeq(kuvm *vm, kutok *a, kutok *b) {
@@ -1867,6 +1925,22 @@ void ku_reglibs(kuvm *vm) {
 // ------------------------------------------------------------
 kuclosure *ku_closure_new(kuvm *vm, kufunc *f) {
   kuclosure *cl = KALLOC_OBJ(vm, kuclosure, OBJ_CLOSURE);
+  kuupobj **upvals = KALLOC(vm, kuupobj*, f->upcount);
+  for (int i = 0; i < f->upcount; i++) {
+    upvals[i] = NULL;
+  }
   cl->func = f;
+  cl->upvals = upvals;
+  cl->upcount = f->upcount;
   return cl;
+}
+
+
+// ------------------------------------------------------------
+// Upvalues
+// ------------------------------------------------------------
+kuupobj *ku_upobj_new(kuvm *vm, kuval *slot) {
+  kuupobj *uo = KALLOC_OBJ(vm, kuupobj, OBJ_UPVAL);
+  uo->location = slot;
+  return uo;
 }

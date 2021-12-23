@@ -48,6 +48,7 @@ typedef enum {
   OBJ_CFUNC,
   OBJ_CLOSURE,
   OBJ_STR,
+  OBJ_UPVAL,
 } kuobjtype;
 
 typedef enum {
@@ -139,6 +140,7 @@ typedef enum {
   OP_NOP,
   OP_CALL,
   OP_CLOSURE,
+  OP_CLOSE_UPVAL,
   OP_CONST,
   OP_RET,
   OP_NEG,
@@ -185,6 +187,17 @@ void ku_chunk_free(kuvm* vm, kuchunk* chunk);
 int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
 
 // ------------------------------------------------------------
+// Upvalues
+// ------------------------------------------------------------
+typedef struct {
+  kuobj obj;
+  kuval *location;
+} kuupobj;
+
+kuupobj *ku_upobj_new(kuvm *vm, kuval *slot);
+
+
+// ------------------------------------------------------------
 // Functions
 // ------------------------------------------------------------
 typedef struct {
@@ -204,6 +217,8 @@ void ku_print_func(kuvm *vm, kufunc *fn);
 typedef struct {
   kuobj obj;
   kufunc *func;
+  kuupobj **upvals;
+  int upcount;
 } kuclosure;
 
 kuclosure *ku_closure_new(kuvm *vm, kufunc *f);
@@ -284,6 +299,7 @@ typedef struct {
 typedef struct {
   kutok name;
   int depth;
+  bool captured;
 } kulocal;
 
 typedef struct {
