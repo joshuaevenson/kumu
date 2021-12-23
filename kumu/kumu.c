@@ -914,7 +914,7 @@ static int ku_upval_resolve(kuvm *vm, kucompiler *compiler, kutok *name) {
   
   int local = ku_resolvelocal(vm, compiler->enclosing, name);
   if (local != -1) {
-    return ku_upval_add(vm, compiler->enclosing, (uint8_t)local, true);
+    return ku_upval_add(vm, compiler, (uint8_t)local, true);
   }
   
   int upv = ku_upval_resolve(vm, compiler->enclosing, name);

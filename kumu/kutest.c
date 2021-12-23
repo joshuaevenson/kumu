@@ -605,5 +605,12 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_OK, "printf res");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "fun M(x) { var m = x; fun e(n) { return m*n; } return e; }\n var z = M(5); var x = z(3);");
+  EXPECT_INT(vm, res, KVM_OK, "closure res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(15), "closure val");
+  ku_free(vm);
+
+  
   ku_test_summary();
 }
