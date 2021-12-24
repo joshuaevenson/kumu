@@ -727,5 +727,10 @@ void ku_test() {
   EXPECT_INT(vm, kut_table_count(vm, &vm->strings), sc+3, "string intern");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->flags = KVM_F_TRACEMEM | KVM_F_TRACE | KVM_F_STACK;
+  res = ku_exec(vm, "var x=1; var y=x*2;");
+  EXPECT_INT(vm, res, KVM_OK, "tracing and printing");
+  ku_free(vm);
   ku_test_summary();
 }
