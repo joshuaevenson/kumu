@@ -2,17 +2,18 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
-// [ ] KVM_F_LIST should list all code not just current compiler
-// [ ] ku_save(), ku_load() for await(persist)
-// [ ] ku_suspend(), ku_resume() for await(memory)
-// [ ] string escape sequences \n, \r, \t, \0, \\
 // [ ] printf(format, ...)
-// [ ] REPL readline support?
-// [ ] REPL syntax errors not showing
-// [ ] Arrays?
-// [ ] Types?
-// [ ] maxlocals, maxupvals, maxframes, maxstack code coverage
-// [ ] Use kuobj:flags_type flags include marked
+// [ ] KVM_F_LIST list all code
+// [ ] ku_save(), ku_load()
+// [ ] ku_suspend(), ku_resume()
+// [ ] lexer string escape \n, \r, \t, \0, \x
+// [ ] repl readline support
+// [ ] repl syntax errors not showing
+// [ ] vm limits for code coverage
+// [ ] kuobj use type bitmask for marked flag
+// [ ] lexer number sci notation
+// [ ] lexer hex notation
+// [ ] arrays
 // ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
