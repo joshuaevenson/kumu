@@ -84,6 +84,18 @@ static kuval kutest_native_add(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL(a.as.dval + b.as.dval);
 }
 
+static int kut_table_count(kuvm *vm, kutable *tab) {
+  int count = 0;
+  for (int i=0; i < tab->capacity; i++) {
+    kuentry *s = &tab->entries[i];
+    if (s->key != NULL) {
+      count++;
+    }
+  }
+  return count;
+}
+
+
 void ku_test() {
   kuvm *vm = kut_new();
   kures res = ku_exec(vm, "print -1+4;");
@@ -551,7 +563,7 @@ void ku_test() {
 
   vm = kut_new();
   vm->max_params = 1;
-  res = ku_exec(vm, "fun foo(a,b) { print \"ok\"; }");
+  res = ku_exec(vm, "fun foo(a,b) { print 555; }; foo(4,5,6);");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "too many params");
   ku_free(vm);
 
@@ -575,6 +587,41 @@ void ku_test() {
   vm = kut_new();
   res = ku_exec(vm, "return 2;");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "return from __main__");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 return fun foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip return");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 fun foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip fun");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 class foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip class");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 var foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip var");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 for foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip for");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 if foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip if");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=2 while foo()");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "parse_skip while");
   ku_free(vm);
 
   vm = kut_new();
@@ -635,7 +682,7 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG | KVM_F_QUIET;
   res = ku_exec(vm, "var x = \"hello\"; x=nil;");
   ku_gc(vm);
   EXPECT_INT(vm, res, KVM_OK, "gc res");
@@ -643,14 +690,22 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
+  vm->flags = KVM_F_GCLOG | KVM_F_QUIET;
+  vm->gcnext = 0;
+  res = ku_exec(vm, "var x = \"hello\"; x=nil;");
+  EXPECT_INT(vm, res, KVM_OK, "gcnext res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "gcnext val");
+  ku_free(vm);
+
+  
+  vm = kut_new();
   ku_reglibs(vm);
   res = ku_exec(vm, "printf(nil);");
   EXPECT_INT(vm, res, KVM_OK, "print nil");
   ku_free(vm);
 
-
   vm = kut_new();
-  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG | KVM_F_QUIET;
   res = ku_exec(vm, "fun M(x) { var m = x; fun e() { return m*m; } return e; }\n var z = M(5); var x = z(); x = nil;");
   ku_gc(vm);
   EXPECT_INT(vm, res, KVM_OK, "gc closure res");
@@ -658,7 +713,7 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG | KVM_F_QUIET;
   res = ku_exec(vm, "fun M(x) { var m = x; var mm=x*2; fun e(n) { return m*n*mm; } return e; }\n var z = M(5); var x = z(3); x = nil;");
   EXPECT_INT(vm, res, KVM_OK, "gc closure2 res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "gc closure2 val");
@@ -666,9 +721,10 @@ void ku_test() {
 
   vm = kut_new();
   res = ku_exec(vm, "var x = \"hello \" + \"world\";");
-  int sc = vm->strings.count;
+  int sc = kut_table_count(vm, &vm->strings);
   res = ku_exec(vm, "var y = \"hello\" + \" world\";");
-  EXPECT_INT(vm, vm->strings.count, sc, "string intern");
+  // +1 for the y value, +2 for two different substrings
+  EXPECT_INT(vm, kut_table_count(vm, &vm->strings), sc+3, "string intern");
   ku_free(vm);
 
   ku_test_summary();

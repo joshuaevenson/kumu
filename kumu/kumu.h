@@ -443,7 +443,6 @@ void ku_gc(kuvm *vm);
 void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
 int ku_print_op(kuvm* vm, kuchunk* chunk, int offset);
 
-
 // ------------------------------------------------------------
 // Config
 // ------------------------------------------------------------

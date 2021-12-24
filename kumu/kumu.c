@@ -2188,3 +2188,4 @@ void ku_gc(kuvm *vm) {
               bytes - vm->allocated, bytes, vm->allocated, vm->gcnext);
   }
 }
+
