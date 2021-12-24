@@ -115,7 +115,9 @@ static kustr* ku_str_alloc(kuvm* vm, char* chars, int len, uint32_t hash) {
   str->len = len;
   str->chars = chars;
   str->hash = hash;
+  ku_push(vm, OBJ_VAL(str)); // for GC
   ku_table_set(vm, &vm->strings, str, NIL_VAL);
+  ku_pop(vm);
   return str;
 }
 
@@ -163,16 +165,19 @@ static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
   return ku_str_alloc(vm, buff, len, hash);
 }
 
+kuval ku_peek_stack(kuvm *vm, int distance);
 
 static void ku_str_cat(kuvm* vm) {
-  kustr *b = AS_STR(ku_pop(vm));
-  kustr* a = AS_STR(ku_pop(vm));
+  kustr *b = AS_STR(ku_peek_stack(vm,0)); // for GC
+  kustr* a = AS_STR(ku_peek_stack(vm,1)); // for GC
   int len = a->len + b->len;
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, a->chars, a->len);
   memcpy(buff + a->len, b->chars, b->len);
   buff[len] = '\0';
   kustr* res = ku_str_take(vm, buff, len);
+  ku_pop(vm);
+  ku_pop(vm);
   ku_push(vm, OBJ_VAL(res));
 }
 
@@ -1059,6 +1064,7 @@ kuvm *ku_new(void) {
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
   vm->flags = 0;
+  vm->gcnext = 1024*1024;
   vm->gccount = 0;
   vm->gccap = 0;
   vm->gcstack = NULL;
@@ -1471,6 +1477,10 @@ char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
     ku_gc(vm);
   }
   
+  if (vm->allocated > vm->gcnext) {
+    ku_gc(vm);
+  }
+  
   if (vm->flags & KVM_F_TRACEMEM) {
     ku_printf(vm, "malloc %d -> %d\n", (int)oldsize, (int)nsize);
   }
@@ -1515,7 +1525,9 @@ void ku_chunk_free(kuvm *vm, kuchunk *chunk) {
 }
 
 int ku_chunk_add_const(kuvm *vm, kuchunk *chunk, kuval value) {
+  ku_push(vm, value); // for GC
   ku_arr_write(vm, &chunk->constants, value);
+  ku_pop(vm);
   return chunk->constants.count - 1;
 }
 
@@ -2140,17 +2152,25 @@ static void ku_freeweak(kuvm *vm, kutable *table) {
   }
 }
 
+#define GC_HEAP_GROW_FACTOR 2
+
 void ku_gc(kuvm *vm) {
   if (vm->flags & KVM_F_GCLOG) {
     ku_printf(vm, "-- gc start\n");
   }
-
+  
+  size_t bytes = vm->allocated;
+  
   ku_markroots(vm);
   ku_tracerefs(vm);
   ku_freeweak(vm, &vm->strings);
   ku_sweep(vm);
   
+  vm->gcnext = vm->allocated * GC_HEAP_GROW_FACTOR;
+  
   if (vm->flags & KVM_F_GCLOG) {
     ku_printf(vm, "-- gc end\n");
+    ku_printf(vm, "collected %zu bytes (%zu -> %zu) next %zu\n",
+              bytes - vm->allocated, bytes, vm->allocated, vm->gcnext);
   }
 }
