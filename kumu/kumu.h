@@ -398,7 +398,6 @@ typedef struct _vm {
   uint8_t max_params;
   bool stop;
   size_t allocated;
-  size_t freed;
 
   kuframe frames[FRAMES_MAX];
   int framecount;

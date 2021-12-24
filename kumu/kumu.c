@@ -1067,7 +1067,6 @@ kuvm *ku_new(void) {
     return NULL;
   }
 
-  vm->freed = 0;
   vm->stop = false;
   vm->objects = NULL;
   vm->openupvals = NULL;
@@ -1079,9 +1078,7 @@ kuvm *ku_new(void) {
 }
 
 void ku_print_mem(kuvm *vm) {
-  ku_printf(vm, "allocated: %ld, freed: %ld, delta: %ld\n",
-         vm->allocated,
-         vm->freed, vm->allocated - vm->freed);
+  ku_printf(vm, "delta: %ld\n", vm->allocated);
 }
 
 static void ku_free_objects(kuvm* vm) {
@@ -1097,8 +1094,8 @@ void ku_free(kuvm *vm) {
   ku_free_objects(vm);
   ku_table_free(vm, &vm->strings);
   ku_table_free(vm, &vm->globals);
-  vm->freed += sizeof(kuvm);
-  assert(vm->allocated - vm->freed == 0);
+  vm->allocated -= sizeof(kuvm);
+  assert(vm->allocated == 0);
   free(vm->gcstack);
   free(vm);
 }
@@ -1478,8 +1475,7 @@ char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
     ku_printf(vm, "malloc %d -> %d\n", (int)oldsize, (int)nsize);
   }
   
-  vm->allocated += nsize;
-  vm->freed += oldsize;
+  vm->allocated += nsize - oldsize;
   
   if (nsize == 0) {
     free(ptr);
