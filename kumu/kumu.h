@@ -11,6 +11,8 @@
 // [ ] REPL syntax errors not showing
 // [ ] Arrays?
 // [ ] Types?
+// [ ] maxlocals, maxupvals, maxframes, maxstack code coverage
+// [ ] Use kuobj:flags_type flags include marked
 // ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
@@ -57,8 +59,9 @@ typedef enum {
   FUNC_MAIN,
 } kufunctype;
 
-typedef struct {
+typedef struct kuobj {
   kuobjtype type;
+  bool marked;
   struct kuobj *next;
 } kuobj;
 
@@ -252,15 +255,15 @@ typedef struct {
   int count;
   int capacity;
   kuentry* entries;
-} kumap;
+} kutable;
 
-void ku_map_init(kuvm *vm, kumap* map);
-void ku_map_free(kuvm *vm, kumap* map);
-bool ku_map_set(kuvm* vm, kumap* map, kustr *key, kuval value);
-bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval *value);
-bool ku_map_del(kuvm* vm, kumap* map, kustr* key);
-void ku_map_copy(kuvm* vm, kumap* from, kumap* to);
-kustr* ku_map_find_str(kuvm* vm, kumap* map, const char* chars, int len, uint32_t hash);
+void ku_table_init(kuvm *vm, kutable* map);
+void ku_table_free(kuvm *vm, kutable* map);
+bool ku_table_set(kuvm* vm, kutable* map, kustr *key, kuval value);
+bool ku_table_get(kuvm* vm, kutable* map, kustr* key, kuval *value);
+bool ku_table_del(kuvm* vm, kutable* map, kustr* key);
+void ku_table_copy(kuvm* vm, kutable* from, kutable* to);
+kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_t hash);
 
 // ------------------------------------------------------------
 // Scanner
@@ -377,13 +380,15 @@ typedef enum {
   KVM_FILE_NOTFOUND,
 } kures;
 
-#define KVM_F_TRACE     0x0001        // trace each instruction as it runs
-#define KVM_F_STACK     0x0002        // print stack in repl
-#define KVM_F_LIST      0x0004        // list instructions after compile
-#define KVM_F_QUIET     0x0008        // Supress error output (for tests)
-#define KVM_F_TRACEMEM  0x0010        // Trace memory
-#define KVM_F_DISASM    0x0020        // Disassemble after compile
-#define KVM_F_NOEXEC    0x0040        // Disable execution only compile
+#define KVM_F_TRACE     0x00000001   // trace each instruction as it runs
+#define KVM_F_STACK     0x00000002   // print stack in repl
+#define KVM_F_LIST      0x00000004   // list instructions after compile
+#define KVM_F_QUIET     0x00000008   // Supress error output (for tests)
+#define KVM_F_TRACEMEM  0x00000010   // Trace memory
+#define KVM_F_DISASM    0x00000020   // Disassemble after compile
+#define KVM_F_NOEXEC    0x00000040   // Disable execution only compile
+#define KVM_F_GCSTRESS  0x00000080   // GC every alloc increase
+#define KVM_F_GCLOG     0x00000100   // Log GC action
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
@@ -401,14 +406,19 @@ typedef struct _vm {
   kuval* sp;
 
   kuobj* objects;
-  kumap strings;
-  kumap globals;
+  kutable strings;
+  kutable globals;
 
   kuupobj *openupvals;
   
   kucompiler *compiler;
   kulex scanner;
   kuparser parser;
+  
+  int gccount;      // gray object count
+  int gccap;        // gray object capacity
+  kuobj **gcstack;  // gray object stack
+  
 } kuvm;
 
 kuvm* ku_new(void);
@@ -423,6 +433,10 @@ void ku_reset_stack(kuvm* vm);
 void ku_push(kuvm* vm, kuval val);
 kuval ku_pop(kuvm* vm);
 
+// ------------------------------------------------------------
+// GC
+// ------------------------------------------------------------
+void ku_gc(kuvm *vm);
 
 // ------------------------------------------------------------
 // Debug

@@ -54,7 +54,7 @@ static void ku_test_summary() {
 kuval ku_get_global(kuvm* vm, const char* name) {
   kuval value;
   kustr* key = ku_str_copy(vm, name, (int)strlen(name));
-  if (!ku_map_get(vm, &vm->globals, key, &value)) {
+  if (!ku_table_get(vm, &vm->globals, key, &value)) {
     return NIL_VAL;
   }
 
@@ -363,31 +363,31 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  kumap map;
-  ku_map_init(vm, &map);
+  kutable map;
+  ku_table_init(vm, &map);
   kustr* k1 = ku_str_copy(vm, "key1", 4);
   kustr* k2 = ku_str_copy(vm, "key1", 4);
   EXPECT_TRUE(vm, k1 == k2, "string intern equal");
   kustr* k3 = ku_str_copy(vm, "key2", 4);
   EXPECT_TRUE(vm, k3 != k2, "string intern not equal");
-  bool isnew = ku_map_set(vm, &map, k1, NUM_VAL(3.14));
+  bool isnew = ku_table_set(vm, &map, k1, NUM_VAL(3.14));
   EXPECT_TRUE(vm, isnew, "map set new");
-  bool found = ku_map_get(vm, &map, k1, &v);
+  bool found = ku_table_get(vm, &map, k1, &v);
   EXPECT_TRUE(vm, found, "map get found");
   EXPECT_VAL(vm, v, NUM_VAL(3.14), "map get found value");
-  found = ku_map_get(vm, &map, k3, &v);
+  found = ku_table_get(vm, &map, k3, &v);
   EXPECT_TRUE(vm, !found, "map get not found");
-  found = ku_map_del(vm, &map, k1);
+  found = ku_table_del(vm, &map, k1);
   EXPECT_TRUE(vm, found, "map del found");
-  found = ku_map_get(vm, &map, k1, &v);
+  found = ku_table_get(vm, &map, k1, &v);
   EXPECT_TRUE(vm, !found, "map del not found");
-  kumap map2;
-  ku_map_init(vm, &map2);
-  ku_map_copy(vm, &map, &map2);
-  ku_map_free(vm, &map);
-  ku_map_free(vm, &map2);
-  ku_map_del(vm, &map, k1);
-  found = ku_map_get(vm, &map, k1, &v);
+  kutable map2;
+  ku_table_init(vm, &map2);
+  ku_table_copy(vm, &map, &map2);
+  ku_table_free(vm, &map);
+  ku_table_free(vm, &map2);
+  ku_table_del(vm, &map, k1);
+  found = ku_table_get(vm, &map, k1, &v);
   EXPECT_TRUE(vm, !found, "empty map get");
   ku_free(vm);
 

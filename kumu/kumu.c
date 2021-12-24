@@ -55,12 +55,19 @@ static void ku_printf(kuvm *vm, const char *fmt, ...) {
 static kuobj* ku_obj_alloc(kuvm* vm, size_t size, kuobjtype type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
   obj->type = type;
+  obj->marked = false;
   obj->next = (struct kuobj*)vm->objects;
   vm->objects = obj;
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "%p alloc %zu for %d\n", (void*)obj, size, type);
+  }
   return obj;
 }
 
 void ku_obj_free(kuvm* vm, kuobj* obj) {
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "%p free type %d\n", (void*)obj, obj->type);
+  }
   switch (obj->type) {
     case OBJ_FUNC: {
       kufunc *fn = (kufunc*)obj;
@@ -108,7 +115,7 @@ static kustr* ku_str_alloc(kuvm* vm, char* chars, int len, uint32_t hash) {
   str->len = len;
   str->chars = chars;
   str->hash = hash;
-  ku_map_set(vm, &vm->strings, str, NIL_VAL);
+  ku_table_set(vm, &vm->strings, str, NIL_VAL);
   return str;
 }
 
@@ -119,7 +126,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot) {
 kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
   uint32_t hash = ku_str_hash(chars, len);
 
-  kustr* interned = ku_map_find_str(vm, &vm->strings, chars, len, hash);
+  kustr* interned = ku_table_find(vm, &vm->strings, chars, len, hash);
   if (interned != NULL) {
     return interned;
   }
@@ -147,7 +154,7 @@ bool ku_val_eq(kuval v1, kuval v2) {
 
 static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
   uint32_t hash = ku_str_hash(buff, len);
-  kustr* interned = ku_map_find_str(vm, &vm->strings, buff, len, hash);
+  kustr* interned = ku_table_find(vm, &vm->strings, buff, len, hash);
   if (interned != NULL) {
     ARRAY_FREE(vm, char, buff, len + 1);
     return interned;
@@ -172,15 +179,15 @@ static void ku_str_cat(kuvm* vm) {
 // ------------------------------------------------------------
 // Map / hash table
 // ------------------------------------------------------------
-void ku_map_init(kuvm* vm, kumap* map) {
+void ku_table_init(kuvm* vm, kutable* map) {
   map->count = 0;
   map->capacity = 0;
   map->entries = NULL;
 }
 
-void ku_map_free(kuvm* vm, kumap* map) {
+void ku_table_free(kuvm* vm, kutable* map) {
   ARRAY_FREE(vm, kuentry, map->entries, map->capacity);
-  ku_map_init(vm, map);
+  ku_table_init(vm, map);
 }
 
 #define MAP_MAX_LOAD 0.75
@@ -214,7 +221,7 @@ static kuentry* ku_map_find(kuvm* vm, kuentry* entries, int capacity, kustr* key
   }
 }
 
-static void ku_map_adjust(kuvm* vm, kumap* map, int capacity) {
+static void ku_map_adjust(kuvm* vm, kutable* map, int capacity) {
   kuentry* entries = KALLOC(vm, kuentry, capacity);
   for (int i = 0; i < capacity; i++) {
     entries[i].key = NULL;
@@ -239,7 +246,7 @@ static void ku_map_adjust(kuvm* vm, kumap* map, int capacity) {
   map->capacity = capacity;
 }
 
-bool ku_map_set(kuvm* vm, kumap* map, kustr* key, kuval value) {
+bool ku_table_set(kuvm* vm, kutable* map, kustr* key, kuval value) {
   if (map->count + 1 > map->capacity * MAP_MAX_LOAD) {
     int capacity = CAPACITY_GROW(map->capacity);
     ku_map_adjust(vm, map, capacity);
@@ -256,16 +263,16 @@ bool ku_map_set(kuvm* vm, kumap* map, kustr* key, kuval value) {
   return isnew;
 }
 
-void ku_map_copy(kuvm* vm, kumap* from, kumap* to) {
+void ku_table_copy(kuvm* vm, kutable* from, kutable* to) {
   for (int i = 0; i < from->capacity; i++) {
     kuentry* e = &from->entries[i];
     if (e->key != NULL) {
-      ku_map_set(vm, to, e->key, e->value);
+      ku_table_set(vm, to, e->key, e->value);
     }
   }
 }
 
-bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval* value) {
+bool ku_table_get(kuvm* vm, kutable* map, kustr* key, kuval* value) {
   if (map->count == 0) {
     return false;
   }
@@ -279,7 +286,7 @@ bool ku_map_get(kuvm* vm, kumap* map, kustr* key, kuval* value) {
   return true;
 }
 
-bool ku_map_del(kuvm* vm, kumap* map, kustr* key) {
+bool ku_table_del(kuvm* vm, kutable* map, kustr* key) {
   if (map->count == 0) {
     return false;
   }
@@ -293,7 +300,7 @@ bool ku_map_del(kuvm* vm, kumap* map, kustr* key) {
   return true;
 }
 
-kustr* ku_map_find_str(kuvm* vm, kumap* map, const char* chars, int len, uint32_t hash) {
+kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_t hash) {
   if (map->count == 0) {
     return NULL;
   }
@@ -1052,6 +1059,10 @@ kuvm *ku_new(void) {
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
   vm->flags = 0;
+  vm->gccount = 0;
+  vm->gccap = 0;
+  vm->gcstack = NULL;
+  
   if (!vm) {
     return NULL;
   }
@@ -1061,8 +1072,8 @@ kuvm *ku_new(void) {
   vm->objects = NULL;
   vm->openupvals = NULL;
   vm->compiler = NULL;
-  ku_map_init(vm, &vm->strings);
-  ku_map_init(vm, &vm->globals);
+  ku_table_init(vm, &vm->strings);
+  ku_table_init(vm, &vm->globals);
   ku_reset_stack(vm);
   return vm;
 }
@@ -1084,10 +1095,11 @@ static void ku_free_objects(kuvm* vm) {
 
 void ku_free(kuvm *vm) {
   ku_free_objects(vm);
-  ku_map_free(vm, &vm->strings);
-  ku_map_free(vm, &vm->globals);
+  ku_table_free(vm, &vm->strings);
+  ku_table_free(vm, &vm->globals);
   vm->freed += sizeof(kuvm);
   assert(vm->allocated - vm->freed == 0);
+  free(vm->gcstack);
   free(vm);
 }
 
@@ -1309,7 +1321,7 @@ kures ku_run(kuvm *vm) {
         kustr* name = READ_STRING(vm);
         kuval value;
 
-        if (!ku_map_get(vm, &vm->globals, name, &value)) {
+        if (!ku_table_get(vm, &vm->globals, name, &value)) {
           ku_err(vm, "undefined variable %s", name->chars);
           return KVM_ERR_RUNTIME;
         }
@@ -1319,15 +1331,15 @@ kures ku_run(kuvm *vm) {
 
       case OP_DEF_GLOBAL: {
         kustr* name = READ_STRING(vm);
-        ku_map_set(vm, &vm->globals, name, ku_peek_stack(vm, 0));
+        ku_table_set(vm, &vm->globals, name, ku_peek_stack(vm, 0));
         ku_pop(vm);
         break;
       }
 
       case OP_SET_GLOBAL: {
         kustr* name = READ_STRING(vm);
-        if (ku_map_set(vm, &vm->globals, name, ku_peek_stack(vm, 0))) {
-          ku_map_del(vm, &vm->globals, name);
+        if (ku_table_set(vm, &vm->globals, name, ku_peek_stack(vm, 0))) {
+          ku_table_del(vm, &vm->globals, name);
           ku_err(vm, "undefined variable %s", name->chars);
           return KVM_ERR_RUNTIME;
         }
@@ -1458,6 +1470,9 @@ kures ku_exec(kuvm *vm, char *source) {
 // Memory
 // ------------------------------------------------------------
 char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
+  if ((vm->flags & KVM_F_GCSTRESS) && nsize > oldsize) {
+    ku_gc(vm);
+  }
   
   if (vm->flags & KVM_F_TRACEMEM) {
     ku_printf(vm, "malloc %d -> %d\n", (int)oldsize, (int)nsize);
@@ -1933,7 +1948,7 @@ void ku_cfunc_def(kuvm *vm, const char *name, cfunc f) {
   kustr *sname = ku_str_copy(vm, name, len);
   ku_push(vm, OBJ_VAL(sname));
   ku_push(vm, OBJ_VAL(ku_cfunc_new(vm, f)));
-  ku_map_set(vm, &vm->globals, AS_STR(vm->stack[0]), vm->stack[1]);
+  ku_table_set(vm, &vm->globals, AS_STR(vm->stack[0]), vm->stack[1]);
   ku_pop(vm);
   ku_pop(vm);
 }
@@ -1981,4 +1996,165 @@ kuupobj *ku_upobj_new(kuvm *vm, kuval *slot) {
   uo->next = NULL;
   uo->closed = NIL_VAL;
   return uo;
+}
+
+// ------------------------------------------------------------
+// GC
+// ------------------------------------------------------------
+static void ku_markval(kuvm *vm, kuval v);
+static void ku_markobj(kuvm *vm, kuobj *o);
+
+static void ku_markarray(kuvm *vm, kuarr *array) {
+  for (int i = 0; i < array->count; i++) {
+    ku_markval(vm, array->values[i]);
+  }
+}
+
+static void ku_traceobj(kuvm *vm, kuobj *o) {
+  
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "%p trace ", (void*)o);
+    ku_print_val(vm, OBJ_VAL(o));
+    ku_printf(vm, "\n");
+  }
+  
+  switch (o->type) {
+    case OBJ_STR:
+    case OBJ_CFUNC:
+      break;
+      
+    case OBJ_UPVAL:
+      ku_markval(vm, ((kuupobj*)o)->closed);
+      break;
+      
+    case OBJ_FUNC: {
+      kufunc *fn = (kufunc*)o;
+      ku_markobj(vm, (kuobj*)fn->name);
+      ku_markarray(vm, &fn->chunk.constants);
+      break;
+    }
+    case OBJ_CLOSURE: {
+      kuclosure *cl = (kuclosure*)o;
+      ku_markobj(vm, (kuobj*)cl->func);
+      for (int i = 0; i < cl->upcount; i++) {
+        ku_markobj(vm, (kuobj*)cl->upvals[i]);
+      }
+      break;
+    }
+  }
+}
+
+static void ku_tracerefs(kuvm *vm) {
+  while (vm->gccount > 0) {
+    kuobj *o = vm->gcstack[--vm->gccount];
+    ku_traceobj(vm, o);
+  }
+}
+
+static void ku_markobj(kuvm *vm, kuobj *o) {
+  if (o == NULL) {
+    return;
+  }
+  
+  if (o->marked) return;
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "%p mark ", (void*) o);
+    ku_print_val(vm, OBJ_VAL(o));
+    ku_printf(vm, "\n");
+  }
+  
+  o->marked = true;
+  
+  if (vm->gccap < vm->gccount + 1) {
+    vm->gccap = CAPACITY_GROW(vm->gccap);
+    vm->gcstack = (kuobj**)realloc(vm->gcstack, sizeof(kuobj*)*vm->gccap);
+    
+    assert (vm->gcstack != NULL);
+  }
+  vm->gcstack[vm->gccount++] = o;
+}
+
+static void ku_markval(kuvm *vm, kuval v) {
+  if (IS_OBJ(v)) {
+    ku_markobj(vm, AS_OBJ(v));
+  }
+}
+
+static void ku_marktable(kuvm *vm, kutable *tab) {
+  for (int i = 0; i < tab->capacity; i++) {
+    kuentry *e = &tab->entries[i];
+    ku_markobj(vm, (kuobj*)e->key);
+    ku_markval(vm, e->value);
+  }
+}
+
+static void ku_markcomproots(kuvm *vm) {
+  kucompiler *comp = vm->compiler;
+  while (comp != NULL) {
+    ku_markobj(vm, (kuobj*)comp->function);
+    comp = comp->enclosing;
+  }
+}
+
+static void ku_markroots(kuvm *vm) {
+  for (kuval *pv = vm->stack; pv < vm->sp; pv++) {
+    ku_markval(vm, *pv);
+  }
+  
+  for (int i = 0; i < vm->framecount; i++) {
+    ku_markobj(vm, (kuobj*)vm->frames[i].closure);
+  }
+  
+  for (kuupobj *uo = vm->openupvals; uo != NULL; uo = uo->next) {
+    ku_markobj(vm, (kuobj*)uo);
+  }
+  
+  ku_marktable(vm, &vm->globals);
+  ku_markcomproots(vm);
+}
+
+void ku_sweep(kuvm *vm) {
+  kuobj *prev = NULL;
+  kuobj *obj = vm->objects;
+  
+  while (obj != NULL) {
+    if (obj->marked) {
+      obj->marked = false;
+      prev = obj;
+      obj = obj->next;
+    } else {
+      kuobj *unreached = obj;
+      obj = obj->next;
+      if (prev != NULL) {
+        prev->next = obj;
+      } else {
+        vm->objects = obj;
+      }
+      ku_obj_free(vm, unreached);
+    }
+  }
+}
+
+static void ku_freeweak(kuvm *vm, kutable *table) {
+  for (int i = 0; i < table->capacity; i++) {
+    kuentry *e = &table->entries[i];
+    if (e->key != NULL && !e->key->obj.marked) {
+      ku_table_del(vm, table, e->key);
+    }
+  }
+}
+
+void ku_gc(kuvm *vm) {
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "-- gc start\n");
+  }
+
+  ku_markroots(vm);
+  ku_tracerefs(vm);
+  ku_freeweak(vm, &vm->strings);
+  ku_sweep(vm);
+  
+  if (vm->flags & KVM_F_GCLOG) {
+    ku_printf(vm, "-- gc end\n");
+  }
 }
