@@ -141,7 +141,6 @@ char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
 // OP codes
 // ------------------------------------------------------------
 typedef enum {
-  OP_NOP,
   OP_CALL,
   OP_CLOSURE,
   OP_CLOSE_UPVAL,

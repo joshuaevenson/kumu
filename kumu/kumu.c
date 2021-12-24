@@ -1090,6 +1090,11 @@ void ku_print_mem(kuvm *vm) {
 static void ku_free_objects(kuvm* vm) {
   kuobj* obj = vm->objects;
   while (obj != NULL) {
+    if (vm->flags & KVM_F_GCLOG) {
+      ku_printf(vm, "%p dangling ", (void*)obj);
+      ku_print_val(vm, OBJ_VAL(obj));
+      ku_printf(vm, "\n");
+    }
     kuobj* next = (kuobj*)obj->next;
     ku_obj_free(vm, obj);
     obj = next;
@@ -1235,8 +1240,6 @@ kures ku_run(kuvm *vm) {
 
 
     switch(op = BYTE_READ(vm)) {
-      case OP_NOP:
-        break;
       case OP_CALL: {
         int argc = BYTE_READ(vm);
         if (!ku_callvalue(vm, ku_peek_stack(vm, argc), argc)) {
@@ -1247,7 +1250,9 @@ kures ku_run(kuvm *vm) {
       }
       case OP_CLOSURE: {
         kufunc *fn = AS_FUNC(CONST_READ(vm));
+        ku_push(vm, OBJ_VAL(fn));  // for GC
         kuclosure *cl = ku_closure_new(vm, fn);
+        ku_pop(vm);
         ku_push(vm, OBJ_VAL(cl));
         for (int i = 0; i < cl->upcount; i++) {
           uint8_t local = BYTE_READ(vm);
@@ -1478,6 +1483,10 @@ char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
   }
   
   if (vm->allocated > vm->gcnext) {
+    if (vm->flags & KVM_F_GCLOG) {
+      ku_printf(vm, "%zu allocated %zu next -> gc()\n",
+                vm->allocated, vm->gcnext);
+    }
     ku_gc(vm);
   }
   
@@ -1562,7 +1571,7 @@ void ku_print_val(kuvm *vm, kuval value) {
       break;
     case VAL_NIL:
       ku_printf(vm, "nil");
-      break;;
+      break;
     case VAL_NUM:
       ku_printf(vm, "%g", value.as.dval);
       break;
@@ -1622,7 +1631,6 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
   }
   uint8_t op = chunk->code[offset];
   switch (op) {
-    case OP_NOP: return ku_print_simple_op(vm, "OP_NOP", offset);
     case OP_RET: return ku_print_simple_op(vm, "OP_RET", offset);
     case OP_NEG: return ku_print_simple_op(vm, "OP_NEG", offset);
     case OP_ADD: return ku_print_simple_op(vm, "OP_ADD", offset);
@@ -1983,12 +1991,18 @@ void ku_reglibs(kuvm *vm) {
 // Closures
 // ------------------------------------------------------------
 kuclosure *ku_closure_new(kuvm *vm, kufunc *f) {
+  ku_push(vm, OBJ_VAL(f)); // for GC
   kuclosure *cl = KALLOC_OBJ(vm, kuclosure, OBJ_CLOSURE);
+  cl->func = f;
+  cl->upcount = 0;  // for GC
+  cl->upvals = NULL; // for GC
+  ku_push(vm, OBJ_VAL(cl));
   kuupobj **upvals = KALLOC(vm, kuupobj*, f->upcount);
+  ku_pop(vm);
+  ku_pop(vm);
   for (int i = 0; i < f->upcount; i++) {
     upvals[i] = NULL;
   }
-  cl->func = f;
   cl->upvals = upvals;
   cl->upcount = f->upcount;
   return cl;

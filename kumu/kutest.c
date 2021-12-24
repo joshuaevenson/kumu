@@ -280,6 +280,11 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
+  v = ku_test_eval(vm, "1==false");
+  EXPECT_VAL(vm, v, BOOL_VAL(false), "== mismatch types");
+  ku_free(vm);
+
+  vm = kut_new();
   v = ku_test_eval(vm, "1==2");
   EXPECT_VAL(vm, v, BOOL_VAL(false), "== false");
   ku_free(vm);
@@ -629,6 +634,42 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(25), "closure4 val");
   ku_free(vm);
 
-  
+  vm = kut_new();
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  res = ku_exec(vm, "var x = \"hello\"; x=nil;");
+  ku_gc(vm);
+  EXPECT_INT(vm, res, KVM_OK, "gc res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "gc val");
+  ku_free(vm);
+
+  vm = kut_new();
+  ku_reglibs(vm);
+  res = ku_exec(vm, "printf(nil);");
+  EXPECT_INT(vm, res, KVM_OK, "print nil");
+  ku_free(vm);
+
+
+  vm = kut_new();
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  res = ku_exec(vm, "fun M(x) { var m = x; fun e() { return m*m; } return e; }\n var z = M(5); var x = z(); x = nil;");
+  ku_gc(vm);
+  EXPECT_INT(vm, res, KVM_OK, "gc closure res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "gc closure val");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG;
+  res = ku_exec(vm, "fun M(x) { var m = x; var mm=x*2; fun e(n) { return m*n*mm; } return e; }\n var z = M(5); var x = z(3); x = nil;");
+  EXPECT_INT(vm, res, KVM_OK, "gc closure2 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "gc closure2 val");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x = \"hello \" + \"world\";");
+  int sc = vm->strings.count;
+  res = ku_exec(vm, "var y = \"hello\" + \" world\";");
+  EXPECT_INT(vm, vm->strings.count, sc, "string intern");
+  ku_free(vm);
+
   ku_test_summary();
 }
