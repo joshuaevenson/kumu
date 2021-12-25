@@ -732,5 +732,12 @@ void ku_test() {
   res = ku_exec(vm, "var x=1; var y=x*2;");
   EXPECT_INT(vm, res, KVM_OK, "tracing and printing");
   ku_free(vm);
+  
+  vm = kut_new();
+  ku_reglibs(vm);
+  res = ku_exec(vm, "class Foo {}\nprintf(Foo);");
+  EXPECT_INT(vm, res, KVM_OK, "class decl");
+  ku_free(vm);
+
   ku_test_summary();
 }

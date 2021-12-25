@@ -87,6 +87,11 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       break;
     }
       
+    case OBJ_CLASS: {
+      FREE(vm, kuclass, obj);
+      break;
+    }
+      
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
@@ -544,24 +549,20 @@ void ku_lex_print_all(kuvm *vm) {
 // Parser
 // ------------------------------------------------------------
 static void ku_parse_err_at(kuvm *vm, kutok *tok, const char *msg) {
-  char out[1024];
-  char buff[1024];
-
   if (vm->parser.panic) return;
   vm->parser.panic = true;
   
-  sprintf(out, "[line %d] error", tok->line);
+  ku_printf(vm, "[line %d] error", tok->line);
   
   if (tok->type == TOK_EOF) {
-    sprintf(buff, "%s at end ", out);
+    ku_printf(vm, " at end ");
   } else if (tok->type == TOK_ERR) {
     // nothing
   } else {
-    sprintf(buff, "%s at '%.*s'", out, tok->len, tok->start);
+    ku_printf(vm, " at '%.*s'",  tok->len, tok->start);
   }
   
-  strcat(buff, msg);
-  strcat(buff, "\n");
+  ku_printf(vm, "%s\n", msg);
   vm->parser.err = true;
 }
 
@@ -824,7 +825,7 @@ static uint8_t ku_parse_identifier_const(kuvm* vm, kutok* name) {
 
 static uint8_t ku_parse_var(kuvm* vm, const char* msg) {
   ku_parse_consume(vm, TOK_IDENT, msg);
-  ku_vardecl(vm);
+  ku_declare_var(vm);
   if (vm->compiler->depth > 0) {
     return 0;
   }
@@ -886,13 +887,24 @@ static void ku_func_decl(kuvm *vm) {
   ku_parse_var_def(vm, global);
 }
 
+static void ku_classdecl(kuvm *vm) {
+  ku_parse_consume(vm, TOK_IDENT, "class name expected");
+  uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
+  ku_declare_var(vm);
+  ku_parse_emit_bytes(vm, OP_CLASS, name);
+  ku_parse_var_def(vm, name);
+  ku_parse_consume(vm, TOK_LBRACE, "'{' expected");
+  ku_parse_consume(vm, TOK_RBRACE, "'}' expected");
+}
+
 static void ku_parse_declaration(kuvm* vm) {
-  if (ku_parse_match(vm, TOK_FUN)) {
+  if (ku_parse_match(vm, TOK_CLASS)) {
+    ku_classdecl(vm);
+  } else if (ku_parse_match(vm, TOK_FUN)) {
     ku_func_decl(vm);
   } else if (ku_parse_match(vm, TOK_VAR)) {
     ku_parse_var_decl(vm);
-  }
-  else {
+  } else {
     ku_parse_statement(vm);
   }
   if (vm->parser.panic) {
@@ -1248,6 +1260,11 @@ kures ku_run(kuvm *vm) {
         frame = &vm->frames[vm->framecount - 1];
         break;
       }
+        
+      case OP_CLASS: {
+        ku_push(vm, OBJ_VAL(ku_class_new(vm, READ_STRING(vm))));
+        break;
+      }
       case OP_CLOSURE: {
         kufunc *fn = AS_FUNC(CONST_READ(vm));
         ku_push(vm, OBJ_VAL(fn));  // for GC
@@ -1557,7 +1574,9 @@ static void ku_print_obj(kuvm* vm, kuval val) {
   case OBJ_STR:
     ku_printf(vm, "%s", AS_CSTR(val));
     break;
-  
+    case OBJ_CLASS:
+      ku_printf(vm, "%s", AS_CLASS(val)->name->chars);
+      break;
     case OBJ_UPVAL:
       ku_printf(vm, "upvalue");
       break;
@@ -1645,6 +1664,7 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_EQ: return ku_print_simple_op(vm, "OP_EQ", offset);
     case OP_PRINT: return ku_print_simple_op(vm, "OP_PRINT", offset);
     case OP_POP: return ku_print_simple_op(vm, "OP_POP", offset);
+    case OP_CLASS: return ku_print_const(vm, "OP_CLASS", chunk, offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
     case OP_DEF_GLOBAL:
@@ -1743,7 +1763,7 @@ void ku_endscope(kuvm *vm) {
     }
 }
 
-void ku_vardecl(kuvm *vm) {
+void ku_declare_var(kuvm *vm) {
   if (vm->compiler->depth == 0) {
     return;
   }
@@ -2055,6 +2075,13 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
       ku_markarray(vm, &fn->chunk.constants);
       break;
     }
+      
+    case OBJ_CLASS: {
+      kuclass *c = (kuclass*)o;
+      ku_markobj(vm, (kuobj*)c->name);
+      break;
+    }
+      
     case OBJ_CLOSURE: {
       kuclosure *cl = (kuclosure*)o;
       ku_markobj(vm, (kuobj*)cl->func);
@@ -2188,4 +2215,14 @@ void ku_gc(kuvm *vm) {
               bytes - vm->allocated, bytes, vm->allocated, vm->gcnext);
   }
 }
+
+// ------------------------------------------------------------
+// Classes
+// ------------------------------------------------------------
+kuclass *ku_class_new(kuvm *vm, kustr *name) {
+  kuclass *c = KALLOC_OBJ(vm, kuclass, OBJ_CLASS);
+  c->name = name;
+  return c;
+}
+
 

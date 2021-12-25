@@ -2,13 +2,13 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
+// [ ] repl syntax errors not showing
 // [ ] printf(format, ...)
 // [ ] KVM_F_LIST list all code
 // [ ] ku_save(), ku_load()
 // [ ] ku_suspend(), ku_resume()
 // [ ] lexer string escape \n, \r, \t, \0, \x
 // [ ] repl readline support
-// [ ] repl syntax errors not showing
 // [ ] vm limits for code coverage
 // [ ] kuobj use type bitmask for marked flag
 // [ ] lexer number sci notation
@@ -53,6 +53,7 @@ typedef enum {
   OBJ_CLOSURE,
   OBJ_STR,
   OBJ_UPVAL,
+  OBJ_CLASS,
 } kuobjtype;
 
 typedef enum {
@@ -106,6 +107,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_FUNC(v) (ku_obj_istype(v, OBJ_FUNC))
 #define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
 #define IS_CLOSURE(v) (ku_obj_istype(v, OBJ_CLOSURE))
+#define IS_CLASS(v) (ku_obj_istype(v, OBJ_CLASS))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -115,6 +117,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define AS_FUNC(v) ((kufunc*)AS_OBJ(v))
 #define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
 #define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
+#define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -143,6 +146,7 @@ char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
 // ------------------------------------------------------------
 typedef enum {
   OP_CALL,
+  OP_CLASS,
   OP_CLOSURE,
   OP_CLOSE_UPVAL,
   OP_CONST,
@@ -266,6 +270,16 @@ void ku_table_copy(kuvm* vm, kutable* from, kutable* to);
 kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_t hash);
 
 // ------------------------------------------------------------
+// Classes
+// ------------------------------------------------------------
+typedef struct {
+  kuobj obj;
+  kustr *name;
+} kuclass;
+
+kuclass *ku_class_new(kuvm *vm, kustr *name);
+
+// ------------------------------------------------------------
 // Scanner
 // ------------------------------------------------------------
 typedef enum {
@@ -328,7 +342,7 @@ void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type);
 void ku_block(kuvm *vm);
 void ku_beginscope(kuvm *vm);
 void ku_endscope(kuvm *vm);
-void ku_vardecl(kuvm *vm);
+void ku_declare_var(kuvm *vm);
 void ku_addlocal(kuvm *vm, kutok name);
 bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
 int ku_resolvelocal(kuvm *vm, kucompiler *compiler, kutok *name);
