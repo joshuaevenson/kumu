@@ -741,9 +741,29 @@ void ku_test() {
 
   vm = kut_new();
   ku_reglibs(vm);
-  vm->flags = 0;
   res = ku_exec(vm, "class Foo {}\nvar f = Foo(); printf(f);");
   EXPECT_INT(vm, res, KVM_OK, "class cons");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var c = 7; c.p = 9;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-instance setprop");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var c = 7; var x = c.p;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-instance getprop");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class C{}\nvar c=C(); c.p=9; var x=c.p;");
+  EXPECT_INT(vm, res, KVM_OK, "set/get prop res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "set/get prop ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class C{}\nvar c=C(); c.p=9; var x=c.z;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "set/get prop not found");
   ku_free(vm);
 
   ku_test_summary();

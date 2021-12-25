@@ -1002,6 +1002,16 @@ static void ku_parse_binary(kuvm *vm, bool lhs) {
     default: return;
   }
 }
+static void ku_parse_dot(kuvm *vm, bool lhs) {
+  ku_parse_consume(vm, TOK_IDENT, "property name expected");
+  uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
+  if (lhs && ku_parse_match(vm, TOK_EQ)) {
+    ku_parse_expression(vm);
+    ku_parse_emit_bytes(vm, OP_SET_PROP, name);
+  } else {
+    ku_parse_emit_bytes(vm, OP_GET_PROP, name);
+  }
+}
 
 ku_parse_rule rules[] = {
   [TOK_LPAR] =      { ku_parse_grouping,   ku_call,     P_CALL },
@@ -1009,7 +1019,7 @@ ku_parse_rule rules[] = {
   [TOK_LBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_RBRACE] =    { NULL,        NULL,     P_NONE },
   [TOK_COMMA] =     { NULL,        NULL,     P_NONE },
-  [TOK_DOT] =       { NULL,        NULL,     P_NONE },
+  [TOK_DOT] =       { NULL,        ku_parse_dot,     P_CALL },
   [TOK_MINUS] =     { ku_parse_unary,      ku_parse_binary,  P_TERM },
   [TOK_PLUS] =      { NULL,        ku_parse_binary,  P_TERM },
   [TOK_SEMI] =      { NULL,        NULL,     P_NONE },
@@ -1407,6 +1417,36 @@ kures ku_run(kuvm *vm) {
         break;
       }
         
+      case OP_GET_PROP: {
+        if (!IS_INSTANCE(ku_peek_stack(vm, 0))) {
+          ku_err(vm, "instance expected");
+          return KVM_ERR_RUNTIME;
+        }
+        kuinstance *i = AS_INSTANCE(ku_peek_stack(vm, 0));
+        kustr *name = READ_STRING(vm);
+        kuval val;
+        if (ku_table_get(vm, &i->fields, name, &val)) {
+          ku_pop(vm); // pop instance
+          ku_push(vm, val);
+          break;
+        }
+        ku_err(vm, "undefined property %s", name->chars);
+        return KVM_ERR_RUNTIME;
+      }
+        
+      case OP_SET_PROP: {
+        if (!IS_INSTANCE(ku_peek_stack(vm, 1))) {
+          ku_err(vm, "instance expected");
+          return KVM_ERR_RUNTIME;
+        }
+        kuinstance *i = AS_INSTANCE(ku_peek_stack(vm, 1));
+        ku_table_set(vm, &i->fields, READ_STRING(vm), ku_peek_stack(vm, 0));
+        kuval val = ku_pop(vm);
+        ku_pop(vm); // instance
+        ku_push(vm, val);
+        break;
+      }
+        
       case OP_ADD: {
         if (IS_STR(ku_peek_stack(vm, 0)) && IS_STR(ku_peek_stack(vm, 1))) {
           ku_str_cat(vm);
@@ -1695,6 +1735,10 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_byte_op(vm, "OP_SET_LOCAL", chunk, offset);
     case OP_GET_UPVAL:
       return ku_print_byte_op(vm, "OP_GET_UPVAL", chunk, offset);
+    case OP_SET_PROP:
+      return ku_print_byte_op(vm, "OP_SET_PROP", chunk, offset);
+    case OP_GET_PROP:
+      return ku_print_byte_op(vm, "OP_GET_PROP", chunk, offset);
     case OP_SET_UPVAL:
       return ku_print_byte_op(vm, "OP_SET_UPVAL", chunk, offset);
     case OP_JUMP:
