@@ -54,6 +54,7 @@ typedef enum {
   OBJ_STR,
   OBJ_UPVAL,
   OBJ_CLASS,
+  OBJ_INSTANCE,
 } kuobjtype;
 
 typedef enum {
@@ -108,6 +109,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
 #define IS_CLOSURE(v) (ku_obj_istype(v, OBJ_CLOSURE))
 #define IS_CLASS(v) (ku_obj_istype(v, OBJ_CLASS))
+#define IS_INSTANCE(v) (ku_obj_istype(v, OBJ_INSTANCE))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -118,6 +120,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
 #define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
 #define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
+#define AS_INSTANCE(v) ((kuinstance*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -278,6 +281,17 @@ typedef struct {
 } kuclass;
 
 kuclass *ku_class_new(kuvm *vm, kustr *name);
+
+// ------------------------------------------------------------
+// Instances
+// ------------------------------------------------------------
+typedef struct {
+  kuobj obj;
+  kuclass *klass;
+  kutable fields;
+} kuinstance;
+
+kuinstance *ku_instance_new(kuvm *vm, kuclass *klass);
 
 // ------------------------------------------------------------
 // Scanner

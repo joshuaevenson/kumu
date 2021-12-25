@@ -92,6 +92,13 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       break;
     }
       
+    case OBJ_INSTANCE: {
+      kuinstance *i = (kuinstance*)obj;
+      ku_table_free(vm, &i->fields);
+      FREE(vm, kuinstance, obj);
+      break;
+    }
+      
   case OBJ_STR: {
     kustr* str = (kustr*)obj;
     ARRAY_FREE(vm, char, str->chars, str->len + 1);
@@ -1190,6 +1197,12 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
       }
       case OBJ_CLOSURE:
         return ku_docall(vm, AS_CLOSURE(callee), argc);
+      case OBJ_CLASS: {
+        kuclass *c = AS_CLASS(callee);
+        vm->sp[-argc - 1] = OBJ_VAL(ku_instance_new(vm, c));
+        return true;
+      }
+        
       case OBJ_FUNC: // not allowed anymore
       default:
         break;
@@ -1577,6 +1590,9 @@ static void ku_print_obj(kuvm* vm, kuval val) {
     case OBJ_CLASS:
       ku_printf(vm, "%s", AS_CLASS(val)->name->chars);
       break;
+    case OBJ_INSTANCE:
+      ku_printf(vm, "%s instance", AS_INSTANCE(val)->klass->name->chars);
+      break;    
     case OBJ_UPVAL:
       ku_printf(vm, "upvalue");
       break;
@@ -2045,6 +2061,7 @@ kuupobj *ku_upobj_new(kuvm *vm, kuval *slot) {
 // ------------------------------------------------------------
 static void ku_markval(kuvm *vm, kuval v);
 static void ku_markobj(kuvm *vm, kuobj *o);
+static void ku_marktable(kuvm *vm, kutable *tab);
 
 static void ku_markarray(kuvm *vm, kuarr *array) {
   for (int i = 0; i < array->count; i++) {
@@ -2079,6 +2096,13 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_CLASS: {
       kuclass *c = (kuclass*)o;
       ku_markobj(vm, (kuobj*)c->name);
+      break;
+    }
+      
+    case OBJ_INSTANCE: {
+      kuinstance *i = (kuinstance*)o;
+      ku_markobj(vm, (kuobj*)i->klass);
+      ku_marktable(vm, &i->fields);
       break;
     }
       
@@ -2223,6 +2247,16 @@ kuclass *ku_class_new(kuvm *vm, kustr *name) {
   kuclass *c = KALLOC_OBJ(vm, kuclass, OBJ_CLASS);
   c->name = name;
   return c;
+}
+
+// ------------------------------------------------------------
+// Instances
+// ------------------------------------------------------------
+kuinstance *ku_instance_new(kuvm *vm, kuclass *klass) {
+  kuinstance *i = KALLOC_OBJ(vm, kuinstance, OBJ_INSTANCE);
+  i->klass = klass;
+  ku_table_init(vm, &i->fields);
+  return i;
 }
 
 

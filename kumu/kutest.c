@@ -739,5 +739,12 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_OK, "class decl");
   ku_free(vm);
 
+  vm = kut_new();
+  ku_reglibs(vm);
+  vm->flags = 0;
+  res = ku_exec(vm, "class Foo {}\nvar f = Foo(); printf(f);");
+  EXPECT_INT(vm, res, KVM_OK, "class cons");
+  ku_free(vm);
+
   ku_test_summary();
 }
