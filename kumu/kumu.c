@@ -925,6 +925,13 @@ static void ku_method(kuvm *vm) {
 static void ku_named_var(kuvm* vm, kutok name, bool lhs);
 static void ku_parse_variable(kuvm* vm, bool lhs);
 
+static kutok ku_maketok(kuvm *vm, const char *text) {
+  kutok tok;
+  tok.start = text;
+  tok.len = (int)strlen(text);
+  return tok;
+}
+
 static void ku_classdecl(kuvm *vm) {
   ku_parse_consume(vm, TOK_IDENT, "class name expected");
   kutok cname = vm->parser.prev;
@@ -934,6 +941,7 @@ static void ku_classdecl(kuvm *vm) {
   ku_parse_var_def(vm, name);
   kuclasscompiler cc;
   cc.enclosing = vm->curclass;
+  cc.hassuper = false;
   vm->curclass = &cc;
   
   if (ku_parse_match(vm, TOK_LT)) {
@@ -943,7 +951,13 @@ static void ku_classdecl(kuvm *vm) {
     if (ku_identeq(vm, &cname, &vm->parser.prev)) {
       ku_parse_err(vm, "cannot inherit from self");
     }
+    
+    ku_beginscope(vm);
+    ku_addlocal(vm, ku_maketok(vm, "super"));
+    ku_parse_var_def(vm, 0);
+    
     ku_named_var(vm, cname, false);
+    cc.hassuper = true;
     ku_emitbyte(vm, OP_INHERIT);
   }
   
@@ -954,6 +968,10 @@ static void ku_classdecl(kuvm *vm) {
   }
   ku_parse_consume(vm, TOK_RBRACE, "'}' expected");
   ku_emitbyte(vm, OP_POP);
+  
+  if (cc.hassuper) {
+    ku_endscope(vm);
+  }
   vm->curclass = vm->curclass->enclosing;
 }
 
@@ -1044,6 +1062,20 @@ static void ku_parse_this(kuvm *vm, bool lhs) {
   ku_parse_variable(vm, false);
 }
 
+static void ku_parse_super(kuvm *vm, bool lhs) {
+  if (vm->curclass == NULL) {
+    ku_parse_err(vm, "'super' must be used inside a class");
+  } else if (!vm->curclass->hassuper) {
+    ku_parse_err(vm, "cannot use super in a class with no superclass");
+  }
+  ku_parse_consume(vm, TOK_DOT, "'.' expected after super");
+  ku_parse_consume(vm, TOK_IDENT, "superclass method expected");
+  uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
+  ku_named_var(vm, ku_maketok(vm, "this"), false);
+  ku_named_var(vm, ku_maketok(vm, "super"), false);
+  ku_emitbytes(vm, OP_GET_SUPER, name);
+}
+
 static void ku_parse_binary(kuvm *vm, bool lhs) {
   kutoktype optype = vm->parser.prev.type;
   ku_parse_rule *rule = ku_parse_get_rule(vm, optype);
@@ -1111,7 +1143,7 @@ ku_parse_rule rules[] = {
   [TOK_NIL] =       { ku_parse_literal,    NULL,     P_NONE },
   [TOK_OR] =        { NULL,        ku_parse_or,     P_OR },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
-  [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
+  [TOK_SUPER] =     { ku_parse_super,        NULL,     P_NONE },
   [TOK_THIS] =      { ku_parse_this,        NULL,     P_NONE },
   [TOK_TRUE] =      { ku_parse_literal,    NULL,     P_NONE },
   [TOK_VAR] =       { NULL,        NULL,     P_NONE },
@@ -1605,6 +1637,14 @@ kures ku_run(kuvm *vm) {
         break;
       }
         
+      case OP_GET_SUPER: {
+        kustr *name = READ_STRING(vm);
+        kuclass *superclass = AS_CLASS(ku_pop(vm));
+        if (!ku_bindmethod(vm, superclass, name)) {
+          return KVM_ERR_RUNTIME;
+        }
+        break;
+      }
       case OP_ADD: {
         if (IS_STR(ku_peek(vm, 0)) && IS_STR(ku_peek(vm, 1))) {
           ku_str_cat(vm);
@@ -1914,6 +1954,8 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_print_byte_op(vm, "OP_GET_PROP", chunk, offset);
     case OP_SET_UPVAL:
       return ku_print_byte_op(vm, "OP_SET_UPVAL", chunk, offset);
+    case OP_GET_SUPER:
+      return ku_print_const(vm, "OP_GET_SUPER", chunk, offset);
     case OP_JUMP:
       return ku_print_jump_op(vm, "OP_JUMP", 1, chunk, offset);
     case OP_JUMP_IF_FALSE:

@@ -820,5 +820,21 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "class bad inherit run res");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var x = super.foo();");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "global super res");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A { f() { var x = super.foo(); } }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "no superclass super res");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=0; class A { f() { x=2; } }\nclass B < A {}\nvar b=B(); b.f();");
+  EXPECT_INT(vm, res, KVM_OK, "super res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "super ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

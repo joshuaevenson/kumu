@@ -183,6 +183,7 @@ typedef enum {
   OP_SET_UPVAL,
   OP_GET_PROP,
   OP_SET_PROP,
+  OP_GET_SUPER,
   OP_LT,
   OP_EQ,
   OP_JUMP_IF_FALSE,
@@ -424,6 +425,7 @@ typedef struct {
 // ------------------------------------------------------------
 typedef struct kuclasscompiler {
   struct kuclasscompiler *enclosing;
+  bool hassuper;
 } kuclasscompiler;
 
 // ------------------------------------------------------------
