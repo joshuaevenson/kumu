@@ -805,5 +805,20 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(8), "field invoke ret");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "class A < A {}");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "class ownsubclass res");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A < 12 {}");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "class bad inherit static res");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var B = 9; class A < B {}");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "class bad inherit run res");
+  ku_free(vm);
+
   ku_test_summary();
 }

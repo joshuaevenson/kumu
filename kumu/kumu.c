@@ -923,6 +923,7 @@ static void ku_method(kuvm *vm) {
 }
 
 static void ku_named_var(kuvm* vm, kutok name, bool lhs);
+static void ku_parse_variable(kuvm* vm, bool lhs);
 
 static void ku_classdecl(kuvm *vm) {
   ku_parse_consume(vm, TOK_IDENT, "class name expected");
@@ -934,6 +935,17 @@ static void ku_classdecl(kuvm *vm) {
   kuclasscompiler cc;
   cc.enclosing = vm->curclass;
   vm->curclass = &cc;
+  
+  if (ku_parse_match(vm, TOK_LT)) {
+    ku_parse_consume(vm, TOK_IDENT, "class name expected");
+    ku_parse_variable(vm, false);
+    
+    if (ku_identeq(vm, &cname, &vm->parser.prev)) {
+      ku_parse_err(vm, "cannot inherit from self");
+    }
+    ku_named_var(vm, cname, false);
+    ku_emitbyte(vm, OP_INHERIT);
+  }
   
   ku_named_var(vm, cname, false);
   ku_parse_consume(vm, TOK_LBRACE, "'{' expected");
@@ -1419,6 +1431,18 @@ kures ku_run(kuvm *vm) {
         frame = &vm->frames[vm->framecount - 1];
         break;
       }
+        
+      case OP_INHERIT: {
+        kuval superclass = ku_peek(vm, 1);
+        if (!IS_CLASS(superclass)) {
+          ku_err(vm, "superclass must be a class");
+          return KVM_ERR_RUNTIME;
+        }
+        kuclass *subclass = AS_CLASS(ku_peek(vm, 0));
+        ku_table_copy(vm, &AS_CLASS(superclass)->methods, &subclass->methods);
+        ku_pop(vm); // subclass
+        break;
+      }
       case OP_CLOSURE: {
         kufunc *fn = AS_FUNC(CONST_READ(vm));
         ku_push(vm, OBJ_VAL(fn));  // for GC
@@ -1869,6 +1893,7 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_CLASS: return ku_print_const(vm, "OP_CLASS", chunk, offset);
     case OP_METHOD: return ku_print_const(vm, "OP_METHOD", chunk, offset);
     case OP_INVOKE: return ku_print_invoke(vm, "OP_INVOKE", chunk, offset);
+    case OP_INHERIT: return ku_print_simple_op(vm, "OP_INHERIT", offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
     case OP_DEF_GLOBAL:

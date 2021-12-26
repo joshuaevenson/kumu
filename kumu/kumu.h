@@ -2,7 +2,6 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
-// [ ] repl syntax errors not showing
 // [ ] printf(format, ...)
 // [ ] KVM_F_LIST list all code
 // [ ] ku_save(), ku_load()
@@ -14,6 +13,7 @@
 // [ ] lexer number sci notation
 // [ ] lexer hex notation
 // [ ] arrays
+// [ ] error code enum, #ifdef for string literals
 // ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
@@ -166,6 +166,7 @@ typedef enum {
   OP_MUL,
   OP_DIV,
   OP_INVOKE,
+  OP_INHERIT,
   OP_NOT,
   OP_NIL,
   OP_PRINT,
