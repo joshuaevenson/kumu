@@ -1057,6 +1057,10 @@ static void ku_parse_dot(kuvm *vm, bool lhs) {
   if (lhs && ku_parse_match(vm, TOK_EQ)) {
     ku_parse_expression(vm);
     ku_emitbytes(vm, OP_SET_PROP, name);
+  } else if (ku_parse_match(vm, TOK_LPAR)) {
+    uint8_t argc = ku_arglist(vm);
+    ku_emitbytes(vm, OP_INVOKE, name);
+    ku_emitbyte(vm, argc);
   } else {
     ku_emitbytes(vm, OP_GET_PROP, name);
   }
@@ -1347,6 +1351,33 @@ static bool ku_bindmethod(kuvm *vm, kuclass *klass, kustr *name) {
   return true;
 }
 
+static bool ku_class_invoke(kuvm *vm, kuclass *klass, kustr *name, int argc) {
+  kuval method;
+  if (!ku_table_get(vm, &klass->methods, name, &method)) {
+    ku_err(vm, "undefined property '%s'", name->chars);
+    return false;
+  }
+  return ku_docall(vm, AS_CLOSURE(method), argc);
+}
+
+static bool ku_invoke(kuvm *vm, kustr *name, int argc) {
+  kuval receiver = ku_peek(vm, argc);
+  
+  if (!IS_INSTANCE(receiver)) {
+    ku_err(vm, "instance expected");
+    return false;
+  }
+  kuinstance *inst = AS_INSTANCE(receiver);
+  
+  kuval val;
+  if (ku_table_get(vm, &inst->fields, name, &val)) {
+    vm->sp[-argc - 1] = val;
+    return ku_callvalue(vm, val, argc);
+  }
+  
+  return ku_class_invoke(vm, inst->klass, name, argc);
+}
+
 kures ku_run(kuvm *vm) {
   kuframe *frame = &vm->frames[vm->framecount - 1];
   
@@ -1377,6 +1408,15 @@ kures ku_run(kuvm *vm) {
         
       case OP_METHOD: {
         ku_defmethod(vm, READ_STRING(vm));
+        break;
+      }
+      case OP_INVOKE: {
+        kustr *method = READ_STRING(vm);
+        int argc = BYTE_READ(vm);
+        if (!ku_invoke(vm, method, argc)) {
+          return KVM_ERR_RUNTIME;
+        }
+        frame = &vm->frames[vm->framecount - 1];
         break;
       }
       case OP_CLOSURE: {
@@ -1793,6 +1833,15 @@ static int ku_print_const(kuvm *vm, const char *name, kuchunk *chunk, int offset
   return offset+2;
 }
 
+static int ku_print_invoke(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
+  uint8_t cons = chunk->code[offset + 1];
+  uint8_t argc = chunk->code[offset + 2];
+  ku_printf(vm, "%-16s (%d args) %4d'", name, argc, cons);
+  ku_print_val(vm, chunk->constants.values[cons]);
+  ku_printf(vm, "'\n");
+  return offset + 3;
+}
+
 int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
   ku_printf(vm, "%04d ", offset);
 
@@ -1819,6 +1868,7 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_POP: return ku_print_simple_op(vm, "OP_POP", offset);
     case OP_CLASS: return ku_print_const(vm, "OP_CLASS", chunk, offset);
     case OP_METHOD: return ku_print_const(vm, "OP_METHOD", chunk, offset);
+    case OP_INVOKE: return ku_print_invoke(vm, "OP_INVOKE", chunk, offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
     case OP_DEF_GLOBAL:

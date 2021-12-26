@@ -799,5 +799,11 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "init return res");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var x=1; class C { init() { fun f() { x=8; } this.f = f; } }\nvar c = C(); c.f();");
+  EXPECT_INT(vm, res, KVM_OK, "field invoke res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(8), "field invoke ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

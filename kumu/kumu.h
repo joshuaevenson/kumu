@@ -165,6 +165,7 @@ typedef enum {
   OP_METHOD,
   OP_MUL,
   OP_DIV,
+  OP_INVOKE,
   OP_NOT,
   OP_NIL,
   OP_PRINT,
