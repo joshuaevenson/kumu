@@ -767,23 +767,36 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "var x=1; class C{ M() { x=3; } }\nvar c=C(); var m=c.M; m();");
   EXPECT_INT(vm, res, KVM_OK, "bound method res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "bound method ret");
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "var x=1; class C{ M() { this.z=3; } }\nvar c=C(); c.M(); x=c.z;");
   EXPECT_INT(vm, res, KVM_OK, "this res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "this ret");
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "var x = this;");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "global this res");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class C {}\nvar c=C(12,14);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "no init with args");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class C { init(x) { this.x = x; }}\nvar c=C(12);var x = c.x;");
+  EXPECT_INT(vm, res, KVM_OK, "init args res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "init args ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class C { init(x) { this.x = x; return 7; }}\nvar c=C(12);var x = c.x;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "init return res");
   ku_free(vm);
 
   ku_test_summary();

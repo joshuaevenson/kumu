@@ -62,6 +62,7 @@ typedef enum {
   FUNC_STD,
   FUNC_MAIN,
   FUNC_METHOD,
+  FUNC_INIT,
 } kufunctype;
 
 typedef struct kuobj {
@@ -460,6 +461,7 @@ typedef struct _vm {
   kuval stack[STACK_MAX];
   kuval* sp;
 
+  kustr *initstr;
   kuobj* objects;
   kutable strings;
   kutable globals;

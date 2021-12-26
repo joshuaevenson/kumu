@@ -610,13 +610,18 @@ static void ku_emitbyte(kuvm *vm, uint8_t byte) {
   ku_chunk_write(vm, ku_chunk(vm), byte, vm->parser.prev.line);
 }
 
-static void ku_emit_ret(kuvm *vm) {
-  ku_emitbyte(vm, OP_NIL);
+static void ku_emitbytes(kuvm *vm, uint8_t b1, uint8_t b2);
+static void ku_emitret(kuvm *vm) {
+  if (vm->compiler->type == FUNC_INIT) {
+    ku_emitbytes(vm, OP_GET_LOCAL, 0);
+  } else {
+    ku_emitbyte(vm, OP_NIL);
+  }
   ku_emitbyte(vm, OP_RET);
 }
 
 static kufunc *ku_parse_end(kuvm *vm) {
-  ku_emit_ret(vm);
+  ku_emitret(vm);
   kufunc *fn = vm->compiler->function;
   vm->compiler = vm->compiler->enclosing;
   return fn;
@@ -779,8 +784,12 @@ static void ku_return(kuvm *vm) {
   }
   
   if (ku_parse_match(vm, TOK_SEMI)) {
-    ku_emit_ret(vm);
+    ku_emitret(vm);
   } else {
+    
+    if (vm->compiler->type == FUNC_INIT) {
+      ku_err(vm, "cannot return from initializer");
+    }
     ku_parse_expression(vm);
     ku_parse_consume(vm, TOK_SEMI, "';' expected");
     ku_emitbyte(vm, OP_RET);
@@ -905,6 +914,10 @@ static void ku_method(kuvm *vm) {
   ku_parse_consume(vm, TOK_IDENT, "method name expected");
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
   kufunctype type = FUNC_METHOD;
+  
+  if (vm->parser.prev.len == 4 && memcmp(vm->parser.prev.start, "init", 4) == 0) {
+    type = FUNC_INIT;
+  }
   ku_function(vm, type);
   ku_emitbytes(vm, OP_METHOD, name);
 }
@@ -1146,6 +1159,9 @@ kuvm *ku_new(void) {
   ku_table_init(vm, &vm->strings);
   ku_table_init(vm, &vm->globals);
   ku_reset_stack(vm);
+  vm->initstr = NULL; // GC can run when we do str_copy below
+  vm->initstr = ku_str_copy(vm, "init", 4);
+
   return vm;
 }
 
@@ -1168,6 +1184,7 @@ static void ku_free_objects(kuvm* vm) {
 }
 
 void ku_free(kuvm *vm) {
+  vm->initstr = NULL; // free_objects will take care of it
   ku_free_objects(vm);
   ku_table_free(vm, &vm->strings);
   ku_table_free(vm, &vm->globals);
@@ -1246,7 +1263,14 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
         return ku_docall(vm, AS_CLOSURE(callee), argc);
       case OBJ_CLASS: {
         kuclass *c = AS_CLASS(callee);
+        kuval initfn;
         vm->sp[-argc - 1] = OBJ_VAL(ku_instance_new(vm, c));
+        if (ku_table_get(vm, &c->methods, vm->initstr, &initfn)) {
+          return ku_docall(vm, AS_CLOSURE(initfn), argc);
+        } else if (argc != 0) {
+          ku_err(vm, "no args expected got %d", argc);
+          return false;
+        }
         return true;
       }
         
@@ -2358,6 +2382,7 @@ void ku_gc(kuvm *vm) {
   size_t bytes = vm->allocated;
   
   ku_markroots(vm);
+  ku_markobj(vm, (kuobj*)vm->initstr);
   ku_tracerefs(vm);
   ku_freeweak(vm, &vm->strings);
   ku_sweep(vm);
