@@ -904,7 +904,7 @@ static void ku_func_decl(kuvm *vm) {
 static void ku_method(kuvm *vm) {
   ku_parse_consume(vm, TOK_IDENT, "method name expected");
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
-  kufunctype type = FUNC_STD;
+  kufunctype type = FUNC_METHOD;
   ku_function(vm, type);
   ku_emitbytes(vm, OP_METHOD, name);
 }
@@ -918,6 +918,10 @@ static void ku_classdecl(kuvm *vm) {
   ku_declare_var(vm);
   ku_emitbytes(vm, OP_CLASS, name);
   ku_parse_var_def(vm, name);
+  kuclasscompiler cc;
+  cc.enclosing = vm->curclass;
+  vm->curclass = &cc;
+  
   ku_named_var(vm, cname, false);
   ku_parse_consume(vm, TOK_LBRACE, "'{' expected");
   while (!ku_parse_checktype(vm, TOK_RBRACE) && !ku_parse_checktype(vm, TOK_EOF)) {
@@ -925,6 +929,7 @@ static void ku_classdecl(kuvm *vm) {
   }
   ku_parse_consume(vm, TOK_RBRACE, "'}' expected");
   ku_emitbyte(vm, OP_POP);
+  vm->curclass = vm->curclass->enclosing;
 }
 
 static void ku_parse_declaration(kuvm* vm) {
@@ -1006,6 +1011,14 @@ static void ku_parse_variable(kuvm* vm, bool lhs) {
   ku_named_var(vm, vm->parser.prev, lhs);
 }
 
+static void ku_parse_this(kuvm *vm, bool lhs) {
+  if (vm->curclass == NULL) {
+    ku_parse_err(vm, "cannot use this outside a class");
+    return;
+  }
+  ku_parse_variable(vm, false);
+}
+
 static void ku_parse_binary(kuvm *vm, bool lhs) {
   kutoktype optype = vm->parser.prev.type;
   ku_parse_rule *rule = ku_parse_get_rule(vm, optype);
@@ -1070,7 +1083,7 @@ ku_parse_rule rules[] = {
   [TOK_OR] =        { NULL,        ku_parse_or,     P_OR },
   [TOK_PRINT] =     { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =     { NULL,        NULL,     P_NONE },
-  [TOK_THIS] =      { NULL,        NULL,     P_NONE },
+  [TOK_THIS] =      { ku_parse_this,        NULL,     P_NONE },
   [TOK_TRUE] =      { ku_parse_literal,    NULL,     P_NONE },
   [TOK_VAR] =       { NULL,        NULL,     P_NONE },
   [TOK_WHILE] =     { NULL,        NULL,     P_NONE },
@@ -1116,6 +1129,7 @@ kuvm *ku_new(void) {
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
   vm->flags = 0;
+  vm->curclass = NULL;
   vm->gcnext = 1024*1024;
   vm->gccount = 0;
   vm->gccap = 0;
@@ -1238,6 +1252,7 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
         
       case OBJ_BOUND_METHOD: {
         kuboundmethod *bm = AS_BOUND_METHOD(callee);
+        vm->sp[-argc - 1] = bm->receiver;
         return ku_docall(vm, bm->method, argc);
       }
         
@@ -1851,8 +1866,14 @@ void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type) {
   kulocal *local = &vm->compiler->locals[vm->compiler->count++];
   local->depth = 0;
   local->captured = false;
-  local->name.start = "";
-  local->name.len = 0;
+  
+  if (type != FUNC_STD) {
+    local->name.start = "this";
+    local->name.len = 4;
+  } else {
+    local->name.start = "";
+    local->name.len = 0;
+  }
 }
 
 void ku_block(kuvm *vm) {

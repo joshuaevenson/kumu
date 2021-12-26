@@ -773,5 +773,18 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "bound method ret");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "var x=1; class C{ M() { this.z=3; } }\nvar c=C(); c.M(); x=c.z;");
+  EXPECT_INT(vm, res, KVM_OK, "this res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "this ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "var x = this;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "global this res");
+  ku_free(vm);
+
   ku_test_summary();
 }

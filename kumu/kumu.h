@@ -61,6 +61,7 @@ typedef enum {
 typedef enum {
   FUNC_STD,
   FUNC_MAIN,
+  FUNC_METHOD,
 } kufunctype;
 
 typedef struct kuobj {
@@ -416,6 +417,13 @@ typedef struct {
 } kuframe;
 
 // ------------------------------------------------------------
+// Class compiler
+// ------------------------------------------------------------
+typedef struct kuclasscompiler {
+  struct kuclasscompiler *enclosing;
+} kuclasscompiler;
+
+// ------------------------------------------------------------
 // VM
 // ------------------------------------------------------------
 typedef enum {
@@ -445,6 +453,7 @@ typedef struct _vm {
   bool stop;
   size_t allocated;
   size_t gcnext;
+  kuclasscompiler *curclass;
 
   kuframe frames[FRAMES_MAX];
   int framecount;
