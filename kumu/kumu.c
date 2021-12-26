@@ -25,7 +25,7 @@
 
 #define BIN_OP(v, vt, op) \
   do { \
-  if (!IS_NUM(ku_peek_stack(v,0)) || !IS_NUM(ku_peek_stack(v,1))) { \
+  if (!IS_NUM(ku_peek(v,0)) || !IS_NUM(ku_peek(v,1))) { \
     ku_err(v, "numbers expected"); \
     return KVM_ERR_RUNTIME; \
   } \
@@ -88,6 +88,8 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
     }
       
     case OBJ_CLASS: {
+      kuclass *c = (kuclass*)obj;
+      ku_table_free(vm, &c->methods);
       FREE(vm, kuclass, obj);
       break;
     }
@@ -96,6 +98,11 @@ void ku_obj_free(kuvm* vm, kuobj* obj) {
       kuinstance *i = (kuinstance*)obj;
       ku_table_free(vm, &i->fields);
       FREE(vm, kuinstance, obj);
+      break;
+    }
+      
+    case OBJ_BOUND_METHOD: {
+      FREE(vm, kuboundmethod, obj);
       break;
     }
       
@@ -177,11 +184,11 @@ static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
   return ku_str_alloc(vm, buff, len, hash);
 }
 
-kuval ku_peek_stack(kuvm *vm, int distance);
+kuval ku_peek(kuvm *vm, int distance);
 
 static void ku_str_cat(kuvm* vm) {
-  kustr *b = AS_STR(ku_peek_stack(vm,0)); // for GC
-  kustr* a = AS_STR(ku_peek_stack(vm,1)); // for GC
+  kustr *b = AS_STR(ku_peek(vm,0)); // for GC
+  kustr* a = AS_STR(ku_peek(vm,1)); // for GC
   int len = a->len + b->len;
   char* buff = KALLOC(vm, char, len + 1);
   memcpy(buff, a->chars, a->len);
@@ -599,13 +606,13 @@ kuchunk *ku_chunk(kuvm *vm) {
   return &vm->compiler->function->chunk;
 }
 
-static void ku_parse_emit_byte(kuvm *vm, uint8_t byte) {
+static void ku_emitbyte(kuvm *vm, uint8_t byte) {
   ku_chunk_write(vm, ku_chunk(vm), byte, vm->parser.prev.line);
 }
 
 static void ku_emit_ret(kuvm *vm) {
-  ku_parse_emit_byte(vm, OP_NIL);
-  ku_parse_emit_byte(vm, OP_RET);
+  ku_emitbyte(vm, OP_NIL);
+  ku_emitbyte(vm, OP_RET);
 }
 
 static kufunc *ku_parse_end(kuvm *vm) {
@@ -615,9 +622,9 @@ static kufunc *ku_parse_end(kuvm *vm) {
   return fn;
 }
 
-static void ku_parse_emit_bytes(kuvm *vm, uint8_t b1, uint8_t b2) {
-  ku_parse_emit_byte(vm, b1);
-  ku_parse_emit_byte(vm, b2);
+static void ku_emitbytes(kuvm *vm, uint8_t b1, uint8_t b2) {
+  ku_emitbyte(vm, b1);
+  ku_emitbyte(vm, b2);
 }
 
 
@@ -630,7 +637,7 @@ static uint8_t ku_parse_make_const(kuvm *vm, kuval val) {
   return (uint8_t)cons;
 }
 static void ku_parse_emit_const(kuvm *vm, kuval val) {
-  ku_parse_emit_bytes(vm, OP_CONST, ku_parse_make_const(vm, val));
+  ku_emitbytes(vm, OP_CONST, ku_parse_make_const(vm, val));
 }
 
 typedef enum {
@@ -694,9 +701,9 @@ static void ku_parse_process(kuvm *vm, kup_precedence prec) {
 
 static void ku_parse_literal(kuvm *vm, bool lhs) {
   switch (vm->parser.prev.type) {
-    case TOK_FALSE: ku_parse_emit_byte(vm, OP_FALSE); break;
-    case TOK_TRUE: ku_parse_emit_byte(vm, OP_TRUE); break;
-    case TOK_NIL: ku_parse_emit_byte(vm, OP_NIL); break;
+    case TOK_FALSE: ku_emitbyte(vm, OP_FALSE); break;
+    case TOK_TRUE: ku_emitbyte(vm, OP_TRUE); break;
+    case TOK_NIL: ku_emitbyte(vm, OP_NIL); break;
     default: return; // unreachable
   }
 }
@@ -734,7 +741,7 @@ static uint8_t ku_arglist(kuvm *vm) {
 
 static void ku_call(kuvm *vm, bool lhs) {
   uint8_t argc = ku_arglist(vm);
-  ku_parse_emit_bytes(vm, OP_CALL, argc);
+  ku_emitbytes(vm, OP_CALL, argc);
 }
 
 static void ku_parse_grouping(kuvm *vm, bool lhs) {
@@ -748,8 +755,8 @@ static void ku_parse_unary(kuvm *vm, bool lhs) {
   ku_parse_process(vm, P_UNARY);
   
   switch(optype) {
-    case TOK_MINUS: ku_parse_emit_byte(vm, OP_NEG); break;
-    case TOK_BANG: ku_parse_emit_byte(vm, OP_NOT); break;
+    case TOK_MINUS: ku_emitbyte(vm, OP_NEG); break;
+    case TOK_BANG: ku_emitbyte(vm, OP_NOT); break;
     default: return;
   }
 }
@@ -757,13 +764,13 @@ static void ku_parse_unary(kuvm *vm, bool lhs) {
 static void ku_parse_expression_statement(kuvm* vm) {
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_SEMI, "; expected");
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
 }
 
 static void ku_parse_print_statement(kuvm* vm) {
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_SEMI, "; expected");
-  ku_parse_emit_byte(vm, OP_PRINT);
+  ku_emitbyte(vm, OP_PRINT);
 }
 
 static void ku_return(kuvm *vm) {
@@ -776,7 +783,7 @@ static void ku_return(kuvm *vm) {
   } else {
     ku_parse_expression(vm);
     ku_parse_consume(vm, TOK_SEMI, "';' expected");
-    ku_parse_emit_byte(vm, OP_RET);
+    ku_emitbyte(vm, OP_RET);
   }
 }
 
@@ -844,7 +851,7 @@ static void ku_parse_var_def(kuvm* vm, uint8_t index) {
     ku_markinit(vm);
     return;
   }
-  ku_parse_emit_bytes(vm, OP_DEF_GLOBAL, index);
+  ku_emitbytes(vm, OP_DEF_GLOBAL, index);
 }
 
 static void ku_parse_var_decl(kuvm* vm) {
@@ -853,7 +860,7 @@ static void ku_parse_var_decl(kuvm* vm) {
     ku_parse_expression(vm);
   }
   else {
-    ku_parse_emit_byte(vm, OP_NIL);
+    ku_emitbyte(vm, OP_NIL);
   }
 
   ku_parse_consume(vm, TOK_SEMI, "; expected");
@@ -880,10 +887,10 @@ static void ku_function(kuvm *vm, kufunctype type) {
   ku_parse_consume(vm, TOK_LBRACE, "'{' expected before function body");
   ku_block(vm);
   kufunc *fn = ku_parse_end(vm);
-  ku_parse_emit_bytes(vm, OP_CLOSURE, ku_parse_make_const(vm, OBJ_VAL(fn)));
+  ku_emitbytes(vm, OP_CLOSURE, ku_parse_make_const(vm, OBJ_VAL(fn)));
   for (int i = 0; i < fn->upcount; i++) {
-    ku_parse_emit_byte(vm, compiler.upvals[i].local ? 1: 0);
-    ku_parse_emit_byte(vm, compiler.upvals[i].index);
+    ku_emitbyte(vm, compiler.upvals[i].local ? 1: 0);
+    ku_emitbyte(vm, compiler.upvals[i].index);
   }
 }
 
@@ -894,14 +901,30 @@ static void ku_func_decl(kuvm *vm) {
   ku_parse_var_def(vm, global);
 }
 
+static void ku_method(kuvm *vm) {
+  ku_parse_consume(vm, TOK_IDENT, "method name expected");
+  uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
+  kufunctype type = FUNC_STD;
+  ku_function(vm, type);
+  ku_emitbytes(vm, OP_METHOD, name);
+}
+
+static void ku_named_var(kuvm* vm, kutok name, bool lhs);
+
 static void ku_classdecl(kuvm *vm) {
   ku_parse_consume(vm, TOK_IDENT, "class name expected");
+  kutok cname = vm->parser.prev;
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
   ku_declare_var(vm);
-  ku_parse_emit_bytes(vm, OP_CLASS, name);
+  ku_emitbytes(vm, OP_CLASS, name);
   ku_parse_var_def(vm, name);
+  ku_named_var(vm, cname, false);
   ku_parse_consume(vm, TOK_LBRACE, "'{' expected");
+  while (!ku_parse_checktype(vm, TOK_RBRACE) && !ku_parse_checktype(vm, TOK_EOF)) {
+    ku_method(vm);
+  }
   ku_parse_consume(vm, TOK_RBRACE, "'}' expected");
+  ku_emitbyte(vm, OP_POP);
 }
 
 static void ku_parse_declaration(kuvm* vm) {
@@ -972,10 +995,10 @@ static void ku_named_var(kuvm* vm, kutok name, bool lhs) {
   }
   if (lhs && ku_parse_match(vm, TOK_EQ)) {
     ku_parse_expression(vm);
-    ku_parse_emit_bytes(vm, set, (uint8_t)arg);
+    ku_emitbytes(vm, set, (uint8_t)arg);
   }
   else {
-    ku_parse_emit_bytes(vm, get, (uint8_t)arg);
+    ku_emitbytes(vm, get, (uint8_t)arg);
   }
 }
 
@@ -989,16 +1012,16 @@ static void ku_parse_binary(kuvm *vm, bool lhs) {
   ku_parse_process(vm, (kup_precedence)(rule->precedence + 1));
   
   switch (optype) {
-    case TOK_PLUS: ku_parse_emit_byte(vm, OP_ADD); break;
-    case TOK_MINUS: ku_parse_emit_byte(vm, OP_SUB); break;
-    case TOK_STAR: ku_parse_emit_byte(vm, OP_MUL); break;
-    case TOK_SLASH: ku_parse_emit_byte(vm, OP_DIV); break;
-    case TOK_NE: ku_parse_emit_bytes(vm, OP_EQ, OP_NOT); break;
-    case TOK_EQEQ: ku_parse_emit_byte(vm, OP_EQ); break;
-    case TOK_GT: ku_parse_emit_byte(vm, OP_GT); break;
-    case TOK_GE: ku_parse_emit_bytes(vm, OP_LT, OP_NOT); break;
-    case TOK_LT: ku_parse_emit_byte(vm, OP_LT); break;
-    case TOK_LE: ku_parse_emit_bytes(vm, OP_GT, OP_NOT); break;
+    case TOK_PLUS: ku_emitbyte(vm, OP_ADD); break;
+    case TOK_MINUS: ku_emitbyte(vm, OP_SUB); break;
+    case TOK_STAR: ku_emitbyte(vm, OP_MUL); break;
+    case TOK_SLASH: ku_emitbyte(vm, OP_DIV); break;
+    case TOK_NE: ku_emitbytes(vm, OP_EQ, OP_NOT); break;
+    case TOK_EQEQ: ku_emitbyte(vm, OP_EQ); break;
+    case TOK_GT: ku_emitbyte(vm, OP_GT); break;
+    case TOK_GE: ku_emitbytes(vm, OP_LT, OP_NOT); break;
+    case TOK_LT: ku_emitbyte(vm, OP_LT); break;
+    case TOK_LE: ku_emitbytes(vm, OP_GT, OP_NOT); break;
     default: return;
   }
 }
@@ -1007,9 +1030,9 @@ static void ku_parse_dot(kuvm *vm, bool lhs) {
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
   if (lhs && ku_parse_match(vm, TOK_EQ)) {
     ku_parse_expression(vm);
-    ku_parse_emit_bytes(vm, OP_SET_PROP, name);
+    ku_emitbytes(vm, OP_SET_PROP, name);
   } else {
-    ku_parse_emit_bytes(vm, OP_GET_PROP, name);
+    ku_emitbytes(vm, OP_GET_PROP, name);
   }
 }
 
@@ -1081,7 +1104,7 @@ static bool ku_is_falsy(kuval v) {
   return IS_NIL(v) || (IS_BOOL(v) && !AS_BOOL(v));
 }
 
-kuval ku_peek_stack(kuvm *vm, int distance) {
+kuval ku_peek(kuvm *vm, int distance) {
   return vm->sp[-1 - distance];
 }
 
@@ -1213,6 +1236,11 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
         return true;
       }
         
+      case OBJ_BOUND_METHOD: {
+        kuboundmethod *bm = AS_BOUND_METHOD(callee);
+        return ku_docall(vm, bm->method, argc);
+      }
+        
       case OBJ_FUNC: // not allowed anymore
       default:
         break;
@@ -1261,6 +1289,25 @@ static void ku_upvals_close(kuvm *vm, kuval *last) {
   }
 }
 
+static void ku_defmethod(kuvm *vm, kustr *name) {
+  kuval method = ku_peek(vm, 0);
+  kuclass *c = AS_CLASS(ku_peek(vm, 1));
+  ku_table_set(vm, &c->methods, name, method);
+  ku_pop(vm);
+}
+
+static bool ku_bindmethod(kuvm *vm, kuclass *klass, kustr *name) {
+  kuval method;
+  if (!ku_table_get(vm, &klass->methods, name, &method)) {
+    ku_err(vm, "undefined property %s", name->chars);
+    return false;
+  }
+  kuboundmethod *bm = ku_boundmethod_new(vm, ku_peek(vm,0), AS_CLOSURE(method));
+  ku_pop(vm);
+  ku_push(vm, OBJ_VAL(bm));
+  return true;
+}
+
 kures ku_run(kuvm *vm) {
   kuframe *frame = &vm->frames[vm->framecount - 1];
   
@@ -1277,7 +1324,7 @@ kures ku_run(kuvm *vm) {
     switch(op = BYTE_READ(vm)) {
       case OP_CALL: {
         int argc = BYTE_READ(vm);
-        if (!ku_callvalue(vm, ku_peek_stack(vm, argc), argc)) {
+        if (!ku_callvalue(vm, ku_peek(vm, argc), argc)) {
           return KVM_ERR_RUNTIME;
         }
         frame = &vm->frames[vm->framecount - 1];
@@ -1286,6 +1333,11 @@ kures ku_run(kuvm *vm) {
         
       case OP_CLASS: {
         ku_push(vm, OBJ_VAL(ku_class_new(vm, READ_STRING(vm))));
+        break;
+      }
+        
+      case OP_METHOD: {
+        ku_defmethod(vm, READ_STRING(vm));
         break;
       }
       case OP_CLOSURE: {
@@ -1345,7 +1397,7 @@ kures ku_run(kuvm *vm) {
         break;
       }
       case OP_NEG: {
-        if (! IS_NUM(ku_peek_stack(vm, 0))) {
+        if (! IS_NUM(ku_peek(vm, 0))) {
           ku_err(vm, "number expected" );
           return KVM_ERR_RUNTIME;
         }
@@ -1379,14 +1431,14 @@ kures ku_run(kuvm *vm) {
 
       case OP_DEF_GLOBAL: {
         kustr* name = READ_STRING(vm);
-        ku_table_set(vm, &vm->globals, name, ku_peek_stack(vm, 0));
+        ku_table_set(vm, &vm->globals, name, ku_peek(vm, 0));
         ku_pop(vm);
         break;
       }
 
       case OP_SET_GLOBAL: {
         kustr* name = READ_STRING(vm);
-        if (ku_table_set(vm, &vm->globals, name, ku_peek_stack(vm, 0))) {
+        if (ku_table_set(vm, &vm->globals, name, ku_peek(vm, 0))) {
           ku_table_del(vm, &vm->globals, name);
           ku_err(vm, "undefined variable %s", name->chars);
           return KVM_ERR_RUNTIME;
@@ -1401,7 +1453,7 @@ kures ku_run(kuvm *vm) {
       }
       case OP_SET_LOCAL: {
         uint8_t slot = BYTE_READ(vm);
-        frame->bp[slot] = ku_peek_stack(vm, 0);
+        frame->bp[slot] = ku_peek(vm, 0);
         break;
       }
         
@@ -1413,16 +1465,16 @@ kures ku_run(kuvm *vm) {
         
       case OP_SET_UPVAL: {
         uint8_t slot = BYTE_READ(vm);
-        *frame->closure->upvals[slot]->location = ku_peek_stack(vm, 0);
+        *frame->closure->upvals[slot]->location = ku_peek(vm, 0);
         break;
       }
         
       case OP_GET_PROP: {
-        if (!IS_INSTANCE(ku_peek_stack(vm, 0))) {
+        if (!IS_INSTANCE(ku_peek(vm, 0))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
         }
-        kuinstance *i = AS_INSTANCE(ku_peek_stack(vm, 0));
+        kuinstance *i = AS_INSTANCE(ku_peek(vm, 0));
         kustr *name = READ_STRING(vm);
         kuval val;
         if (ku_table_get(vm, &i->fields, name, &val)) {
@@ -1430,17 +1482,20 @@ kures ku_run(kuvm *vm) {
           ku_push(vm, val);
           break;
         }
-        ku_err(vm, "undefined property %s", name->chars);
-        return KVM_ERR_RUNTIME;
+        
+        if (!ku_bindmethod(vm, i->klass, name)) {
+          return KVM_ERR_RUNTIME;
+        }
+        break;
       }
         
       case OP_SET_PROP: {
-        if (!IS_INSTANCE(ku_peek_stack(vm, 1))) {
+        if (!IS_INSTANCE(ku_peek(vm, 1))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
         }
-        kuinstance *i = AS_INSTANCE(ku_peek_stack(vm, 1));
-        ku_table_set(vm, &i->fields, READ_STRING(vm), ku_peek_stack(vm, 0));
+        kuinstance *i = AS_INSTANCE(ku_peek(vm, 1));
+        ku_table_set(vm, &i->fields, READ_STRING(vm), ku_peek(vm, 0));
         kuval val = ku_pop(vm);
         ku_pop(vm); // instance
         ku_push(vm, val);
@@ -1448,10 +1503,10 @@ kures ku_run(kuvm *vm) {
       }
         
       case OP_ADD: {
-        if (IS_STR(ku_peek_stack(vm, 0)) && IS_STR(ku_peek_stack(vm, 1))) {
+        if (IS_STR(ku_peek(vm, 0)) && IS_STR(ku_peek(vm, 1))) {
           ku_str_cat(vm);
         }
-        else if (IS_NUM(ku_peek_stack(vm, 0)) && IS_NUM(ku_peek_stack(vm, 1))) {
+        else if (IS_NUM(ku_peek(vm, 0)) && IS_NUM(ku_peek(vm, 1))) {
           double a = AS_NUM(ku_pop(vm));
           double b = AS_NUM(ku_pop(vm));
           ku_push(vm, NUM_VAL(a + b));
@@ -1472,7 +1527,7 @@ kures ku_run(kuvm *vm) {
         break;
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT(vm);
-        if (ku_is_falsy(ku_peek_stack(vm, 0))) {
+        if (ku_is_falsy(ku_peek(vm, 0))) {
           frame->ip += offset;
         }
         break;
@@ -1632,7 +1687,10 @@ static void ku_print_obj(kuvm* vm, kuval val) {
       break;
     case OBJ_INSTANCE:
       ku_printf(vm, "%s instance", AS_INSTANCE(val)->klass->name->chars);
-      break;    
+      break;
+    case OBJ_BOUND_METHOD:
+      ku_print_func(vm, AS_BOUND_METHOD(val)->method->func);
+      break;
     case OBJ_UPVAL:
       ku_printf(vm, "upvalue");
       break;
@@ -1721,6 +1779,7 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_PRINT: return ku_print_simple_op(vm, "OP_PRINT", offset);
     case OP_POP: return ku_print_simple_op(vm, "OP_POP", offset);
     case OP_CLASS: return ku_print_const(vm, "OP_CLASS", chunk, offset);
+    case OP_METHOD: return ku_print_const(vm, "OP_METHOD", chunk, offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
     case OP_DEF_GLOBAL:
@@ -1815,9 +1874,9 @@ void ku_endscope(kuvm *vm) {
          vm->compiler->depth) {
     
     if (vm->compiler->locals[vm->compiler->count - 1].captured) {
-      ku_parse_emit_byte(vm, OP_CLOSE_UPVAL);
+      ku_emitbyte(vm, OP_CLOSE_UPVAL);
     } else {
-      ku_parse_emit_byte(vm, OP_POP);
+      ku_emitbyte(vm, OP_POP);
     }
     vm->compiler->count--;
     }
@@ -1905,11 +1964,11 @@ void ku_ifstatement(kuvm *vm) {
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_RPAR, "'R' expected after condition");
   int then_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
   ku_parse_statement(vm);
   int else_jump = ku_emitjump(vm, OP_JUMP);
   ku_patchjump(vm, then_jump);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
   if (ku_parse_match(vm, TOK_ELSE)) {
     ku_parse_statement(vm);
   }
@@ -1917,9 +1976,9 @@ void ku_ifstatement(kuvm *vm) {
 }
 
 int ku_emitjump(kuvm *vm, k_op op) {
-  ku_parse_emit_byte(vm, op);
-  ku_parse_emit_byte(vm, 0xff);
-  ku_parse_emit_byte(vm, 0xff);
+  ku_emitbyte(vm, op);
+  ku_emitbyte(vm, 0xff);
+  ku_emitbyte(vm, 0xff);
   return ku_chunk(vm)->count - 2;
 }
 
@@ -1935,13 +1994,13 @@ void ku_patchjump(kuvm *vm, int offset) {
 }
 
 void ku_emitloop(kuvm *vm, int start) {
-  ku_parse_emit_byte(vm, OP_LOOP);
+  ku_emitbyte(vm, OP_LOOP);
   int offset = ku_chunk(vm)->count - start + 2;
   if (offset > UINT16_MAX) {
     ku_parse_err(vm, "loop body too large");
   }
-  ku_parse_emit_byte(vm, (offset >> 8) & 0xff);
-  ku_parse_emit_byte(vm, offset  & 0xff);
+  ku_emitbyte(vm, (offset >> 8) & 0xff);
+  ku_emitbyte(vm, offset  & 0xff);
 }
 
 void ku_whilestatement(kuvm *vm) {
@@ -1950,11 +2009,11 @@ void ku_whilestatement(kuvm *vm) {
   ku_parse_expression(vm);
   ku_parse_consume(vm, TOK_RPAR, "')' expected after 'while'");
   int jump_exit = ku_emitjump(vm, OP_JUMP_IF_FALSE);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
   ku_parse_statement(vm);
   ku_emitloop(vm, loop_start);
   ku_patchjump(vm, jump_exit);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
 }
 
 void ku_forstatement(kuvm *vm) {
@@ -1974,14 +2033,14 @@ void ku_forstatement(kuvm *vm) {
     ku_parse_expression(vm);
     ku_parse_consume(vm, TOK_SEMI, "';' expected");
     exit_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
-    ku_parse_emit_byte(vm, OP_POP);
+    ku_emitbyte(vm, OP_POP);
   }
   
   if (!ku_parse_match(vm, TOK_RPAR)) {
     int body_jump = ku_emitjump(vm, OP_JUMP);
     int inc_start = ku_chunk(vm)->count;
     ku_parse_expression(vm);
-    ku_parse_emit_byte(vm, OP_POP);
+    ku_emitbyte(vm, OP_POP);
     ku_parse_consume(vm, TOK_RPAR, "')' expected");
     ku_emitloop(vm, loop_start);
     loop_start = inc_start;
@@ -1993,14 +2052,14 @@ void ku_forstatement(kuvm *vm) {
   
   if (exit_jump != -1) {
     ku_patchjump(vm, exit_jump);
-    ku_parse_emit_byte(vm, OP_POP);
+    ku_emitbyte(vm, OP_POP);
   }
   ku_endscope(vm);
 }
 
 void ku_parse_and(kuvm *vm, bool lhs) {
   int end_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
   ku_parse_process(vm, P_AND);
   ku_patchjump(vm, end_jump);
 }
@@ -2009,7 +2068,7 @@ void ku_parse_or(kuvm *vm, bool lhs) {
   int else_jump = ku_emitjump(vm, OP_JUMP_IF_FALSE);
   int end_jump = ku_emitjump(vm, OP_JUMP);
   ku_patchjump(vm, else_jump);
-  ku_parse_emit_byte(vm, OP_POP);
+  ku_emitbyte(vm, OP_POP);
   ku_parse_process(vm, P_OR);
   ku_patchjump(vm, end_jump);
 }
@@ -2140,6 +2199,7 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_CLASS: {
       kuclass *c = (kuclass*)o;
       ku_markobj(vm, (kuobj*)c->name);
+      ku_marktable(vm, &c->methods);
       break;
     }
       
@@ -2150,6 +2210,12 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
       break;
     }
       
+    case OBJ_BOUND_METHOD: {
+      kuboundmethod *bm = (kuboundmethod*)o;
+      ku_markval(vm, bm->receiver);
+      ku_markobj(vm, (kuobj*)bm->method);
+      break;
+    }
     case OBJ_CLOSURE: {
       kuclosure *cl = (kuclosure*)o;
       ku_markobj(vm, (kuobj*)cl->func);
@@ -2290,6 +2356,7 @@ void ku_gc(kuvm *vm) {
 kuclass *ku_class_new(kuvm *vm, kustr *name) {
   kuclass *c = KALLOC_OBJ(vm, kuclass, OBJ_CLASS);
   c->name = name;
+  ku_table_init(vm, &c->methods);
   return c;
 }
 
@@ -2304,3 +2371,12 @@ kuinstance *ku_instance_new(kuvm *vm, kuclass *klass) {
 }
 
 
+// ------------------------------------------------------------
+// Bound methods
+// ------------------------------------------------------------
+kuboundmethod *ku_boundmethod_new(kuvm *vm, kuval receiver, kuclosure *method) {
+  kuboundmethod *bm = KALLOC_OBJ(vm, kuboundmethod, OBJ_BOUND_METHOD);
+  bm->receiver = receiver;
+  bm->method = method;
+  return bm;
+}

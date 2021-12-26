@@ -766,5 +766,12 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "set/get prop not found");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "var x=1; class C{ M() { x=3; } }\nvar c=C(); var m=c.M; m();");
+  EXPECT_INT(vm, res, KVM_OK, "bound method res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "bound method ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

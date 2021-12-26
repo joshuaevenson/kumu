@@ -55,6 +55,7 @@ typedef enum {
   OBJ_UPVAL,
   OBJ_CLASS,
   OBJ_INSTANCE,
+  OBJ_BOUND_METHOD,
 } kuobjtype;
 
 typedef enum {
@@ -110,6 +111,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_CLOSURE(v) (ku_obj_istype(v, OBJ_CLOSURE))
 #define IS_CLASS(v) (ku_obj_istype(v, OBJ_CLASS))
 #define IS_INSTANCE(v) (ku_obj_istype(v, OBJ_INSTANCE))
+#define IS_BOUND_METHOD(v) (ku_obj_istype(v, OBJ_BOUND_METHOD))
 
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
@@ -121,6 +123,7 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
 #define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
 #define AS_INSTANCE(v) ((kuinstance*)AS_OBJ(v))
+#define AS_BOUND_METHOD(v) ((kuboundmethod*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -157,6 +160,7 @@ typedef enum {
   OP_NEG,
   OP_ADD,
   OP_SUB,
+  OP_METHOD,
   OP_MUL,
   OP_DIV,
   OP_NOT,
@@ -280,6 +284,7 @@ kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_
 typedef struct {
   kuobj obj;
   kustr *name;
+  kutable methods;
 } kuclass;
 
 kuclass *ku_class_new(kuvm *vm, kustr *name);
@@ -294,6 +299,17 @@ typedef struct {
 } kuinstance;
 
 kuinstance *ku_instance_new(kuvm *vm, kuclass *klass);
+
+// ------------------------------------------------------------
+// Bound methods
+// ------------------------------------------------------------
+typedef struct {
+  kuobj obj;
+  kuval receiver;
+  kuclosure *method;
+} kuboundmethod;
+
+kuboundmethod *ku_boundmethod_new(kuvm *vm, kuval receiver, kuclosure *method);
 
 // ------------------------------------------------------------
 // Scanner
