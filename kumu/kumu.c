@@ -160,6 +160,15 @@ kustr* ku_str_copy(kuvm* vm, const char* chars, int len) {
 
 
 bool ku_val_eq(kuval v1, kuval v2) {
+
+#ifdef NAN_BOX
+#ifdef NAN_BOX_COMPARE
+  if (IS_NUM(v1) && IS_NUM(v2)) {
+    return AS_NUM(v1) == AS_NUM(v2)
+  }
+#endif
+  return v1 == v2;
+#else
   if (v1.type != v2.type) {
     return false;
   }
@@ -171,6 +180,7 @@ bool ku_val_eq(kuval v1, kuval v2) {
     default: break;
   }
   return false;
+#endif
 }
 
 static kustr* ku_str_take(kuvm* vm, char* buff, int len) {
@@ -1866,6 +1876,18 @@ static void ku_print_obj(kuvm* vm, kuval val) {
 }
 
 void ku_print_val(kuvm *vm, kuval value) {
+
+#ifdef NAN_BOX
+  if (IS_BOOL(value)) {
+    ku_printf(vm, AS_BOOL(value) ? "true" : "false");
+  } else if (IS_NIL(value)) {
+    ku_printf(vm, "nil");
+  } else if (IS_NUM(value)) {
+    ku_printf(vm, "%g", AS_NUM(value));
+  } else if (IS_OBJ(value)) {
+    ku_print_obj(vm, value);
+  }
+#else
   switch (value.type) {
     case VAL_BOOL:
     ku_printf(vm, "%s", (value.as.bval) ? "true": "false");
@@ -1880,6 +1902,7 @@ void ku_print_val(kuvm *vm, kuval value) {
       ku_print_obj(vm, value);
       break;
   }
+#endif
 }
 
 void ku_arr_init(kuvm* vm, kuarr *array) {

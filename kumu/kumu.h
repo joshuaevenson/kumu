@@ -21,6 +21,8 @@
 #ifndef KUMU_H
 #define KUMU_H
 
+#define NAN_BOX
+
 // ------------------------------------------------------------
 // Includes
 // ------------------------------------------------------------
@@ -90,6 +92,21 @@ typedef enum {
   VAL_OBJ,
 } kuvaltype;
 
+#ifdef NAN_BOX
+
+#define QNAN ((uint64_t)0x7ffc000000000000)
+#define SIGN_BIT ((uint64_t)0x8000000000000000)
+
+#define TAG_NIL 1
+#define TAG_FALSE 2
+#define TAG_TRUE 3
+#define FALSE_VAL ((kuval)(uint64_t)(QNAN | TAG_FALSE))
+#define TRUE_VAL ((kuval)(uint64_t)(QNAN | TAG_TRUE))
+
+typedef uint64_t kuval;
+
+#else
+
 typedef struct {
   kuvaltype type;
   union {
@@ -99,17 +116,47 @@ typedef struct {
   } as;
 } kuval;
 
+#endif
+
 bool ku_obj_istype(kuval v, kuobjtype ot);
+
+#ifdef NAN_BOX
+
+#define NUM_VAL(v) ku_num2val(v)
+static inline kuval ku_num2val(double d) {
+  kuval val;
+  memcpy(&val, &d, sizeof(double));
+  return val;
+}
+
+#define NIL_VAL ((kuval)(uint64_t) (QNAN | TAG_NIL))
+#define BOOL_VAL(b) ((b) ? TRUE_VAL : FALSE_VAL)
+#define OBJ_VAL(o) (kuval)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(o))
+#else
 
 #define BOOL_VAL(v) ((kuval){ VAL_BOOL, { .bval = v }})
 #define NIL_VAL ((kuval) { VAL_NIL, { .dval = 0 }})
 #define NUM_VAL(v) ((kuval) { VAL_NUM, { .dval = v }})
 #define OBJ_VAL(v) ((kuval) { VAL_OBJ, { .oval = (kuobj*)v} })
 
+#endif
+
+#ifdef NAN_BOX
+
+#define IS_NUM(v) (((v) & QNAN) != QNAN)
+#define IS_NIL(v) ((v) == NIL_VAL)
+#define IS_BOOL(v) (((v) | 1) == TRUE_VAL)
+#define IS_OBJ(v) (((v) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
+
+#else
+
 #define IS_BOOL(v) ((v).type == VAL_BOOL)
 #define IS_NIL(v) ((v).type == VAL_NIL)
 #define IS_NUM(v) ((v).type == VAL_NUM)
 #define IS_OBJ(v) ((v).type == VAL_OBJ)
+
+#endif
+
 #define IS_STR(v) (ku_obj_istype(v, OBJ_STR))
 #define IS_FUNC(v) (ku_obj_istype(v, OBJ_FUNC))
 #define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
@@ -118,9 +165,25 @@ bool ku_obj_istype(kuval v, kuobjtype ot);
 #define IS_INSTANCE(v) (ku_obj_istype(v, OBJ_INSTANCE))
 #define IS_BOUND_METHOD(v) (ku_obj_istype(v, OBJ_BOUND_METHOD))
 
+#ifdef NAN_BOX
+
+#define AS_NUM(v) ku_val2num(v)
+static inline double ku_val2num(kuval v) {
+  double d;
+  memcpy(&d, &v, sizeof(kuval));
+  return d;
+}
+
+#define AS_BOOL(v) ((v) == TRUE_VAL)
+#define AS_OBJ(v) ((kuobj*)(uintptr_t)((v) & ~(SIGN_BIT | QNAN)))
+#else
+
 #define AS_BOOL(v) ((v).as.bval)
 #define AS_NUM(v) ((v).as.dval)
 #define AS_OBJ(v) ((v).as.oval)
+
+#endif
+
 #define AS_STR(v) ((kustr*)AS_OBJ(v))
 #define AS_CSTR(v) (((kustr*)AS_OBJ(v))->chars)
 #define AS_FUNC(v) ((kufunc*)AS_OBJ(v))

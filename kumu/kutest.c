@@ -81,7 +81,7 @@ kuvm *kut_new(void) {
 static kuval kutest_native_add(kuvm *vm, int argc, kuval *argv) {
   kuval b = argv[0];
   kuval a = argv[1];
-  return NUM_VAL(a.as.dval + b.as.dval);
+  return NUM_VAL(AS_NUM(a) + AS_NUM(b));
 }
 
 static int kut_table_count(kuvm *vm, kutable *tab) {
@@ -358,7 +358,7 @@ void ku_test() {
 
   vm = kut_new();
   v = ku_test_eval(vm, "\"hello \" + \"world\"");
-  EXPECT_INT(vm, v.type, VAL_OBJ, "stradd type obj");
+  EXPECT_INT(vm, IS_OBJ(v), true, "stradd type obj");
   EXPECT_INT(vm, AS_OBJ(v)->type, OBJ_STR, "stradd obj is str");
   char* chars = AS_CSTR(v);
   EXPECT_INT(vm, strcmp(chars, "hello world"), 0, "str val");
@@ -558,7 +558,7 @@ void ku_test() {
   res = ku_exec(vm, "fun foo(a) { print \"ok\"; }");
   EXPECT_INT(vm, res, KVM_OK, "fun def");
   v = ku_get_global(vm, "foo");
-  EXPECT_INT(vm, v.type,VAL_OBJ, "fun object");
+  EXPECT_INT(vm, IS_OBJ(v),true, "fun object");
   ku_free(vm);
 
   vm = kut_new();
@@ -648,7 +648,7 @@ void ku_test() {
   res = ku_exec(vm, "var x = clock();");
   EXPECT_INT(vm, res, KVM_OK, "clock res");
   v = ku_get_global(vm, "x");
-  EXPECT_INT(vm, v.type, VAL_NUM, "clock return");
+  EXPECT_INT(vm, IS_NUM(v), true, "clock return");
   ku_free(vm);
 
   vm = kut_new();
