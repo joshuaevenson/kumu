@@ -836,5 +836,19 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "super ret");
   ku_free(vm);
 
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "class A { f() { return 2; } }\nclass B < A { f() { var z=super.f; return z*3; }}\nvar b=B(); var x = b.f();");
+  EXPECT_INT(vm, res, KVM_OK, "super call res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "super call ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "class A { f() { return 2; } }\nclass B < A { f() { return super.f()*3; }}\nvar b=B(); var x = b.f();");
+  EXPECT_INT(vm, res, KVM_OK, "super invoke res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "super invoke ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

@@ -184,6 +184,7 @@ typedef enum {
   OP_GET_PROP,
   OP_SET_PROP,
   OP_GET_SUPER,
+  OP_SUPER_INVOKE,
   OP_LT,
   OP_EQ,
   OP_JUMP_IF_FALSE,

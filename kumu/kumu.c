@@ -955,10 +955,9 @@ static void ku_classdecl(kuvm *vm) {
     ku_beginscope(vm);
     ku_addlocal(vm, ku_maketok(vm, "super"));
     ku_parse_var_def(vm, 0);
-    
     ku_named_var(vm, cname, false);
-    cc.hassuper = true;
     ku_emitbyte(vm, OP_INHERIT);
+    cc.hassuper = true;
   }
   
   ku_named_var(vm, cname, false);
@@ -1072,8 +1071,16 @@ static void ku_parse_super(kuvm *vm, bool lhs) {
   ku_parse_consume(vm, TOK_IDENT, "superclass method expected");
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
   ku_named_var(vm, ku_maketok(vm, "this"), false);
-  ku_named_var(vm, ku_maketok(vm, "super"), false);
-  ku_emitbytes(vm, OP_GET_SUPER, name);
+  
+  if (ku_parse_match(vm, TOK_LPAR)) {
+    uint8_t argc = ku_arglist(vm);
+    ku_named_var(vm, ku_maketok(vm, "super"), false);
+    ku_emitbytes(vm, OP_SUPER_INVOKE, name);
+    ku_emitbyte(vm, argc);
+  } else {
+    ku_named_var(vm, ku_maketok(vm, "super"), false);
+    ku_emitbytes(vm, OP_GET_SUPER, name);
+  }
 }
 
 static void ku_parse_binary(kuvm *vm, bool lhs) {
@@ -1379,6 +1386,7 @@ static void ku_upvals_close(kuvm *vm, kuval *last) {
 static void ku_defmethod(kuvm *vm, kustr *name) {
   kuval method = ku_peek(vm, 0);
   kuclass *c = AS_CLASS(ku_peek(vm, 1));
+  ku_printf(vm, ">> class %p method %s\n", (void*)c, name->chars);
   ku_table_set(vm, &c->methods, name, method);
   ku_pop(vm);
 }
@@ -1464,6 +1472,16 @@ kures ku_run(kuvm *vm) {
         break;
       }
         
+      case OP_SUPER_INVOKE: {
+        kustr *method = READ_STRING(vm);
+        int argc = BYTE_READ(vm);
+        kuclass *superclass = AS_CLASS(ku_pop(vm));
+        if (!ku_class_invoke(vm, superclass, method, argc)) {
+          return KVM_ERR_RUNTIME;
+        }
+        frame = &vm->frames[vm->framecount - 1];
+        break;
+      }
       case OP_INHERIT: {
         kuval superclass = ku_peek(vm, 1);
         if (!IS_CLASS(superclass)) {
@@ -1471,6 +1489,7 @@ kures ku_run(kuvm *vm) {
           return KVM_ERR_RUNTIME;
         }
         kuclass *subclass = AS_CLASS(ku_peek(vm, 0));
+        ku_printf(vm, ">> class %p inherits from %p\n", (void*)subclass, (void*)AS_CLASS(superclass));
         ku_table_copy(vm, &AS_CLASS(superclass)->methods, &subclass->methods);
         ku_pop(vm); // subclass
         break;
@@ -1639,7 +1658,8 @@ kures ku_run(kuvm *vm) {
         
       case OP_GET_SUPER: {
         kustr *name = READ_STRING(vm);
-        kuclass *superclass = AS_CLASS(ku_pop(vm));
+        kuval v = ku_pop(vm);
+        kuclass *superclass = AS_CLASS(v);
         if (!ku_bindmethod(vm, superclass, name)) {
           return KVM_ERR_RUNTIME;
         }
@@ -1933,6 +1953,7 @@ int ku_print_op(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_CLASS: return ku_print_const(vm, "OP_CLASS", chunk, offset);
     case OP_METHOD: return ku_print_const(vm, "OP_METHOD", chunk, offset);
     case OP_INVOKE: return ku_print_invoke(vm, "OP_INVOKE", chunk, offset);
+    case OP_SUPER_INVOKE: return ku_print_invoke(vm, "OP_SUPER_INVOKE", chunk, offset);
     case OP_INHERIT: return ku_print_simple_op(vm, "OP_INHERIT", offset);
     case OP_CONST:
       return ku_print_const(vm, "OP_CONST", chunk, offset);
