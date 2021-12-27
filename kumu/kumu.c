@@ -216,8 +216,10 @@ void ku_table_free(kuvm* vm, kutable* map) {
 
 #define MAP_MAX_LOAD 0.75
 
+#define MOD2(a,b) ((a) & (b - 1))
+
 static kuentry* ku_map_find(kuvm* vm, kuentry* entries, int capacity, kustr* key) {
-  uint32_t index = key->hash % capacity;
+  uint32_t index = MOD2(key->hash, capacity);
   kuentry* tombstone = NULL;
 
   for (;;) {
@@ -241,7 +243,7 @@ static kuentry* ku_map_find(kuvm* vm, kuentry* entries, int capacity, kustr* key
       return e;
     }
     
-    index = (index + 1) % capacity;
+    index = MOD2(index + 1, capacity);
   }
 }
 
@@ -329,7 +331,7 @@ kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_
     return NULL;
   }
 
-  uint32_t index = hash % map->capacity;
+  uint32_t index = MOD2(hash, map->capacity);
   for (;;) {
     kuentry* e = &map->entries[index];
     if (e->key == NULL) {
@@ -341,7 +343,7 @@ kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_
       memcmp(e->key->chars, chars, len) == 0) {
       return e->key;
     }
-    index = (index + 1) % map->capacity;
+    index = MOD2(index + 1,map->capacity);
   }
 }
 

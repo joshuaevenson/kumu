@@ -14,6 +14,9 @@
 // [ ] lexer hex notation
 // [ ] arrays
 // [ ] error code enum, #ifdef for string literals
+// - native classes?
+// - native methods on managed classes?
+// - math functions including mod(), sin(), ...
 // ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
