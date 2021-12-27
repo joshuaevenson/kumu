@@ -946,7 +946,7 @@ static void ku_classdecl(kuvm *vm) {
   
   if (ku_parse_match(vm, TOK_LT)) {
     ku_parse_consume(vm, TOK_IDENT, "class name expected");
-    ku_parse_variable(vm, false);
+    ku_parse_variable(vm, false); //  [.. GET_GLOBAL <name>;]
     
     if (ku_identeq(vm, &cname, &vm->parser.prev)) {
       ku_parse_err(vm, "cannot inherit from self");
@@ -1015,6 +1015,7 @@ static int ku_upval_resolve(kuvm *vm, kucompiler *compiler, kutok *name) {
   
   int local = ku_resolvelocal(vm, compiler->enclosing, name);
   if (local != -1) {
+    compiler->enclosing->locals[local].captured = true;
     return ku_upval_add(vm, compiler, (uint8_t)local, true);
   }
   
@@ -1070,7 +1071,7 @@ static void ku_parse_super(kuvm *vm, bool lhs) {
   ku_parse_consume(vm, TOK_DOT, "'.' expected after super");
   ku_parse_consume(vm, TOK_IDENT, "superclass method expected");
   uint8_t name = ku_parse_identifier_const(vm, &vm->parser.prev);
-  ku_named_var(vm, ku_maketok(vm, "this"), false);
+  ku_named_var(vm, ku_maketok(vm, "this"), false); // [ ... GET_LOCAL <0> ]
   
   if (ku_parse_match(vm, TOK_LPAR)) {
     uint8_t argc = ku_arglist(vm);
@@ -1078,7 +1079,7 @@ static void ku_parse_super(kuvm *vm, bool lhs) {
     ku_emitbytes(vm, OP_SUPER_INVOKE, name);
     ku_emitbyte(vm, argc);
   } else {
-    ku_named_var(vm, ku_maketok(vm, "super"), false);
+    ku_named_var(vm, ku_maketok(vm, "super"), false); // [ ... GET_UPVAL <0> ]
     ku_emitbytes(vm, OP_GET_SUPER, name);
   }
 }
@@ -1386,7 +1387,7 @@ static void ku_upvals_close(kuvm *vm, kuval *last) {
 static void ku_defmethod(kuvm *vm, kustr *name) {
   kuval method = ku_peek(vm, 0);
   kuclass *c = AS_CLASS(ku_peek(vm, 1));
-  ku_printf(vm, ">> class %p method %s\n", (void*)c, name->chars);
+//  ku_printf(vm, ">> class %p method %s\n", (void*)c, name->chars);
   ku_table_set(vm, &c->methods, name, method);
   ku_pop(vm);
 }
@@ -1483,14 +1484,16 @@ kures ku_run(kuvm *vm) {
         break;
       }
       case OP_INHERIT: {
-        kuval superclass = ku_peek(vm, 1);
-        if (!IS_CLASS(superclass)) {
+        kuval sc = ku_peek(vm, 1);
+
+        if (!IS_CLASS(sc)) {
           ku_err(vm, "superclass must be a class");
           return KVM_ERR_RUNTIME;
         }
         kuclass *subclass = AS_CLASS(ku_peek(vm, 0));
-        ku_printf(vm, ">> class %p inherits from %p\n", (void*)subclass, (void*)AS_CLASS(superclass));
-        ku_table_copy(vm, &AS_CLASS(superclass)->methods, &subclass->methods);
+        kuclass *superclass = AS_CLASS(sc);
+//        ku_printf(vm, ">> class %p inherits from %p\n", (void*)subclass, (void*)superclass);
+        ku_table_copy(vm, &superclass->methods, &subclass->methods);
         ku_pop(vm); // subclass
         break;
       }
