@@ -2,21 +2,20 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
-// [ ] printf(format, ...)
-// [ ] KVM_F_LIST list all code
-// [ ] ku_save(), ku_load()
-// [ ] ku_suspend(), ku_resume()
-// [ ] lexer string escape \n, \r, \t, \0, \x
-// [ ] repl readline support
-// [ ] vm limits for code coverage
-// [ ] kuobj use type bitmask for marked flag
-// [ ] lexer number sci notation
-// [ ] lexer hex notation
-// [ ] arrays
-// [ ] error code enum, #ifdef for string literals
-// - native classes?
-// - native methods on managed classes?
-// - math functions including mod(), sin(), ...
+// - function expressions
+// - loop break
+// - loop continue
+// - printf(format, ...)
+// - fix disassembler
+// - persistent continuations (save, load)
+// - transient continuations (suspend, resume)
+// - string literal escape sequences
+// - number literal scientific notations
+// - native library functions (int, hex, sin, ...)
+// - vm limits for code coverage
+// - arrays
+// - error codes / optional strings for disassembly and errors
+// - native classes
 // ------------------------------------------------------------
 #ifndef KUMU_H
 #define KUMU_H
