@@ -2,6 +2,8 @@
 // Kumu - Hawaiian for "basic"
 // Small, fast, familiar, portable
 // ------------------------------------------------------------
+// - naming
+// - code coverage
 // - function expressions
 // - loop break
 // - loop continue
