@@ -1274,8 +1274,8 @@ void ku_whilestmt(kuvm *vm, kuloop *loop) {
   ku_patchjump(vm, jump_exit);
   uint16_t loop_end = ku_chunk(vm)->count;
   ku_emitbyte(vm, OP_POP);
-  ku_patchall(vm, &inner.continuepatch, loop_start);
-  ku_patchall(vm, &inner.breakpatch, loop_end);
+  ku_patchall(vm, &inner.continuepatch, loop_start, true);
+  ku_patchall(vm, &inner.breakpatch, loop_end, false);
 }
 
 void ku_forstmt(kuvm *vm, kuloop *loop) {
@@ -1320,8 +1320,8 @@ void ku_forstmt(kuvm *vm, kuloop *loop) {
   }
 
   uint16_t loop_end = ku_chunk(vm)->count;
-  ku_patchall(vm, &inner.continuepatch, loop_start);
-  ku_patchall(vm, &inner.breakpatch, loop_end);
+  ku_patchall(vm, &inner.continuepatch, loop_start, true);
+  ku_patchall(vm, &inner.breakpatch, loop_end, false);
 
   ku_endscope(vm);
 }
@@ -2677,10 +2677,10 @@ void ku_emitpatch(kuvm *vm, kupatch *patch, uint8_t op) {
   patch->offset[patch->count++] = ku_emitjump(vm, op);
 }
 
-void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to) {
+void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to, bool rev) {
   for (int i = 0; i < patch->count; i++) {
     kuchunk *c = ku_chunk(vm);
-    uint16_t delta = to - patch->offset[i];
+    uint16_t delta = (rev) ? patch->offset[i] - to + 2 : to - patch->offset[i];
     c->code[patch->offset[i]] = (delta >> 8) & 0xff;
     c->code[patch->offset[i]+1] = delta & 0xff;
   }

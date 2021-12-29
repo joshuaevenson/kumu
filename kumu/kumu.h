@@ -9,7 +9,7 @@
 // ✓ { arg, arg => { block } }
 // ✓ repl expression print
 // ✓ break
-// 𐄂 continue
+// ✓ continue
 // 𐄂 printf(format, ...)
 // 𐄂 fix disassembler
 // 𐄂 string literal escape sequences
@@ -537,7 +537,7 @@ typedef struct {
 
 void ku_loopinit(kuvm *vm, kuloop *loop);
 void ku_emitpatch(kuvm *vm, kupatch *patch, uint8_t op);
-void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to);
+void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to, bool rev);
 
 // ********************** branching **********************
 void ku_ifstmt(kuvm *vm, kuloop *loop);
