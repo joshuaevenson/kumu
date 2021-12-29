@@ -983,7 +983,7 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  res = ku_exec(vm, "var m = { a,b => { if (a>b) return a; else return b; }}; var x=m(3,14);");
+  res = ku_exec(vm, "var max = { a,b => { if (a>b) return a; else return b; }}; var x=max(3,14);");
   EXPECT_INT(vm, res, KVM_OK, "lambda args body res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(14), "lambda args body ret");
   ku_free(vm);
