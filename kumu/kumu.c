@@ -550,6 +550,7 @@ void ku_lexdump(kuvm *vm) {
     kutok token = ku_scan(vm);
     if (token.line != line) {
       ku_printf(vm, "%4d ", token.line);
+      line = token.line;
     } else {
       ku_printf(vm, "  |  ");
     }

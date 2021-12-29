@@ -945,5 +945,8 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "a"), NIL_VAL, "gc class val");
   ku_free(vm);
 
+  ku_lexinit(vm, "var x = 12+3;\nvar m=2;\nvar mm=99;");
+  ku_lexdump(vm);
+
   ku_test_summary();
 }
