@@ -2527,7 +2527,7 @@ void ku_printval(kuvm *vm, kuval value) {
   } else if (IS_NUM(value)) {
     ku_printf(vm, "%g", AS_NUM(value));
   } else if (IS_OBJ(value)) {
-    ku_print_obj(vm, value);
+    ku_printobj(vm, value);
   }
 #else
   switch (value.type) {

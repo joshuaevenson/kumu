@@ -27,7 +27,7 @@
 #define KVM_MAJOR          0
 #define KVM_MINOR          7
 
-//#define NAN_BOX
+#define NAN_BOX
 #define UPSTACK_MAX (UINT8_MAX + 1)
 #define LOCALS_MAX    (UINT8_MAX + 1)
 #define FRAMES_MAX 64
