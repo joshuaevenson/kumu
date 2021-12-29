@@ -8,7 +8,7 @@
 // ✓ arg => { block }
 // ✓ { arg, arg => { block } }
 // ✓ repl expression print
-// 𐄂 break
+// ✓ break
 // 𐄂 continue
 // 𐄂 printf(format, ...)
 // 𐄂 fix disassembler
@@ -17,8 +17,8 @@
 // 𐄂 native library functions (int, hex, sin, ...)
 // 𐄂 arrays
 // 𐄂 native classes
-// 𐄂 persistent continuations (save, load)
-// 𐄂 transient continuations (suspend, resume)
+// 𐄂 persistent tasks (save, load)
+// 𐄂 transient taks (suspend, resume)
 // 𐄂 repl readline
 
 #ifndef KUMU_H

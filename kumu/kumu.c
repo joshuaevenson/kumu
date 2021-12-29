@@ -1309,13 +1309,20 @@ void ku_forstmt(kuvm *vm, kuloop *loop) {
     ku_patchjump(vm, body_jump);
   }
   
-  ku_stmt(vm, loop);
+  kuloop inner;
+  ku_loopinit(vm, &inner);
+  ku_stmt(vm, &inner);
   ku_emitloop(vm, loop_start);
-  
+
   if (exit_jump != -1) {
     ku_patchjump(vm, exit_jump);
     ku_emitbyte(vm, OP_POP);
   }
+
+  uint16_t loop_end = ku_chunk(vm)->count;
+  ku_patchall(vm, &inner.continuepatch, loop_start);
+  ku_patchall(vm, &inner.breakpatch, loop_end);
+
   ku_endscope(vm);
 }
 

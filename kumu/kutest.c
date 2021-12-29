@@ -1015,5 +1015,11 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "while break ret");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var x=0; for(var i=0; i<10; i=i+1) { if (i > 2) break;  x = i;}");
+  EXPECT_INT(vm, res, KVM_OK, "for break res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "for break ret");
+  ku_free(vm);
+
   ku_test_summary();
 }
