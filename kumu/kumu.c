@@ -635,7 +635,7 @@ static void ku_emitbytes(kuvm *vm, uint8_t b1, uint8_t b2) {
 
 static uint8_t ku_pconst(kuvm *vm, kuval val) {
   int cons = ku_chunkconst(vm, ku_chunk(vm), val);
-  if (cons > UINT8_MAX) {
+  if (cons > vm->max_const) {
     ku_perr(vm, "out of constant space");
     return 0;
   }
@@ -999,7 +999,7 @@ static int ku_xvaladd(kuvm *vm, kucomp *compiler, uint8_t index, bool local) {
     }
   }
   
-  if (upcount == UPSTACK_MAX) {
+  if (upcount == vm->max_closures) {
     ku_err(vm, "too many closures");
     return 0;
   }
@@ -1153,7 +1153,7 @@ int ku_emitjump(kuvm *vm, k_op op) {
 void ku_patchjump(kuvm *vm, int offset) {
   int jump = ku_chunk(vm)->count - offset - 2;
   
-  if (jump > UINT16_MAX) {
+  if (jump > vm->max_jump) {
     ku_perr(vm, "too much code to jump over");
   }
   
@@ -1164,7 +1164,7 @@ void ku_patchjump(kuvm *vm, int offset) {
 void ku_emitloop(kuvm *vm, int start) {
   ku_emitbyte(vm, OP_LOOP);
   int offset = ku_chunk(vm)->count - start + 2;
-  if (offset > UINT16_MAX) {
+  if (offset > vm->max_body) {
     ku_perr(vm, "loop body too large");
   }
   ku_emitbyte(vm, (offset >> 8) & 0xff);
@@ -1317,17 +1317,19 @@ kuvm *ku_new(void) {
   }
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
+  vm->max_const = UINT8_MAX;
+  vm->max_closures = UPSTACK_MAX;
+  vm->max_jump = UINT16_MAX;
+  vm->max_body = UINT16_MAX;
+  vm->max_frames = FRAMES_MAX;
+  vm->max_locals = LOCALS_MAX;
+  
   vm->flags = 0;
   vm->curclass = NULL;
   vm->gcnext = 1024*1024;
   vm->gccount = 0;
   vm->gccap = 0;
   vm->gcstack = NULL;
-  
-  if (!vm) {
-    return NULL;
-  }
-
   vm->stop = false;
   vm->objects = NULL;
   vm->openupvals = NULL;
@@ -1396,7 +1398,7 @@ static bool ku_docall(kuvm *vm, kuclosure *cl, int argc) {
     return false;
   }
   
-  if (vm->framecount == FRAMES_MAX) { // @todo: make vm field
+  if (vm->framecount == vm->max_frames) {
     ku_err(vm, "stack overflow");
     return false;
   }
@@ -2136,7 +2138,7 @@ void ku_declare_var(kuvm *vm) {
 }
 
 void ku_addlocal(kuvm *vm, kutok name) {
-  if (vm->compiler->count == LOCALS_MAX) {
+  if (vm->compiler->count == vm->max_locals) {
     ku_perr(vm, "too many locals");
     return;
   }

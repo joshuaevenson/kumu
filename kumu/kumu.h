@@ -481,7 +481,15 @@ typedef enum {
 
 typedef struct kuvm {
   uint64_t flags;
-  uint8_t max_params;
+  
+  int max_params;
+  int max_const;
+  int max_closures;
+  int max_jump;
+  int max_body;
+  int max_frames;
+  int max_locals;
+  
   bool stop;
   size_t allocated;
   size_t gcnext;

@@ -396,6 +396,10 @@ void ku_test() {
   EXPECT_TRUE(vm, !found, "map get not found");
   found = ku_tabdel(vm, &map, k1);
   EXPECT_TRUE(vm, found, "map del found");
+  found = ku_tabdel(vm, &map, k3);
+  EXPECT_TRUE(vm, !found, "map del not found");
+
+  
   found = ku_tabget(vm, &map, k1, &v);
   EXPECT_TRUE(vm, !found, "map del not found");
   kutab map2;
@@ -844,10 +848,101 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "class A { f() { return 2; } }\nclass B < A { f() { return super.f()*3; }}\nvar b=B(); var x = b.f();");
   EXPECT_INT(vm, res, KVM_OK, "super invoke res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(6), "super invoke ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_const = 1;
+  res = ku_exec(vm, "var x=1; var y=2;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "too many const");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun=7; ");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "invalid assign");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun f() { return; }");
+  EXPECT_INT(vm, res, KVM_OK, "simple ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_closures = 1;
+  res = ku_exec(vm, "fun O() { var a=1; var b=2; fun I() { return a*b; } return e; }\n var z=M(); var x=z();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "too many closures res");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_jump = 1;
+  res = ku_exec(vm, "var x = 0; for(var j=0; j < 10; j=j+1) x = j;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "max jump");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_body = 1;
+  res = ku_exec(vm, "var x = 0; for(var j=0; j < 10; j=j+1) x = j;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "max body");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_frames = 1;
+  res = ku_exec(vm, "fun a(){} fun b(){a();} fun c(){b();} c();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "stack overflow");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A{}\nvar a=A(); a.x();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "invoke invalid prop");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A{}\nvar a=7; a.x();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "invoke invalid receiver");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A{} class B<A{ f() { super.x(); }} var b=B(); b.f();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "invoke invalid super");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=true; var y=-x;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "negate non-number");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "fun O() { var a=1; var b=2; fun e() { a=9; return a*b; } return e; }\n var z=O(); var x=z();");
+  EXPECT_INT(vm, res, KVM_OK, "closure set res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(18), "closure set ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "class A{} class B<A{ f() { var m = super.x; }} var b=B(); b.f();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "invalid get super");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = KVM_F_NOEXEC;
+  res = ku_exec(vm, "var x=9;");
+  EXPECT_INT(vm, res, KVM_OK, "noexec");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->max_locals = 1;
+  res = ku_exec(vm, "fun f() { var x=9; var m=2; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "max_locals");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = KVM_F_GCSTRESS | KVM_F_GCLOG | KVM_F_QUIET;
+  res = ku_exec(vm, "class A{ f(){}} var a=A(); var z=a.f; a=nil;");
+  ku_gc(vm);
+  EXPECT_INT(vm, res, KVM_OK, "gc class res");
+  EXPECT_VAL(vm, ku_get_global(vm, "a"), NIL_VAL, "gc class val");
   ku_free(vm);
 
   ku_test_summary();
