@@ -44,6 +44,7 @@ static void ku_printfunc(kuvm *vm, kufunc *fn);
 int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset);
 static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
+static void ku_function(kuvm *vm, kufunc_t type);
 // ********************** object **********************
 static kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
@@ -567,7 +568,7 @@ static void ku_perrat(kuvm *vm, kutok *tok, const char *msg) {
   if (vm->parser.panic) return;
   vm->parser.panic = true;
   
-  ku_printf(vm, "[line %d] error", tok->line);
+  ku_printf(vm, "[line %d] error ", tok->line);
   
   if (tok->type == TOK_EOF) {
     ku_printf(vm, " at end ");
@@ -723,6 +724,11 @@ static void ku_string(kuvm* vm, bool lhs) {
 static void ku_number(kuvm *vm, bool lhs) {
   double val = strtod(vm->parser.prev.start, NULL);
   ku_emitconst(vm, NUM_VAL(val));
+}
+
+static void ku_funcexpr(kuvm *vm, bool lhs) {
+  ku_function(vm, FUNC_STD);
+  // todo
 }
 
 static void ku_expr(kuvm *vm) {
@@ -1269,7 +1275,7 @@ kuprule ku_rules[] = {
   [TOK_ELSE] =   { NULL,        NULL,     P_NONE },
   [TOK_FALSE] =  { ku_lit,      NULL,     P_NONE },
   [TOK_FOR] =    { NULL,        NULL,     P_NONE },
-  [TOK_FUN] =    { NULL,        NULL,     P_NONE },
+  [TOK_FUN] =    { ku_funcexpr, NULL,     P_NONE },
   [TOK_IF] =     { NULL,        NULL,     P_NONE },
   [TOK_NIL] =    { ku_lit,      NULL,     P_NONE },
   [TOK_OR] =     { NULL,        ku_or,    P_OR },

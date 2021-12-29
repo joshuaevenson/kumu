@@ -945,6 +945,19 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "a"), NIL_VAL, "gc class val");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var f=fun(a) {return a*2;}; var x=f(3);");
+  EXPECT_INT(vm, res, KVM_OK, "anonymous function res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(6), "anonymous func ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  vm->flags = 0;
+  res = ku_exec(vm, "fun f(x) { return x(7);} var x=f(fun(a) { return a*2; });");
+  EXPECT_INT(vm, res, KVM_OK, "fun arg res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(14), "fun arg ret");
+  ku_free(vm);
+
   ku_lexinit(vm, "var x = 12+3;\nvar m=2;\nvar mm=99;");
   ku_lexdump(vm);
 

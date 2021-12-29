@@ -101,7 +101,7 @@ static void ku_repl(kuvm *vm) {
   char line[1024];
   
   while(true) {
-    printf(">>");
+    printf("> ");
     
     if (!fgets(line, sizeof(line), stdin)) {
       printf("\n");
