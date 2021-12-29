@@ -902,21 +902,37 @@ static void ku_functail(kuvm *vm, kucomp *compiler, bool lambda) {
   }
 }
 
+static void ku_params(kuvm *vm) {
+  do {
+    vm->compiler->function->argc++;
+    if (vm->compiler->function->argc > vm->max_params) {
+      ku_perr(vm, "too many params");
+    }
+    
+    uint8_t constant = ku_var(vm, "expected parameter name");
+    ku_vardef(vm, constant);
+  } while(ku_pmatch(vm, TOK_COMMA));
+}
+
+static void ku_lblock(kuvm *vm, bool lhs) {
+  kucomp compiler;
+  ku_compinit(vm, &compiler, FUNC_STD);
+  ku_beginscope(vm);
+  ku_params(vm);
+  ku_pconsume(vm, TOK_ARROW, "'=>' expected");
+  ku_markinit(vm);
+  ku_expr(vm);
+  ku_functail(vm, &compiler, true);
+  ku_pconsume(vm, TOK_RBRACE, "'}' expected");
+}
+
 static void ku_function(kuvm *vm, kufunc_t type) {
   kucomp compiler;
   ku_compinit(vm, &compiler, type);
   ku_beginscope(vm);
   ku_pconsume(vm, TOK_LPAR, "'(' expected after function name");
   if (!ku_pcheck(vm, TOK_RPAR)) {
-    do {
-      vm->compiler->function->argc++;
-      if (vm->compiler->function->argc > vm->max_params) {
-        ku_perr(vm, "too many params");
-      }
-      
-      uint8_t constant = ku_var(vm, "expected parameter name");
-      ku_vardef(vm, constant);
-    } while(ku_pmatch(vm, TOK_COMMA));
+    ku_params(vm);
   }
   ku_pconsume(vm, TOK_RPAR, "')' expected after parameters");
   ku_pconsume(vm, TOK_LBRACE, "'{' expected before function body");
@@ -1278,7 +1294,7 @@ void ku_or(kuvm *vm, bool lhs) {
 kuprule ku_rules[] = {
   [TOK_LPAR] =   { ku_grouping, ku_call,  P_CALL },
   [TOK_RPAR] =   { NULL,        NULL,     P_NONE },
-  [TOK_LBRACE] = { NULL,        NULL,     P_NONE },
+  [TOK_LBRACE] = { ku_lblock,   NULL,     P_NONE },
   [TOK_RBRACE] = { NULL,        NULL,     P_NONE },
   [TOK_COMMA] =  { NULL,        NULL,     P_NONE },
   [TOK_DOT] =    { NULL,        ku_dot,   P_CALL },

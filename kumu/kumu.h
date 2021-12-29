@@ -3,19 +3,22 @@
 
 
 // ********************** backlog **********************
-// - function expressions
-// - loop break
-// - loop continue
-// - printf(format, ...)
-// - fix disassembler
-// - persistent continuations (save, load)
-// - transient continuations (suspend, resume)
-// - string literal escape sequences
-// - number literal scientific notations
-// - native library functions (int, hex, sin, ...)
-// - arrays
-// - native classes
-// - repl readline
+// ✓ arg => expr
+// ✓ { arg, arg => expr }
+// 𐄂 arg => { block }
+// 𐄂 { arg, arg => { block } }
+// 𐄂 break
+// 𐄂 continue
+// 𐄂 printf(format, ...)
+// 𐄂 fix disassembler
+// 𐄂 persistent continuations (save, load)
+// 𐄂 transient continuations (suspend, resume)
+// 𐄂 string literal escape sequences
+// 𐄂 number literal scientific notations
+// 𐄂 native library functions (int, hex, sin, ...)
+// 𐄂 arrays
+// 𐄂 native classes
+// 𐄂 repl readline
 
 #ifndef KUMU_H
 #define KUMU_H

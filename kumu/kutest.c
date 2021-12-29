@@ -977,7 +977,7 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  res = ku_exec(vm, "var f = {a,b => a*b}; var x=f(3,4);");
+  res = ku_exec(vm, "var f = { a,b => a*b }; var x=f(3,4);");
   EXPECT_INT(vm, res, KVM_OK, "lambda args res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda args ret");
   ku_free(vm);
