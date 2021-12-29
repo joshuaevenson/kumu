@@ -96,8 +96,52 @@ static bool ku_check_flags(kuvm *vm, char *line) {
   return false;
 }
 
+static void ku_replexec(kuvm *vm, char *expr, kustr *under) {
+  uint64_t oldflags = vm->flags;
+  vm->flags |= KVM_F_QUIET;
+  kufunc *fn = ku_compile(vm, expr);
+  if (fn == NULL) {
+    size_t len = strlen(expr);
+    char alt[1024];
+    sprintf(alt, "_ = %s", expr);
+    if (expr[len-1] != ';') {
+      strcat(alt, ";");
+      vm->flags = oldflags;
+      ku_exec(vm, alt);
+      kuval v;
+      ku_tabget(vm, &vm->globals, under, &v);
+      ku_printval(vm, v);
+      printf("\n");
+    }
+  } else {
+    vm->flags = oldflags;
+    ku_exec(vm, expr);
+    if (vm->sp > vm->stack) {
+      kuval v = ku_pop(vm);
+      ku_printval(vm, v);
+      printf("\n");
+    }
+  }
+
+}
+
+static void ku_printbuild(kuvm *vm) {
+  printf("kumu ");
+#ifdef DEBUG
+  printf("[dbg] ");
+#endif
+  
+#ifdef NAN_BOX
+  printf("[nan] ");
+#endif
+  printf("version %d.%d\n", KVM_MAJOR, KVM_MINOR);
+}
 static void ku_repl(kuvm *vm) {
-  printf("kumu %d.%d\n", KVM_MAJOR, KVM_MINOR);
+  ku_printbuild(vm);
+  kustr* under = ku_strfrom(vm, "_", 1);
+  ku_tabset(vm, &vm->globals, under, NIL_VAL);
+
+  
   char line[1024];
   
   while(true) {
@@ -127,13 +171,7 @@ static void ku_repl(kuvm *vm) {
       continue;
     }
     
-    ku_exec(vm, line);
-    if (vm->sp > vm->stack) {
-      kuval v = ku_pop(vm);
-      ku_printval(vm, v);
-      printf("\n");
-    }
-
+    ku_replexec(vm, line, under);
   }
 }
 

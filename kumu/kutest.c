@@ -994,6 +994,5 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda body ret");
   ku_free(vm);
 
-  
   ku_test_summary();
 }

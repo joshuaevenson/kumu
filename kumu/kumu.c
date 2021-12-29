@@ -1885,7 +1885,7 @@ kures ku_run(kuvm *vm) {
   return KVM_OK;
 }
 
-static kufunc *ku_compile(kuvm *vm, char *source) {
+kufunc *ku_compile(kuvm *vm, char *source) {
   kucomp compiler;
   ku_compinit(vm, &compiler, FUNC_MAIN);
   ku_lexinit(vm, source);

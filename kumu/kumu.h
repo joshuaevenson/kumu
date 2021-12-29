@@ -7,17 +7,18 @@
 // ✓ { arg, arg => expr }
 // ✓ arg => { block }
 // ✓ { arg, arg => { block } }
+// ✓ repl expression print
 // 𐄂 break
 // 𐄂 continue
 // 𐄂 printf(format, ...)
 // 𐄂 fix disassembler
-// 𐄂 persistent continuations (save, load)
-// 𐄂 transient continuations (suspend, resume)
 // 𐄂 string literal escape sequences
 // 𐄂 number literal scientific notations
 // 𐄂 native library functions (int, hex, sin, ...)
 // 𐄂 arrays
 // 𐄂 native classes
+// 𐄂 persistent continuations (save, load)
+// 𐄂 transient continuations (suspend, resume)
 // 𐄂 repl readline
 
 #ifndef KUMU_H
@@ -523,6 +524,7 @@ kures ku_run(kuvm* vm);
 kures ku_runfile(kuvm* vm, const char* file);
 kures ku_exec(kuvm *vm, char *source);
 kuchunk *ku_chunk(kuvm *vm);
+kufunc *ku_compile(kuvm *vm, char *source);
 
 // ********************** stack **********************
 void ku_reset(kuvm* vm);
