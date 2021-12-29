@@ -181,7 +181,7 @@ void ku_test() {
   ku_free(vm);
   
   vm = kut_new();
-  ku_lexinit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= == => far\ttrick\nart\rcool eek too fund");
+  ku_lexinit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= == => break continue far\ttrick\nart\rcool eek too fund");
   kutok t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_AND, "[and]");
   t = ku_scan(vm);
@@ -241,8 +241,13 @@ void ku_test() {
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_EQEQ, "[==]");
   t = ku_scan(vm);
-  EXPECT_INT(vm, t.type, TOK_ARROW, "=>");
+  EXPECT_INT(vm, t.type, TOK_ARROW, "[=>]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_BREAK, "[break]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_CONTINUE, "[continue]");
 
+  
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
   t = ku_scan(vm);
@@ -992,6 +997,22 @@ void ku_test() {
   res = ku_exec(vm, "var abs = { a=> { if (a<0) return -a; else return a; }}; var x=abs(-12);");
   EXPECT_INT(vm, res, KVM_OK, "lambda body res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda body ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x =3; break;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "global break");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x =3; continue;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "global continue");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var x=0; while(x < 5) { if (x > 2) break; x=x+1; }");
+  EXPECT_INT(vm, res, KVM_OK, "while break res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "while break ret");
   ku_free(vm);
 
   ku_test_summary();

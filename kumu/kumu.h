@@ -372,6 +372,7 @@ typedef enum {
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
   TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
   TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
+  TOK_BREAK, TOK_CONTINUE,
 } kutok_t;
 
 typedef struct {
@@ -417,7 +418,6 @@ typedef struct kucomp {
 } kucomp;
 
 void ku_compinit(kuvm *vm, kucomp *compiler, kufunc_t type);
-void ku_block(kuvm *vm);
 void ku_beginscope(kuvm *vm);
 void ku_endscope(kuvm *vm);
 void ku_declare_var(kuvm *vm);
@@ -426,18 +426,6 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
 int ku_resolvelocal(kuvm *vm, kucomp *compiler, kutok *name);
 void ku_markinit(kuvm *vm);
 int ku_opslotdis(kuvm *vm, const char *name, kuchunk *chunk, int offset);
-
-// ********************** branching **********************
-void ku_ifstmt(kuvm *vm);
-int ku_emitjump(kuvm *vm, k_op op);
-void ku_patchjump(kuvm *vm, int offset);
-void ku_emitloop(kuvm *vm, int start);
-void ku_whilestmt(kuvm *vm);
-void ku_forstmt(kuvm *vm);
-int ku_jumpdis(kuvm *vm, const char *name,
-                     int sign, kuchunk *chunk, int offset);
-void ku_and(kuvm *vm, bool lhs);
-void ku_or(kuvm *vm, bool lhs);
 
 // ********************** parser **********************
 typedef struct {
@@ -535,6 +523,34 @@ kuval ku_pop(kuvm* vm);
 void ku_gc(kuvm *vm);
 void ku_printmem(kuvm *vm);
 void ku_printstack(kuvm *vm);
+
+// ********************** loop patch **********************
+typedef struct {
+  int count;
+  uint16_t offset[UINT16_MAX];
+} kupatch;
+
+typedef struct {
+  kupatch breakpatch;
+  kupatch continuepatch;
+} kuloop;
+
+void ku_loopinit(kuvm *vm, kuloop *loop);
+void ku_emitpatch(kuvm *vm, kupatch *patch, uint8_t op);
+void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to);
+
+// ********************** branching **********************
+void ku_ifstmt(kuvm *vm, kuloop *loop);
+int ku_emitjump(kuvm *vm, k_op op);
+void ku_patchjump(kuvm *vm, int offset);
+void ku_emitloop(kuvm *vm, int start);
+void ku_whilestmt(kuvm *vm, kuloop *loop);
+void ku_forstmt(kuvm *vm, kuloop *loop);
+int ku_jumpdis(kuvm *vm, const char *name,
+                     int sign, kuchunk *chunk, int offset);
+void ku_and(kuvm *vm, bool lhs);
+void ku_or(kuvm *vm, bool lhs);
+void ku_block(kuvm *vm, kuloop *loop);
 
 #endif /* KUMU_H */
 
