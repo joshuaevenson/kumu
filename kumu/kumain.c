@@ -126,15 +126,15 @@ static void ku_replexec(kuvm *vm, char *expr, kustr *under) {
 }
 
 static void ku_printbuild(kuvm *vm) {
-  printf("kumu ");
+  printf("kumu [");
 #ifdef DEBUG
-  printf("[dbg] ");
+  printf("D ");
 #endif
   
 #ifdef NAN_BOX
-  printf("[nan] ");
+  printf("N");
 #endif
-  printf("version %d.%d\n", KVM_MAJOR, KVM_MINOR);
+  printf("] v%d.%d\n", KVM_MAJOR, KVM_MINOR);
 }
 static void ku_repl(kuvm *vm) {
   ku_printbuild(vm);
