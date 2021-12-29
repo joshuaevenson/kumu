@@ -1,8 +1,8 @@
-// ------------------------------------------------------------
-// Kumu - Hawaiian for "basic"
-// Small, fast, familiar, portable
-// ------------------------------------------------------------
-// - naming
+// ********************** kumu **********************
+// basic (hawaiian): small, fast, portable, familiar
+
+
+// ********************** backlog **********************
 // - code coverage
 // - function expressions
 // - loop break
@@ -18,15 +18,22 @@
 // - arrays
 // - error codes / optional strings for disassembly and errors
 // - native classes
-// ------------------------------------------------------------
+// - repl readline
+
 #ifndef KUMU_H
 #define KUMU_H
 
-#define NAN_BOX
+// ********************** macros **********************
+#define KVM_MAJOR          0
+#define KVM_MINOR          7
 
-// ------------------------------------------------------------
-// Includes
-// ------------------------------------------------------------
+//#define NAN_BOX
+#define UPSTACK_MAX (UINT8_MAX + 1)
+#define LOCALS_MAX    (UINT8_MAX + 1)
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * UPSTACK_MAX)
+
+// ********************** includes **********************
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -36,23 +43,10 @@
 #include <assert.h>
 #include <stdarg.h>
 
-// ------------------------------------------------------------
-// Versioning
-// ------------------------------------------------------------
-#define KVM_MAJOR          0
-#define KVM_MINOR          1
+// ********************** forwards **********************
+typedef struct kuvm kuvm;
 
-#define UINT8_COUNT (UINT8_MAX + 1)
-
-// ------------------------------------------------------------
-// Forward
-// ------------------------------------------------------------
-struct _vm;
-typedef struct _vm kuvm;
-
-// ------------------------------------------------------------
-// Value
-// ------------------------------------------------------------
+// ********************** object types **********************
 typedef enum {
   OBJ_FUNC,
   OBJ_CFUNC,
@@ -62,36 +56,41 @@ typedef enum {
   OBJ_CLASS,
   OBJ_INSTANCE,
   OBJ_BOUND_METHOD,
-} kuobjtype;
+} kuobj_t;
 
+// ********************** function types **********************
 typedef enum {
   FUNC_STD,
   FUNC_MAIN,
   FUNC_METHOD,
   FUNC_INIT,
-} kufunctype;
+} kufunc_t;
 
+// ********************** object **********************
 typedef struct kuobj {
-  kuobjtype type;
+  kuobj_t type;
   bool marked;
   struct kuobj *next;
 } kuobj;
 
-void ku_obj_free(kuvm* vm, kuobj* obj);
+void ku_objfree(kuvm* vm, kuobj* obj);
 
+// ********************** string **********************
 typedef struct {
   kuobj obj;
   int len;
   char* chars;
   uint32_t hash;
 } kustr;
+kustr* ku_strfrom(kuvm* vm, const char* chars, int len);
 
+// ********************** value types **********************
 typedef enum {
   VAL_BOOL,
   VAL_NIL,
   VAL_NUM,
   VAL_OBJ,
-} kuvaltype;
+} kuval_t;
 
 #ifdef NAN_BOX
 
@@ -109,7 +108,7 @@ typedef uint64_t kuval;
 #else
 
 typedef struct {
-  kuvaltype type;
+  kuval_t type;
   union {
     bool bval;
     double dval;
@@ -119,7 +118,7 @@ typedef struct {
 
 #endif
 
-bool ku_obj_istype(kuval v, kuobjtype ot);
+bool ku_objis(kuval v, kuobj_t ot);
 
 #ifdef NAN_BOX
 
@@ -158,13 +157,13 @@ static inline kuval ku_num2val(double d) {
 
 #endif
 
-#define IS_STR(v) (ku_obj_istype(v, OBJ_STR))
-#define IS_FUNC(v) (ku_obj_istype(v, OBJ_FUNC))
-#define IS_CFUNC(v) (ku_obj_istype(v, OBJ_CFUNC))
-#define IS_CLOSURE(v) (ku_obj_istype(v, OBJ_CLOSURE))
-#define IS_CLASS(v) (ku_obj_istype(v, OBJ_CLASS))
-#define IS_INSTANCE(v) (ku_obj_istype(v, OBJ_INSTANCE))
-#define IS_BOUND_METHOD(v) (ku_obj_istype(v, OBJ_BOUND_METHOD))
+#define IS_STR(v) (ku_objis(v, OBJ_STR))
+#define IS_FUNC(v) (ku_objis(v, OBJ_FUNC))
+#define IS_CFUNC(v) (ku_objis(v, OBJ_CFUNC))
+#define IS_CLOSURE(v) (ku_objis(v, OBJ_CLOSURE))
+#define IS_CLASS(v) (ku_objis(v, OBJ_CLASS))
+#define IS_INSTANCE(v) (ku_objis(v, OBJ_INSTANCE))
+#define IS_BOUND_METHOD(v) (ku_objis(v, OBJ_BOUND_METHOD))
 
 #ifdef NAN_BOX
 
@@ -191,78 +190,70 @@ static inline double ku_val2num(kuval v) {
 #define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
 #define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
 #define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
-#define AS_INSTANCE(v) ((kuinstance*)AS_OBJ(v))
-#define AS_BOUND_METHOD(v) ((kuboundmethod*)AS_OBJ(v))
+#define AS_INSTANCE(v) ((kuiobj*)AS_OBJ(v))
+#define AS_BOUND_METHOD(v) ((kubound*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
-bool ku_val_eq(kuval v1, kuval v2);
+bool ku_equal(kuval v1, kuval v2);
 
-void ku_print_val(kuvm* vm, kuval value);
+void ku_printval(kuvm* vm, kuval value);
 
+// ********************** arrays **********************
 typedef struct {
     int capacity;
     int count;
     kuval* values;
 } kuarr;
 
-void ku_arr_init(kuvm* vm, kuarr* array);
-void ku_arr_write(kuvm* vm, kuarr* array, kuval value);
+void ku_arrinit(kuvm* vm, kuarr* array);
+void ku_arrwrite(kuvm* vm, kuarr* array, kuval value);
 
-// ------------------------------------------------------------
-// Memory
-// ------------------------------------------------------------
+// ********************** memory **********************
+char* ku_alloc(kuvm* vm, void* p, size_t oldsize, size_t newsize);
 
-// 0,N => malloc, N,0 => free, N,M => realloc
-char* ku_alloc(kuvm* vm, void* ptr, size_t old, size_t nsize);
-
-// ------------------------------------------------------------
-// OP codes
-// ------------------------------------------------------------
+// ********************** bytecodes **********************
 typedef enum {
+  OP_ADD,
   OP_CALL,
   OP_CLASS,
-  OP_CLOSURE,
   OP_CLOSE_UPVAL,
+  OP_CLOSURE,
   OP_CONST,
-  OP_RET,
-  OP_NEG,
-  OP_ADD,
-  OP_SUB,
+  OP_DEF_GLOBAL,
+  OP_DIV,
+  OP_EQ,
+  OP_FALSE,
+  OP_GET_GLOBAL,
+  OP_GET_LOCAL,
+  OP_GET_PROP,
+  OP_GET_SUPER,
+  OP_GET_UPVAL,
+  OP_GT,
+  OP_INHERIT,
+  OP_INVOKE,
+  OP_JUMP,
+  OP_JUMP_IF_FALSE,
+  OP_LOOP,
+  OP_LT,
   OP_METHOD,
   OP_MUL,
-  OP_DIV,
-  OP_INVOKE,
-  OP_INHERIT,
-  OP_NOT,
+  OP_NEG,
   OP_NIL,
-  OP_PRINT,
+  OP_NOT,
   OP_POP,
-  OP_TRUE,
-  OP_FALSE,
-  OP_GT,
-  OP_DEF_GLOBAL,
-  OP_GET_GLOBAL,
+  OP_PRINT,
+  OP_RET,
   OP_SET_GLOBAL,
-  OP_GET_LOCAL,
   OP_SET_LOCAL,
-  OP_GET_UPVAL,
-  OP_SET_UPVAL,
-  OP_GET_PROP,
   OP_SET_PROP,
-  OP_GET_SUPER,
+  OP_SET_UPVAL,
+  OP_SUB,
   OP_SUPER_INVOKE,
-  OP_LT,
-  OP_EQ,
-  OP_JUMP_IF_FALSE,
-  OP_JUMP,
-  OP_LOOP,
+  OP_TRUE,
 } k_op;
 
-
-// ------------------------------------------------------------
-// Chunk
-// ------------------------------------------------------------
+// ********************** code chunks **********************
 typedef struct {
   int count;
   int capacity;
@@ -271,53 +262,43 @@ typedef struct {
   kuarr constants;
 } kuchunk;
 
-void ku_chunk_init(kuvm* vm, kuchunk* chunk);
-void ku_chunk_write(kuvm* vm, kuchunk* chunk, uint8_t byte, int line);
-void ku_chunk_free(kuvm* vm, kuchunk* chunk);
-int ku_chunk_add_const(kuvm* vm, kuchunk* chunk, kuval value);
+void ku_chunkinit(kuvm* vm, kuchunk* chunk);
+void ku_chunkwrite(kuvm* vm, kuchunk* chunk, uint8_t byte, int line);
+void ku_chunkfree(kuvm* vm, kuchunk* chunk);
+int ku_chunkconst(kuvm* vm, kuchunk* chunk, kuval value);
 
-// ------------------------------------------------------------
-// Upvalues
-// ------------------------------------------------------------
-typedef struct kuupobj {
+// ********************** upvalues **********************
+typedef struct kuxobj {
   kuobj obj;
   kuval *location;
   kuval closed;
-  struct kuupobj *next;
-} kuupobj;
+  struct kuxobj *next;
+} kuxobj;
 
-kuupobj *ku_upobj_new(kuvm *vm, kuval *slot);
+kuxobj *ku_xobjnew(kuvm *vm, kuval *slot);
 
-
-// ------------------------------------------------------------
-// Functions
-// ------------------------------------------------------------
+// ********************** functions **********************
 typedef struct {
   kuobj obj;
-  int arity;
+  int argc;
   int upcount;
   kuchunk chunk;
   kustr *name;
 } kufunc;
 
-kufunc *ku_func_new(kuvm *vm);
-void ku_print_func(kuvm *vm, kufunc *fn);
+kufunc *ku_funcnew(kuvm *vm);
 
-// ------------------------------------------------------------
-// Closures
-// ------------------------------------------------------------
+// ********************** closures **********************
 typedef struct {
   kuobj obj;
   kufunc *func;
-  kuupobj **upvals;
+  kuxobj **upvals;
   int upcount;
 } kuclosure;
 
-kuclosure *ku_closure_new(kuvm *vm, kufunc *f);
+kuclosure *ku_closurenew(kuvm *vm, kufunc *f);
 
-// ------------------------------------------------------------
-// C Functions
-// ------------------------------------------------------------
+// ********************** native functions **********************
 typedef kuval (*cfunc)(kuvm *vm, int argc, kuval *argv);
 
 typedef struct {
@@ -325,13 +306,11 @@ typedef struct {
   cfunc fn;
 } kucfunc;
 
-kucfunc *ku_cfunc_new(kuvm *vm, cfunc f);
-void ku_cfunc_def(kuvm *vm, const char *name, cfunc f);
+kucfunc *ku_cfuncnew(kuvm *vm, cfunc f);
+void ku_cfuncdef(kuvm *vm, const char *name, cfunc f);
 void ku_reglibs(kuvm *vm);
 
-// ------------------------------------------------------------
-// Map / Hash table
-// ------------------------------------------------------------
+// ********************** hash tables **********************
 typedef struct {
   kustr* key;
   kuval value;
@@ -341,52 +320,44 @@ typedef struct {
   int count;
   int capacity;
   kuentry* entries;
-} kutable;
+} kutab;
 
-void ku_table_init(kuvm *vm, kutable* map);
-void ku_table_free(kuvm *vm, kutable* map);
-bool ku_table_set(kuvm* vm, kutable* map, kustr *key, kuval value);
-bool ku_table_get(kuvm* vm, kutable* map, kustr* key, kuval *value);
-bool ku_table_del(kuvm* vm, kutable* map, kustr* key);
-void ku_table_copy(kuvm* vm, kutable* from, kutable* to);
-kustr* ku_table_find(kuvm* vm, kutable* map, const char* chars, int len, uint32_t hash);
+void ku_tabinit(kuvm *vm, kutab* t);
+void ku_tabfree(kuvm *vm, kutab* t);
+bool ku_tabset(kuvm* vm, kutab* t, kustr *key, kuval value);
+bool ku_tabget(kuvm* vm, kutab* t, kustr* key, kuval *value);
+bool ku_tabdel(kuvm* vm, kutab* t, kustr* key);
+void ku_tabcopy(kuvm* vm, kutab* t, kutab* to);
+kustr* ku_tabfindc(kuvm* vm, kutab* t, const char* chars, int len, uint32_t hash);
 
-// ------------------------------------------------------------
-// Classes
-// ------------------------------------------------------------
+// ********************** classes **********************
 typedef struct {
   kuobj obj;
   kustr *name;
-  kutable methods;
+  kutab methods;
 } kuclass;
 
-kuclass *ku_class_new(kuvm *vm, kustr *name);
+kuclass *ku_classnew(kuvm *vm, kustr *name);
 
-// ------------------------------------------------------------
-// Instances
-// ------------------------------------------------------------
+// ********************** instances **********************
 typedef struct {
   kuobj obj;
   kuclass *klass;
-  kutable fields;
-} kuinstance;
+  kutab fields;
+} kuiobj;
 
-kuinstance *ku_instance_new(kuvm *vm, kuclass *klass);
+kuiobj *ku_instnew(kuvm *vm, kuclass *klass);
 
-// ------------------------------------------------------------
-// Bound methods
-// ------------------------------------------------------------
+// ********************** bound methods **********************
 typedef struct {
   kuobj obj;
   kuval receiver;
   kuclosure *method;
-} kuboundmethod;
+} kubound;
 
-kuboundmethod *ku_boundmethod_new(kuvm *vm, kuval receiver, kuclosure *method);
+kubound *ku_boundnew(kuvm *vm, kuval receiver, kuclosure *method);
 
-// ------------------------------------------------------------
-// Scanner
-// ------------------------------------------------------------
+// ********************** scanner **********************
 typedef enum {
   // Single-character tokens.
   TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
@@ -400,10 +371,10 @@ typedef enum {
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
   TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
   TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
-} kutoktype;
+} kutok_t;
 
 typedef struct {
-  kutoktype type;
+  kutok_t type;
   const char* start;
   int len;
   int line;
@@ -415,11 +386,11 @@ typedef struct {
   int line;
 } kulex;
 
+void ku_lexinit(kuvm *vm, const char *source);
+void ku_lexdump(kuvm *vm);
+kutok ku_scan(kuvm *vm);
 
-// ------------------------------------------------------------
-// Locals
-// ------------------------------------------------------------
-#define MAX_LOCALS    (UINT8_MAX + 1)
+// ********************** locals **********************
 
 typedef struct {
   kutok name;
@@ -430,48 +401,44 @@ typedef struct {
 typedef struct {
   uint8_t index;
   bool local;
-} kuupval;
+} kuxval;
 
-typedef struct kucompiler {
-  struct kucompiler *enclosing;
+// ********************** compiler **********************
+typedef struct kucomp {
+  struct kucomp *enclosing;
   kufunc *function;
-  kufunctype type;
+  kufunc_t type;
   
-  kulocal locals[MAX_LOCALS];
+  kulocal locals[LOCALS_MAX];
   int count;
-  kuupval upvals[UINT8_COUNT];
+  kuxval upvals[UPSTACK_MAX];
   int depth;
-} kucompiler;
+} kucomp;
 
-void ku_compiler_init(kuvm *vm, kucompiler *compiler, kufunctype type);
+void ku_compinit(kuvm *vm, kucomp *compiler, kufunc_t type);
 void ku_block(kuvm *vm);
 void ku_beginscope(kuvm *vm);
 void ku_endscope(kuvm *vm);
 void ku_declare_var(kuvm *vm);
 void ku_addlocal(kuvm *vm, kutok name);
 bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
-int ku_resolvelocal(kuvm *vm, kucompiler *compiler, kutok *name);
+int ku_resolvelocal(kuvm *vm, kucomp *compiler, kutok *name);
 void ku_markinit(kuvm *vm);
-int ku_print_byte_op(kuvm *vm, const char *name, kuchunk *chunk, int offset);
+int ku_opslotdis(kuvm *vm, const char *name, kuchunk *chunk, int offset);
 
-
-// ------------------------------------------------------------
-// Branching
-// ------------------------------------------------------------
-void ku_ifstatement(kuvm *vm);
+// ********************** branching **********************
+void ku_ifstmt(kuvm *vm);
 int ku_emitjump(kuvm *vm, k_op op);
 void ku_patchjump(kuvm *vm, int offset);
 void ku_emitloop(kuvm *vm, int start);
-void ku_whilestatement(kuvm *vm);
-void ku_forstatement(kuvm *vm);
-int ku_print_jump_op(kuvm *vm, const char *name,
+void ku_whilestmt(kuvm *vm);
+void ku_forstmt(kuvm *vm);
+int ku_jumpdis(kuvm *vm, const char *name,
                      int sign, kuchunk *chunk, int offset);
-void ku_parse_and(kuvm *vm, bool lhs);
-void ku_parse_or(kuvm *vm, bool lhs);
+void ku_and(kuvm *vm, bool lhs);
+void ku_or(kuvm *vm, bool lhs);
 
-// ------------------------------------------------------------
-// Parser
-// ------------------------------------------------------------
+// ********************** parser **********************
 typedef struct {
   kutok curr;
   kutok prev;
@@ -479,26 +446,20 @@ typedef struct {
   bool panic;
 } kuparser;
 
-// ------------------------------------------------------------
-// Functions
-// ------------------------------------------------------------
+// ********************** frames **********************
 typedef struct {
   kuclosure *closure;
   uint8_t *ip;
   kuval *bp;
 } kuframe;
 
-// ------------------------------------------------------------
-// Class compiler
-// ------------------------------------------------------------
-typedef struct kuclasscompiler {
-  struct kuclasscompiler *enclosing;
+// ********************** class compiler **********************
+typedef struct kuclasscomp {
+  struct kuclasscomp *enclosing;
   bool hassuper;
-} kuclasscompiler;
+} kuclasscomp;
 
-// ------------------------------------------------------------
-// VM
-// ------------------------------------------------------------
+// ********************** virtual machine **********************
 typedef enum {
   KVM_OK,
   KVM_CONT,
@@ -517,16 +478,14 @@ typedef enum {
 #define KVM_F_GCSTRESS  0x00000080   // GC every alloc increase
 #define KVM_F_GCLOG     0x00000100   // Log GC action
 
-#define FRAMES_MAX 64
-#define STACK_MAX (FRAMES_MAX * UINT8_COUNT)
 
-typedef struct _vm {
+typedef struct kuvm {
   uint64_t flags;
   uint8_t max_params;
   bool stop;
   size_t allocated;
   size_t gcnext;
-  kuclasscompiler *curclass;
+  kuclasscomp *curclass;
 
   kuframe frames[FRAMES_MAX];
   int framecount;
@@ -535,12 +494,12 @@ typedef struct _vm {
 
   kustr *initstr;
   kuobj* objects;
-  kutable strings;
-  kutable globals;
+  kutab strings;
+  kutab globals;
 
-  kuupobj *openupvals;
+  kuxobj *openupvals;
   
-  kucompiler *compiler;
+  kucomp *compiler;
   kulex scanner;
   kuparser parser;
   
@@ -554,41 +513,18 @@ kuvm* ku_new(void);
 void ku_free(kuvm* vm);
 kures ku_run(kuvm* vm);
 kures ku_runfile(kuvm* vm, const char* file);
+kures ku_exec(kuvm *vm, char *source);
+kuchunk *ku_chunk(kuvm *vm);
 
-// ------------------------------------------------------------
-// Stack
-// ------------------------------------------------------------
-void ku_reset_stack(kuvm* vm);
+// ********************** stack **********************
+void ku_reset(kuvm* vm);
 void ku_push(kuvm* vm, kuval val);
 kuval ku_pop(kuvm* vm);
 
-// ------------------------------------------------------------
-// GC
-// ------------------------------------------------------------
+// ********************** garbage collection **********************
 void ku_gc(kuvm *vm);
-
-// ------------------------------------------------------------
-// Debug
-// ------------------------------------------------------------
-void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
-int ku_print_op(kuvm* vm, kuchunk* chunk, int offset);
-
-// ------------------------------------------------------------
-// Config
-// ------------------------------------------------------------
-
-void ku_print_mem(kuvm* vm);
-void ku_print_stack(kuvm* vm);
-void ku_print_chunk(kuvm* vm, kuchunk* chunk, const char* name);
-
-
-kures ku_exec(kuvm *vm, char *source);
-kustr* ku_str_copy(kuvm* vm, const char* chars, int len);
-void ku_lex_init(kuvm *vm, const char *source);
-void ku_lex_print_all(kuvm *vm);
-kutok ku_lex_scan(kuvm *vm);
-
-kuchunk *ku_chunk(kuvm *vm);
+void ku_printmem(kuvm *vm);
+void ku_printstack(kuvm *vm);
 
 #endif /* KUMU_H */
 

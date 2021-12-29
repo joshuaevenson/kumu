@@ -31,7 +31,7 @@ static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
 }
 
 static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
-  if (ku_val_eq(v1, v2)) {
+  if (ku_equal(v1, v2)) {
     ktest_pass++;
     return;
   }
@@ -40,9 +40,9 @@ static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
   vm->flags &= ~KVM_F_QUIET;
   ktest_fail++;
   printf(">>> expected: ");
-  ku_print_val(vm, v2);
+  ku_printval(vm, v2);
   printf(" found: ");
-  ku_print_val(vm, v1);
+  ku_printval(vm, v1);
   printf(" [%s]\n", msg);
   vm->flags = f;
 }
@@ -53,8 +53,8 @@ static void ku_test_summary() {
 
 kuval ku_get_global(kuvm* vm, const char* name) {
   kuval value;
-  kustr* key = ku_str_copy(vm, name, (int)strlen(name));
-  if (!ku_table_get(vm, &vm->globals, key, &value)) {
+  kustr* key = ku_strfrom(vm, name, (int)strlen(name));
+  if (!ku_tabget(vm, &vm->globals, key, &value)) {
     return NIL_VAL;
   }
 
@@ -84,7 +84,7 @@ static kuval kutest_native_add(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL(AS_NUM(a) + AS_NUM(b));
 }
 
-static int kut_table_count(kuvm *vm, kutable *tab) {
+static int kut_table_count(kuvm *vm, kutab *tab) {
   int count = 0;
   for (int i=0; i < tab->capacity; i++) {
     kuentry *s = &tab->entries[i];
@@ -121,8 +121,8 @@ void ku_test() {
   ku_free(vm);
   
   vm = kut_new();
-  ku_lex_init(vm, "var x = 12+3;");
-  ku_lex_print_all(vm);
+  ku_lexinit(vm, "var x = 12+3;");
+  ku_lexdump(vm);
   ku_free(vm);
   
   vm = kut_new();
@@ -142,17 +142,17 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  ku_print_mem(vm);
+  ku_printmem(vm);
   ku_free(vm);
   
   vm = kut_new();
-  ku_lex_init(vm, "var x=30; \n  x=\"hello\";");
-  ku_lex_print_all(vm);
+  ku_lexinit(vm, "var x=30; \n  x=\"hello\";");
+  ku_lexdump(vm);
   ku_free(vm);
 
   vm = kut_new();
   ku_exec(vm, "2*3");
-  ku_print_stack(vm);
+  ku_printstack(vm);
   ku_free(vm);
 
   vm = kut_new();
@@ -163,8 +163,8 @@ void ku_test() {
 
   // unterminated string
   vm = kut_new();
-  ku_lex_init(vm, "\"hello");
-  ku_lex_print_all(vm);
+  ku_lexinit(vm, "\"hello");
+  ku_lexdump(vm);
   ku_free(vm);
 
   // ku_print_val
@@ -172,7 +172,7 @@ void ku_test() {
   res = ku_exec(vm, "var x = 2+3;");
   kuval v = ku_get_global(vm, "x");
   EXPECT_VAL(vm, v, NUM_VAL(5), "ku_print_val ret");
-  ku_print_val(vm, v);
+  ku_printval(vm, v);
   ku_free(vm);
   
   vm = kut_new();
@@ -181,73 +181,73 @@ void ku_test() {
   ku_free(vm);
   
   vm = kut_new();
-  ku_lex_init(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
-  kutok t = ku_lex_scan(vm);
+  ku_lexinit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
+  kutok t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_AND, "[and]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_CLASS, "[class]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_ELSE, "[else]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_FALSE, "[false]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_FOR, "[for]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_FUN, "[fun]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_IF, "[if]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_NIL, "[nil]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_OR, "[or]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_PRINT, "[print]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_RETURN, "[return]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_SUPER, "[super]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_THIS, "[this]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_TRUE, "[true]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_WHILE, "[while]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_LBRACE, "[{]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_RBRACE, "[}]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_BANG, "[!]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_PLUS, "[+]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_MINUS, "[-]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_STAR, "[*]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_SLASH, "[/]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_EQ, "[=]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_NE, "[!=]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_GT, "[>]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_LT, "[<]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_GE, "[>=]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_LE, "[<=]");
 
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
-  t = ku_lex_scan(vm);
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
   ku_free(vm);
   
   vm = kut_new();
-  ku_lex_init(vm, "// this is a comment");
-  t = ku_lex_scan(vm);
+  ku_lexinit(vm, "// this is a comment");
+  t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_EOF, "comment");
   ku_free(vm);
 
@@ -380,31 +380,31 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  kutable map;
-  ku_table_init(vm, &map);
-  kustr* k1 = ku_str_copy(vm, "key1", 4);
-  kustr* k2 = ku_str_copy(vm, "key1", 4);
+  kutab map;
+  ku_tabinit(vm, &map);
+  kustr* k1 = ku_strfrom(vm, "key1", 4);
+  kustr* k2 = ku_strfrom(vm, "key1", 4);
   EXPECT_TRUE(vm, k1 == k2, "string intern equal");
-  kustr* k3 = ku_str_copy(vm, "key2", 4);
+  kustr* k3 = ku_strfrom(vm, "key2", 4);
   EXPECT_TRUE(vm, k3 != k2, "string intern not equal");
-  bool isnew = ku_table_set(vm, &map, k1, NUM_VAL(3.14));
+  bool isnew = ku_tabset(vm, &map, k1, NUM_VAL(3.14));
   EXPECT_TRUE(vm, isnew, "map set new");
-  bool found = ku_table_get(vm, &map, k1, &v);
+  bool found = ku_tabget(vm, &map, k1, &v);
   EXPECT_TRUE(vm, found, "map get found");
   EXPECT_VAL(vm, v, NUM_VAL(3.14), "map get found value");
-  found = ku_table_get(vm, &map, k3, &v);
+  found = ku_tabget(vm, &map, k3, &v);
   EXPECT_TRUE(vm, !found, "map get not found");
-  found = ku_table_del(vm, &map, k1);
+  found = ku_tabdel(vm, &map, k1);
   EXPECT_TRUE(vm, found, "map del found");
-  found = ku_table_get(vm, &map, k1, &v);
+  found = ku_tabget(vm, &map, k1, &v);
   EXPECT_TRUE(vm, !found, "map del not found");
-  kutable map2;
-  ku_table_init(vm, &map2);
-  ku_table_copy(vm, &map, &map2);
-  ku_table_free(vm, &map);
-  ku_table_free(vm, &map2);
-  ku_table_del(vm, &map, k1);
-  found = ku_table_get(vm, &map, k1, &v);
+  kutab map2;
+  ku_tabinit(vm, &map2);
+  ku_tabcopy(vm, &map, &map2);
+  ku_tabfree(vm, &map);
+  ku_tabfree(vm, &map2);
+  ku_tabdel(vm, &map, k1);
+  found = ku_tabget(vm, &map, k1, &v);
   EXPECT_TRUE(vm, !found, "empty map get");
   ku_free(vm);
 
@@ -637,7 +637,7 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  ku_cfunc_def(vm, "nadd", kutest_native_add);
+  ku_cfuncdef(vm, "nadd", kutest_native_add);
   res = ku_exec(vm, "var x = nadd(3,4);");
   EXPECT_INT(vm, res, KVM_OK, "cfunc res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(7), "cfunc return");

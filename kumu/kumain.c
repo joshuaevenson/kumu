@@ -123,14 +123,14 @@ static void ku_repl(kuvm *vm) {
     if (ku_check_flags(vm, line)) continue;;
 
     if (strcmp(line, ".mem\n") == 0) {
-      ku_print_mem(vm);
+      ku_printmem(vm);
       continue;
     }
     
     ku_exec(vm, line);
     if (vm->sp > vm->stack) {
       kuval v = ku_pop(vm);
-      ku_print_val(vm, v);
+      ku_printval(vm, v);
       printf("\n");
     }
 
