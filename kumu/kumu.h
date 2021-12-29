@@ -3,7 +3,6 @@
 
 
 // ********************** backlog **********************
-// - code coverage
 // - function expressions
 // - loop break
 // - loop continue
@@ -14,9 +13,7 @@
 // - string literal escape sequences
 // - number literal scientific notations
 // - native library functions (int, hex, sin, ...)
-// - vm limits for code coverage
 // - arrays
-// - error codes / optional strings for disassembly and errors
 // - native classes
 // - repl readline
 
