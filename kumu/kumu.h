@@ -361,7 +361,7 @@ typedef enum {
   TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
   // One or two character tokens.
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
-  TOK_LE,
+  TOK_LE, TOK_ARROW,
   // Literals.
   TOK_IDENT, TOK_STR, TOK_NUM,
   // Keywords.

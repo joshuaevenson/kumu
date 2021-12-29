@@ -532,8 +532,14 @@ kutok ku_scan(kuvm *vm) {
       return ku_tokmake(vm, TOK_SLASH);
     case '!':
       return ku_tokmake(vm, ku_lexmatch(vm, '=') ? TOK_NE : TOK_BANG);
-    case '=':
-      return ku_tokmake(vm, ku_lexmatch(vm, '=') ? TOK_EQEQ : TOK_EQ);
+    case '=': {
+      if (ku_lexmatch(vm, '=')) {
+        return ku_tokmake(vm, TOK_EQEQ);
+      } else if (ku_lexmatch(vm, '>')) {
+        return ku_tokmake(vm, TOK_ARROW);
+      }
+      return ku_tokmake(vm, TOK_EQ);
+    }
     case '<':
       return ku_tokmake(vm, ku_lexmatch(vm, '=') ? TOK_LE : TOK_LT);
     case '>':
@@ -613,7 +619,11 @@ static void ku_emitbyte(kuvm *vm, uint8_t byte) {
 }
 
 static void ku_emitbytes(kuvm *vm, uint8_t b1, uint8_t b2);
-static void ku_emitret(kuvm *vm) {
+static void ku_emitret(kuvm *vm, bool lambda) {
+  if (lambda) {
+    ku_emitbyte(vm, OP_RET);
+    return;
+  }
   if (vm->compiler->type == FUNC_INIT) {
     ku_emitbytes(vm, OP_GET_LOCAL, 0);
   } else {
@@ -622,8 +632,8 @@ static void ku_emitret(kuvm *vm) {
   ku_emitbyte(vm, OP_RET);
 }
 
-static kufunc *ku_pend(kuvm *vm) {
-  ku_emitret(vm);
+static kufunc *ku_pend(kuvm *vm, bool lambda) {
+  ku_emitret(vm, lambda);
   kufunc *fn = vm->compiler->function;
   vm->compiler = vm->compiler->enclosing;
   return fn;
@@ -671,12 +681,12 @@ typedef struct {
 
 static kuprule *ku_getrule(kuvm *vm, kutok_t optype);
 
-static bool ku_parse_checktype(kuvm* vm, kutok_t type) {
+static bool ku_pcheck(kuvm* vm, kutok_t type) {
   return vm->parser.curr.type == type;
 }
 
 static bool ku_pmatch(kuvm* vm, kutok_t type) {
-  if (!ku_parse_checktype(vm, type)) {
+  if (!ku_pcheck(vm, type)) {
     return false;
   }
   ku_pnext(vm);
@@ -728,7 +738,6 @@ static void ku_number(kuvm *vm, bool lhs) {
 
 static void ku_funcexpr(kuvm *vm, bool lhs) {
   ku_function(vm, FUNC_STD);
-  // todo
 }
 
 static void ku_expr(kuvm *vm) {
@@ -737,7 +746,7 @@ static void ku_expr(kuvm *vm) {
 
 static uint8_t ku_arglist(kuvm *vm) {
   uint8_t argc = 0;
-  if (!ku_parse_checktype(vm, TOK_RPAR)) {
+  if (!ku_pcheck(vm, TOK_RPAR)) {
     do {
       ku_expr(vm);
       if (argc > vm->max_params) {
@@ -791,7 +800,7 @@ static void ku_return(kuvm *vm) {
   }
   
   if (ku_pmatch(vm, TOK_SEMI)) {
-    ku_emitret(vm);
+    ku_emitret(vm, false);
   } else {
     
     if (vm->compiler->type == FUNC_INIT) {
@@ -883,12 +892,22 @@ static void ku_vardecl(kuvm* vm) {
   ku_vardef(vm, g);
 }
 
+// common between functions and lambdas
+static void ku_functail(kuvm *vm, kucomp *compiler, bool lambda) {
+  kufunc *fn = ku_pend(vm, lambda);
+  ku_emitbytes(vm, OP_CLOSURE, ku_pconst(vm, OBJ_VAL(fn)));
+  for (int i = 0; i < fn->upcount; i++) {
+    ku_emitbyte(vm, compiler->upvals[i].local ? 1: 0);
+    ku_emitbyte(vm, compiler->upvals[i].index);
+  }
+}
+
 static void ku_function(kuvm *vm, kufunc_t type) {
   kucomp compiler;
   ku_compinit(vm, &compiler, type);
   ku_beginscope(vm);
   ku_pconsume(vm, TOK_LPAR, "'(' expected after function name");
-  if (!ku_parse_checktype(vm, TOK_RPAR)) {
+  if (!ku_pcheck(vm, TOK_RPAR)) {
     do {
       vm->compiler->function->argc++;
       if (vm->compiler->function->argc > vm->max_params) {
@@ -902,13 +921,9 @@ static void ku_function(kuvm *vm, kufunc_t type) {
   ku_pconsume(vm, TOK_RPAR, "')' expected after parameters");
   ku_pconsume(vm, TOK_LBRACE, "'{' expected before function body");
   ku_block(vm);
-  kufunc *fn = ku_pend(vm);
-  ku_emitbytes(vm, OP_CLOSURE, ku_pconst(vm, OBJ_VAL(fn)));
-  for (int i = 0; i < fn->upcount; i++) {
-    ku_emitbyte(vm, compiler.upvals[i].local ? 1: 0);
-    ku_emitbyte(vm, compiler.upvals[i].index);
-  }
+  ku_functail(vm, &compiler, false);
 }
+
 
 static void ku_funcdecl(kuvm *vm) {
   uint8_t global = ku_var(vm, "function name expected");
@@ -969,7 +984,7 @@ static void ku_classdecl(kuvm *vm) {
   
   ku_namedvar(vm, cname, false);
   ku_pconsume(vm, TOK_LBRACE, "'{' expected");
-  while (!ku_parse_checktype(vm, TOK_RBRACE) && !ku_parse_checktype(vm, TOK_EOF)) {
+  while (!ku_pcheck(vm, TOK_RBRACE) && !ku_pcheck(vm, TOK_EOF)) {
     ku_method(vm);
   }
   ku_pconsume(vm, TOK_RBRACE, "'}' expected");
@@ -1033,6 +1048,18 @@ static int ku_xvalresolve(kuvm *vm, kucomp *compiler, kutok *name) {
   return -1;
 }
 
+static void ku_lambda(kuvm *vm, kutok name) {
+  kucomp compiler;
+  ku_compinit(vm, &compiler, FUNC_STD);
+  ku_beginscope(vm);
+  ku_addlocal(vm, name);
+  ku_markinit(vm);
+  ku_expr(vm);
+  compiler.function->argc = 1;
+  ku_functail(vm, &compiler, true);
+}
+
+
 static void ku_namedvar(kuvm* vm, kutok name, bool lhs) {
   int arg = ku_resolvelocal(vm, vm->compiler, &name);
   uint8_t set, get;
@@ -1051,8 +1078,9 @@ static void ku_namedvar(kuvm* vm, kutok name, bool lhs) {
   if (lhs && ku_pmatch(vm, TOK_EQ)) {
     ku_expr(vm);
     ku_emitbytes(vm, set, (uint8_t)arg);
-  }
-  else {
+  } else if (ku_pmatch(vm, TOK_ARROW)) {
+    ku_lambda(vm, name);
+  } else {
     ku_emitbytes(vm, get, (uint8_t)arg);
   }
 }
@@ -1849,7 +1877,7 @@ static kufunc *ku_compile(kuvm *vm, char *source) {
     ku_chunkdump(vm, ku_chunk(vm), "code");
   }
 
-  kufunc *fn = ku_pend(vm);
+  kufunc *fn = ku_pend(vm, false);
   
 
   return vm->parser.err ? NULL : fn;
@@ -2100,7 +2128,7 @@ void ku_compinit(kuvm *vm, kucomp *compiler, kufunc_t type) {
 }
 
 void ku_block(kuvm *vm) {
-  while (!ku_parse_checktype(vm, TOK_RBRACE) && !ku_parse_checktype(vm, TOK_EOF)) {
+  while (!ku_pcheck(vm, TOK_RBRACE) && !ku_pcheck(vm, TOK_EOF)) {
     ku_decl(vm);
   }
   ku_pconsume(vm, TOK_RBRACE, "'}' expected");

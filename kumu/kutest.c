@@ -181,7 +181,7 @@ void ku_test() {
   ku_free(vm);
   
   vm = kut_new();
-  ku_lexinit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= far\ttrick\nart\rcool eek too fund");
+  ku_lexinit(vm, "and class else false for fun if nil or print return super this true while {}!+-*/=!=><>=<= == => far\ttrick\nart\rcool eek too fund");
   kutok t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_AND, "[and]");
   t = ku_scan(vm);
@@ -238,6 +238,10 @@ void ku_test() {
   EXPECT_INT(vm, t.type, TOK_GE, "[>=]");
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_LE, "[<=]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_EQEQ, "[==]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_ARROW, "=>");
 
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_IDENT, "[identifier]");
@@ -952,7 +956,6 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new();
-  vm->flags = 0;
   res = ku_exec(vm, "fun f(x) { return x(7);} var x=f(fun(a) { return a*2; });");
   EXPECT_INT(vm, res, KVM_OK, "fun arg res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(14), "fun arg ret");
@@ -961,5 +964,24 @@ void ku_test() {
   ku_lexinit(vm, "var x = 12+3;\nvar m=2;\nvar mm=99;");
   ku_lexdump(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var f = a => a*2; var x=f(3);");
+  EXPECT_INT(vm, res, KVM_OK, "lambda res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(6), "lambda ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "fun f(x) { return x(2); } var x = f(a => a*3);");
+  EXPECT_INT(vm, res, KVM_OK, "lambda arg res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(6), "lambda arg ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var f = {a,b => a*b}; var x=f(3,4);");
+  EXPECT_INT(vm, res, KVM_OK, "lambda args res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda args ret");
+  ku_free(vm);
+
+  
   ku_test_summary();
 }
