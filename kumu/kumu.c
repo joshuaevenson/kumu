@@ -914,15 +914,23 @@ static void ku_params(kuvm *vm) {
   } while(ku_pmatch(vm, TOK_COMMA));
 }
 
+static void ku_lbody(kuvm *vm, kucomp *compiler) {
+  if (ku_pmatch(vm, TOK_LBRACE)) {
+    ku_block(vm);
+    ku_functail(vm, compiler, false);
+  } else {
+    ku_expr(vm);
+    ku_functail(vm, compiler, true);
+  }
+}
+
 static void ku_lblock(kuvm *vm, bool lhs) {
   kucomp compiler;
   ku_compinit(vm, &compiler, FUNC_STD);
   ku_beginscope(vm);
   ku_params(vm);
   ku_pconsume(vm, TOK_ARROW, "'=>' expected");
-  ku_markinit(vm);
-  ku_expr(vm);
-  ku_functail(vm, &compiler, true);
+  ku_lbody(vm, &compiler);
   ku_pconsume(vm, TOK_RBRACE, "'}' expected");
 }
 
@@ -1070,9 +1078,8 @@ static void ku_lambda(kuvm *vm, kutok name) {
   ku_beginscope(vm);
   ku_addlocal(vm, name);
   ku_markinit(vm);
-  ku_expr(vm);
+  ku_lbody(vm, &compiler);
   compiler.function->argc = 1;
-  ku_functail(vm, &compiler, true);
 }
 
 

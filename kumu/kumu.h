@@ -5,8 +5,8 @@
 // ********************** backlog **********************
 // ✓ arg => expr
 // ✓ { arg, arg => expr }
-// 𐄂 arg => { block }
-// 𐄂 { arg, arg => { block } }
+// ✓ arg => { block }
+// ✓ { arg, arg => { block } }
 // 𐄂 break
 // 𐄂 continue
 // 𐄂 printf(format, ...)

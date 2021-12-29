@@ -982,6 +982,18 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda args ret");
   ku_free(vm);
 
+  vm = kut_new();
+  res = ku_exec(vm, "var m = { a,b => { if (a>b) return a; else return b; }}; var x=m(3,14);");
+  EXPECT_INT(vm, res, KVM_OK, "lambda args body res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(14), "lambda args body ret");
+  ku_free(vm);
+
+  vm = kut_new();
+  res = ku_exec(vm, "var abs = { a=> { if (a<0) return -a; else return a; }}; var x=abs(-12);");
+  EXPECT_INT(vm, res, KVM_OK, "lambda body res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "lambda body ret");
+  ku_free(vm);
+
   
   ku_test_summary();
 }
