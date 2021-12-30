@@ -1543,10 +1543,12 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc, bool *native) {
   return false;
 }
 
+#ifdef TRACE_ENABLED
 // We can't use vm->compiler at runtime
 static kuchunk *ku_chunk_runtime(kuvm *vm) {
   return &vm->frames[vm->framecount-1].closure->func->chunk;
 }
+#endif // TRACE_ENABLED
 
 static kuxobj *ku_capture(kuvm *vm, kuval *local) {
   kuxobj *prev = NULL;
