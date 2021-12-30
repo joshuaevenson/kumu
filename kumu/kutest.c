@@ -1046,5 +1046,11 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "strlen() non num");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var y=\"12\\n\\r\\t\"; var x=strlen(y);");
+  EXPECT_INT(vm, res, KVM_OK, "strlen res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(5), "strlen ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

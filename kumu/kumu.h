@@ -3,21 +3,19 @@
 
 
 // ********************** backlog **********************
-// ✓ arg => expr
-// ✓ { arg, arg => expr }
-// ✓ arg => { block }
-// ✓ { arg, arg => { block } }
+// ✓ arrow function: arg => expr, arg => { ... }
+// ✓ arrow block: { a, b => exp }, { a, b => { ... } }
 // ✓ repl expression print
 // ✓ break
 // ✓ continue
 // ✓ remove print statement
 // ✓ native call no frame adjustment
 // ✓ native call error handling
-// 𐄂 string literal escape sequences
+// ✓ string literal escape sequences
+// ✓ strlen() function
 // 𐄂 native classes
 // 𐄂 number literal scientific notations
 // 𐄂 printf(format, ...)
-// 𐄂 (strlen, int, hex, sin, ...)
 // 𐄂 arrays
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient taks (suspend, resume)
@@ -369,7 +367,7 @@ typedef enum {
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
   TOK_LE, TOK_ARROW,
   // Literals.
-  TOK_IDENT, TOK_STR, TOK_NUM,
+  TOK_IDENT, TOK_STR, TOK_NUM, TOK_STRESC,
   // Keywords.
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
   TOK_IF, TOK_NIL, TOK_OR, TOK_RETURN, TOK_SUPER,

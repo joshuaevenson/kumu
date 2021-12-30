@@ -449,13 +449,16 @@ static kutok ku_lexnum(kuvm *vm) {
 }
 
 static kutok ku_lexstr(kuvm *vm) {
+  kutok_t type = TOK_STR;
+  
   while(ku_lexpeek(vm) != '"' && !ku_lexend(vm)) {
+    if (ku_lexpeek(vm) == '\\') type = TOK_STRESC;
     if (ku_lexpeek(vm) == '\n') vm->scanner.line++;
     ku_advance(vm);
   }
   if (ku_lexend(vm)) return ku_lexerr(vm, "unterminated string");
   ku_advance(vm);
-  return ku_tokmake(vm, TOK_STR);
+  return ku_tokmake(vm, type);
 }
 
 static kutok_t ku_lexkey(kuvm *vm, int start, int len,
@@ -733,6 +736,42 @@ static void ku_lit(kuvm *vm, bool lhs) {
   }
 }
 
+static void ku_xstring(kuvm* vm, bool lhs) {
+  const char *chars = vm->parser.prev.start + 1;
+  int len = vm->parser.prev.len - 2;
+  
+  // len(encoded) always <= len(chars);
+  char *encoded = ku_alloc(vm, NULL, 0, len);
+  
+  int esclen = len;
+  char *ep = encoded;
+  for (int i = 0; i < len; i++) {
+    char ch = chars[i];
+    if (ch == '\\') {
+      char next = (i < len-1) ? chars[i+1] : 0;
+      if (next) {
+        i++;
+        esclen--;
+        switch (next) {
+          case 'n':
+            *ep++ = '\n';
+            break;
+          case 'r':
+            *ep++ = '\r';
+            break;
+          case 't':
+            *ep++ = '\t';
+            break;
+        }
+      }
+    } else {
+      *ep++ = chars[i];
+    }
+  }
+
+  ku_emitconst(vm, OBJ_VAL(ku_strfrom(vm, encoded, esclen)));
+  ku_alloc(vm, encoded, len, 0);
+}
 static void ku_string(kuvm* vm, bool lhs) {
   const char *chars = vm->parser.prev.start + 1;
   int len = vm->parser.prev.len - 2;
@@ -1353,6 +1392,7 @@ kuprule ku_rules[] = {
   [TOK_LE] =     { NULL,        ku_bin,   P_COMP },
   [TOK_IDENT] =  { ku_pvar,     NULL,     P_NONE },
   [TOK_STR] =    { ku_string,   NULL,     P_NONE },
+  [TOK_STRESC] = { ku_xstring,  NULL,     P_NONE },
   [TOK_NUM] =    { ku_number,   NULL,     P_NONE },
   [TOK_AND] =    { NULL,        ku_and,   P_AND },
   [TOK_CLASS] =  { NULL,        NULL,     P_NONE },
