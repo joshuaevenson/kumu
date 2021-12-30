@@ -492,7 +492,6 @@ static kutok_t ku_keyword(kuvm *vm) {
     case 'i': return ku_lexkey(vm, 1,1,"f", TOK_IF);
     case 'n': return ku_lexkey(vm, 1,2,"il", TOK_NIL);
     case 'o': return ku_lexkey(vm, 1,1,"r", TOK_OR);
-    case 'p': return ku_lexkey(vm, 1,4,"rint", TOK_PRINT);
     case 'r': return ku_lexkey(vm, 1,5,"eturn", TOK_RETURN);
     case 's': return ku_lexkey(vm, 1,4,"uper", TOK_SUPER);
     case 't':
@@ -797,12 +796,6 @@ static void ku_exprstmt(kuvm* vm, kuloop *loop) {
   ku_emitbyte(vm, OP_POP);
 }
 
-static void ku_printstmt(kuvm* vm, kuloop *loop) {
-  ku_expr(vm);
-  ku_pconsume(vm, TOK_SEMI, "; expected");
-  ku_emitbyte(vm, OP_PRINT);
-}
-
 static void ku_return(kuvm *vm, kuloop *loop) {
   if (vm->compiler->type == FUNC_MAIN) {
     ku_perr(vm, "can't return from top-level");
@@ -840,9 +833,7 @@ static void ku_continue(kuvm *vm, kuloop *loop) {
 }
 
 static void ku_stmt(kuvm* vm, kuloop *loop) {
-  if (ku_pmatch(vm, TOK_PRINT)) {
-    ku_printstmt(vm, loop);
-  } else if (ku_pmatch(vm, TOK_IF)) {
+  if (ku_pmatch(vm, TOK_IF)) {
     ku_ifstmt(vm, loop);
   } else if (ku_pmatch(vm, TOK_RETURN)) {
     ku_return(vm, loop);
@@ -878,7 +869,6 @@ static void ku_pskip(kuvm* vm) {
     case TOK_FOR:
     case TOK_IF:
     case TOK_WHILE:
-    case TOK_PRINT:
     case TOK_RETURN:
       return;
     default:
@@ -1373,7 +1363,6 @@ kuprule ku_rules[] = {
   [TOK_IF] =     { NULL,        NULL,     P_NONE },
   [TOK_NIL] =    { ku_lit,      NULL,     P_NONE },
   [TOK_OR] =     { NULL,        ku_or,    P_OR },
-  [TOK_PRINT] =  { NULL,        NULL,     P_NONE },
   [TOK_SUPER] =  { ku_super,    NULL,     P_NONE },
   [TOK_THIS] =   { ku_this,     NULL,     P_NONE },
   [TOK_TRUE] =   { ku_lit,      NULL,     P_NONE },
@@ -1771,11 +1760,6 @@ kures ku_run(kuvm *vm) {
         ku_push(vm, nv);
         break;
       }
-      case OP_PRINT: {
-        ku_printval(vm, ku_pop(vm));
-        ku_printf(vm, "\n");
-        break;
-      }
       
       case OP_POP: 
         ku_pop(vm);
@@ -2106,7 +2090,6 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_GT: return ku_opdis(vm, "OP_GT", offset);
     case OP_LT: return ku_opdis(vm, "OP_LT", offset);
     case OP_EQ: return ku_opdis(vm, "OP_EQ", offset);
-    case OP_PRINT: return ku_opdis(vm, "OP_PRINT", offset);
     case OP_POP: return ku_opdis(vm, "OP_POP", offset);
     case OP_CLASS: return ku_constdis(vm, "OP_CLASS", chunk, offset);
     case OP_METHOD: return ku_constdis(vm, "OP_METHOD", chunk, offset);

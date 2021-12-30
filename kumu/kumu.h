@@ -10,6 +10,7 @@
 // ✓ repl expression print
 // ✓ break
 // ✓ continue
+// ✓ remove print statement
 // 𐄂 printf(format, ...)
 // 𐄂 fix disassembler
 // 𐄂 string literal escape sequences
@@ -244,7 +245,6 @@ typedef enum {
   OP_NIL,
   OP_NOT,
   OP_POP,
-  OP_PRINT,
   OP_RET,
   OP_SET_GLOBAL,
   OP_SET_LOCAL,
@@ -371,7 +371,7 @@ typedef enum {
   TOK_IDENT, TOK_STR, TOK_NUM,
   // Keywords.
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
-  TOK_IF, TOK_NIL, TOK_OR, TOK_PRINT, TOK_RETURN, TOK_SUPER,
+  TOK_IF, TOK_NIL, TOK_OR, TOK_RETURN, TOK_SUPER,
   TOK_THIS, TOK_TRUE, TOK_VAR, TOK_WHILE, TOK_ERR, TOK_EOF,
   TOK_BREAK, TOK_CONTINUE,
 } kutok_t;
