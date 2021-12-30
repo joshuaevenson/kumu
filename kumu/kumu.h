@@ -2,7 +2,7 @@
 // basic (hawaiian): small, fast, portable, familiar
 
 
-// ********************** backlog **********************
+// ********************** changelog **********************
 // ✓ arrow function: arg => expr, arg => { ... }
 // ✓ arrow block: { a, b => exp }, { a, b => { ... } }
 // ✓ repl expression print
@@ -14,11 +14,11 @@
 // ✓ string literal escape sequences
 // ✓ strlen() function
 // 𐄂 native classes
-// 𐄂 number literal scientific notations
+// 𐄂 number literal hex, sci notation
 // 𐄂 printf(format, ...)
 // 𐄂 arrays
 // 𐄂 persistent tasks (save, load)
-// 𐄂 transient taks (suspend, resume)
+// 𐄂 transient tasks (suspend, resume)
 // 𐄂 repl readline
 
 #ifndef KUMU_H
