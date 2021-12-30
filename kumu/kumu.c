@@ -1644,11 +1644,12 @@ kures ku_run(kuvm *vm) {
   while (res == KVM_CONT) {
     uint8_t op;
 
+#ifdef TRACE_ENABLED
     if (vm->flags & KVM_F_TRACE) {
       kuchunk *ck = ku_chunk_runtime(vm);
       ku_bytedis(vm, ck, (int) (frame->ip - ck->code));
     }
-
+#endif // TRACE_ENABLED
 
     switch(op = BYTE_READ(vm)) {
       case OP_CALL: {
@@ -1916,6 +1917,8 @@ kures ku_run(kuvm *vm) {
         break;
       }
     }
+    
+#ifdef TRACE_ENABLED
     if (vm->flags & KVM_F_TRACE && vm->flags & KVM_F_STACK) {
      ku_printstack(vm);
     } else {
@@ -1923,7 +1926,7 @@ kures ku_run(kuvm *vm) {
         ku_printf(vm, "\n");
       }
     }
-
+#endif // TRACE_ENABLED
   }
   return KVM_OK;
 }
