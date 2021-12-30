@@ -11,13 +11,14 @@
 // ✓ break
 // ✓ continue
 // ✓ remove print statement
-// 𐄂 printf(format, ...)
-// 𐄂 fix disassembler
+// ✓ native call no frame adjustment
+// ✓ native call error handling
 // 𐄂 string literal escape sequences
-// 𐄂 number literal scientific notations
-// 𐄂 native library functions (int, hex, sin, ...)
-// 𐄂 arrays
 // 𐄂 native classes
+// 𐄂 number literal scientific notations
+// 𐄂 printf(format, ...)
+// 𐄂 (strlen, int, hex, sin, ...)
+// 𐄂 arrays
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient taks (suspend, resume)
 // 𐄂 repl readline
@@ -480,7 +481,7 @@ typedef struct kuvm {
   int max_frames;
   int max_locals;
   
-  bool stop;
+  bool err;
   size_t allocated;
   size_t gcnext;
   kuclasscomp *curclass;

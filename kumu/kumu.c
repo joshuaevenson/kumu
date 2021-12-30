@@ -734,9 +734,9 @@ static void ku_lit(kuvm *vm, bool lhs) {
 }
 
 static void ku_string(kuvm* vm, bool lhs) {
-  ku_emitconst(vm, OBJ_VAL(ku_strfrom(vm, 
-            vm->parser.prev.start + 1,
-            vm->parser.prev.len - 2)));
+  const char *chars = vm->parser.prev.start + 1;
+  int len = vm->parser.prev.len - 2;
+  ku_emitconst(vm, OBJ_VAL(ku_strfrom(vm, chars, len)));
 }
 
 static void ku_number(kuvm *vm, bool lhs) {
@@ -1420,7 +1420,7 @@ kuvm *ku_new(void) {
   vm->gccount = 0;
   vm->gccap = 0;
   vm->gcstack = NULL;
-  vm->stop = false;
+  vm->err = false;
   vm->objects = NULL;
   vm->openupvals = NULL;
   vm->compiler = NULL;
@@ -1462,6 +1462,7 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
   va_list args;
   char out[1024];
 
+  vm->err = true;
   va_start(args, fmt);
   vsprintf(out, fmt, args);
   va_end(args);
@@ -1500,7 +1501,8 @@ static bool ku_docall(kuvm *vm, kuclosure *cl, int argc) {
   return true;
 }
 
-static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
+static bool ku_callvalue(kuvm *vm, kuval callee, int argc, bool *native) {
+  *native = false;
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
       case OBJ_CFUNC: {
@@ -1508,7 +1510,8 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc) {
         kuval res = cf(vm, argc, vm->sp - argc);
         vm->sp -= argc + 1;
         ku_push(vm, res);
-        return true;
+        *native = true;
+        return !vm->err;
       }
       case OBJ_CLOSURE:
         return ku_docall(vm, AS_CLOSURE(callee), argc);
@@ -1620,7 +1623,8 @@ static bool ku_invoke(kuvm *vm, kustr *name, int argc) {
   kuval val;
   if (ku_tabget(vm, &inst->fields, name, &val)) {
     vm->sp[-argc - 1] = val;
-    return ku_callvalue(vm, val, argc);
+    bool native;
+    return ku_callvalue(vm, val, argc, &native);
   }
   
   return ku_classinvoke(vm, inst->klass, name, argc);
@@ -1629,6 +1633,7 @@ static bool ku_invoke(kuvm *vm, kustr *name, int argc) {
 kures ku_run(kuvm *vm) {
   kuframe *frame = &vm->frames[vm->framecount - 1];
   
+  vm->err = false;
   kures res = KVM_CONT;
   while (res == KVM_CONT) {
     uint8_t op;
@@ -1643,10 +1648,13 @@ kures ku_run(kuvm *vm) {
     switch(op = BYTE_READ(vm)) {
       case OP_CALL: {
         int argc = BYTE_READ(vm);
-        if (!ku_callvalue(vm, ku_peek(vm, argc), argc)) {
+        bool native;
+        if (!ku_callvalue(vm, ku_peek(vm, argc), argc, &native)) {
           return KVM_ERR_RUNTIME;
         }
-        frame = &vm->frames[vm->framecount - 1];
+        if (!native) {
+          frame = &vm->frames[vm->framecount - 1];
+        }
         break;
       }
         
@@ -1734,7 +1742,7 @@ kures ku_run(kuvm *vm) {
         kuval v = ku_pop(vm);
         ku_close(vm, frame->bp);
         vm->framecount--;
-        if (vm->framecount == 0) {
+        if (vm->framecount <= 0) {
           ku_pop(vm);
           res = KVM_OK;
           break;
@@ -2304,6 +2312,14 @@ static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
+static kuval ku_strlen(kuvm *vm, int argc, kuval *argv) {
+  if (argc < 1 || !IS_STR(argv[0])) {
+    ku_err(vm, "strlen string expected");
+    return NIL_VAL;
+  }
+  return NUM_VAL(strlen(AS_STR(argv[0])->chars));
+}
+
 static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
   for (int a = 0; a < argc; a++) {
     kuval v = argv[a];
@@ -2315,6 +2331,7 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "printf", ku_print);
+  ku_cfuncdef(vm, "strlen", ku_strlen);
 }
 
 // ********************** closure **********************
