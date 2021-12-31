@@ -327,8 +327,8 @@ typedef struct {
   kuval (*sfree)(kuvm *vm, kuobj *cc);
   kuval (*smark)(kuvm *vm, kuobj *cc);
   kuval (*icall)(kuvm *vm, kustr *m, int argc, kuval *argv);
-  kuval (*iget)(kuvm *vm, kustr *p);
-  kuval (*iput)(kuvm *vm, kustr *p, kuval v);
+  kuval (*iget)(kuvm *vm, kuobj *o, kustr *p);
+  kuval (*iput)(kuvm *vm, kuobj *o, kustr *p, kuval v);
   kuval (*ifree)(kuvm *vm, kuobj *o);
   kuval (*imark)(kuvm *vm, kuobj *cc);
 } kucclass;

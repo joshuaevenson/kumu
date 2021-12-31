@@ -152,12 +152,13 @@ kuval test_icall(kuvm *vm, kustr *m, int argc, kuval *argv) {
   return NIL_VAL;
 }
 
-kuval test_iget(kuvm *vm, kustr *p) {
+kuval test_iget(kuvm *vm, kuobj *o, kustr *p) {
+  test_inst *ti = (test_inst*)o;
   tclass_iget++;
-  return NIL_VAL;
+  return NUM_VAL(ti->value);
 }
 
-kuval test_iput(kuvm *vm, kustr *p, kuval v) {
+kuval test_iput(kuvm *vm, kuobj *o, kustr *p, kuval v) {
   tclass_iput++;
   return NIL_VAL;
 }
@@ -1283,6 +1284,19 @@ void ku_test() {
   EXPECT_TRUE(vm, tclass_sfree == 0, "class sfree");
   EXPECT_INT(vm, res, KVM_OK, "class imark res");
   EXPECT_TRUE(vm, tclass_imark > 0, "class imark");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE | IGET);
+  res = ku_exec(vm, "var x=test(4); var y=x.prop;");
+  EXPECT_INT(vm, res, KVM_OK, "iget res");
+  EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(4), "iget");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE );
+  res = ku_exec(vm, "var x=test(4); var y=x.prop;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "no iget res");
   ku_free(vm);
 
   ku_test_summary();

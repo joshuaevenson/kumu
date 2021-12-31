@@ -1965,6 +1965,17 @@ kures ku_run(kuvm *vm) {
             break;
           }
         }
+        
+        if (IS_CINST(ku_peek(vm,0))) {
+          kunobj *i = AS_CINST(ku_peek(vm, 0));
+          if (i->klass->iget) {
+            kustr *name = READ_STRING(vm);
+            kuval ret = i->klass->iget(vm, (kuobj*)i, name);
+            ku_pop(vm); // instance
+            ku_push(vm, ret);
+            break;
+          }
+        }
         if (!IS_INSTANCE(ku_peek(vm, 0))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
