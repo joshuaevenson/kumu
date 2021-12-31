@@ -1052,5 +1052,17 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(5), "strlen ret");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=1.2e3;");
+  EXPECT_INT(vm, res, KVM_OK, "1.2e3 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1.2e3), "1.2e3 ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=0xcafeb10b;");
+  EXPECT_INT(vm, res, KVM_OK, "hex res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0xcafeb10b), "hex ret");
+  ku_free(vm);
+
   ku_test_summary();
 }

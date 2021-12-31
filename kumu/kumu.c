@@ -371,6 +371,12 @@ static bool ku_isdigit(char c) {
   return (c >= '0' && c <= '9');
 }
 
+static bool ku_ishexdigit(char c) {
+  return (c >= '0' && c <= '9') ||
+         (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
+}
+
 static bool ku_isalpha(char c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
@@ -438,13 +444,25 @@ static bool ku_lexmatch(kuvm *vm, char expected) {
   return true;
 }
 
+static kutok ku_hexnum(kuvm *vm) {
+  ku_advance(vm); // skip 'x'
+  while(ku_ishexdigit(ku_lexpeek(vm))) ku_advance(vm);
+  return ku_tokmake(vm, TOK_HEX);
+}
+
 static kutok ku_lexnum(kuvm *vm) {
   while(ku_isdigit(ku_lexpeek(vm))) ku_advance(vm);
   
   if (ku_lexpeek(vm) == '.' && ku_isdigit(ku_lexpeeknext(vm))) {
     ku_advance(vm);
+    while(ku_isdigit(ku_lexpeek(vm))) ku_advance(vm);
   }
-  while(ku_isdigit(ku_lexpeek(vm))) ku_advance(vm);
+
+  if (ku_lexpeek(vm) == 'e' || ku_lexpeek(vm) == 'E') {
+    ku_advance(vm);
+    while(ku_isdigit(ku_lexpeek(vm))) ku_advance(vm);
+  }
+
   return ku_tokmake(vm, TOK_NUM);
 }
 
@@ -527,7 +545,10 @@ kutok ku_scan(kuvm *vm) {
   
   char c = ku_advance(vm);
   if (ku_isalpha(c)) return ku_lexid(vm);
-  if (ku_isdigit(c)) return ku_lexnum(vm);
+  if (c == '0' && (ku_lexpeek(vm) == 'x' || ku_lexpeek(vm) == 'X')) {
+    return ku_hexnum(vm);
+  }
+  else if (ku_isdigit(c)) return ku_lexnum(vm);
   switch (c) {
     case '(': return ku_tokmake(vm, TOK_LPAR);
     case ')': return ku_tokmake(vm, TOK_RPAR);
@@ -776,6 +797,24 @@ static void ku_string(kuvm* vm, bool lhs) {
   const char *chars = vm->parser.prev.start + 1;
   int len = vm->parser.prev.len - 2;
   ku_emitconst(vm, OBJ_VAL(ku_strfrom(vm, chars, len)));
+}
+
+static void ku_hex(kuvm *vm, bool lhs) {
+  const char *start = vm->parser.prev.start + 2;  // skip 0x
+  int len = vm->parser.prev.len - 2;
+  
+  double val = 0;
+  for (int i = 0; i < len; i++) {
+    char ch = start[i];
+    if (ch >= '0' && ch <= '9') {
+      val = val*16 + (double)(ch - '0');
+    } else if (ch >= 'a' && ch <= 'f') {
+      val = val*16 + (double)(ch - 'a' + 10);
+    } else if (ch >= 'A' && ch <= 'F') {
+      val = val*16 + (double)(ch - 'A' + 10);
+    }
+  }
+  ku_emitconst(vm, NUM_VAL(val));
 }
 
 static void ku_number(kuvm *vm, bool lhs) {
@@ -1394,6 +1433,7 @@ kuprule ku_rules[] = {
   [TOK_STR] =    { ku_string,   NULL,     P_NONE },
   [TOK_STRESC] = { ku_xstring,  NULL,     P_NONE },
   [TOK_NUM] =    { ku_number,   NULL,     P_NONE },
+  [TOK_HEX] =    { ku_hex,      NULL,     P_NONE },
   [TOK_AND] =    { NULL,        ku_and,   P_AND },
   [TOK_CLASS] =  { NULL,        NULL,     P_NONE },
   [TOK_ELSE] =   { NULL,        NULL,     P_NONE },

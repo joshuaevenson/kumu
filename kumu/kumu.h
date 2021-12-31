@@ -5,7 +5,6 @@
 // ********************** changelog **********************
 // ✓ arrow function: arg => expr, arg => { ... }
 // ✓ arrow block: { a, b => exp }, { a, b => { ... } }
-// ✓ repl expression print
 // ✓ break
 // ✓ continue
 // ✓ remove print statement
@@ -13,13 +12,13 @@
 // ✓ native call error handling
 // ✓ string literal escape sequences
 // ✓ strlen() function
+// ✓ number hex, sci literals
 // 𐄂 native classes
-// 𐄂 number literal hex, sci notation
-// 𐄂 printf(format, ...)
+// 𐄂 strfmt(format, ...) function
 // 𐄂 arrays
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient tasks (suspend, resume)
-// 𐄂 repl readline
+// 𐄂 repl with readline
 
 #ifndef KUMU_H
 #define KUMU_H
@@ -367,7 +366,7 @@ typedef enum {
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
   TOK_LE, TOK_ARROW,
   // Literals.
-  TOK_IDENT, TOK_STR, TOK_NUM, TOK_STRESC,
+  TOK_IDENT, TOK_STR, TOK_STRESC, TOK_NUM, TOK_HEX,
   // Keywords.
   TOK_AND, TOK_CLASS, TOK_ELSE, TOK_FALSE, TOK_FOR, TOK_FUN,
   TOK_IF, TOK_NIL, TOK_OR, TOK_RETURN, TOK_SUPER,
