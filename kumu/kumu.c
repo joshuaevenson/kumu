@@ -1946,6 +1946,18 @@ kures ku_run(kuvm *vm) {
       }
         
       case OP_SET_PROP: {
+        if (IS_CCLASS(ku_peek(vm, 1))) {
+          kucclass *cc = AS_CCLASS(ku_peek(vm, 1));
+          if (cc->sput) {
+            kustr *name = READ_STRING(vm);
+            kuval val = ku_pop(vm);
+            ku_pop(vm); // cclass
+            val = cc->sput(vm, name, val);
+            ku_push(vm, val);
+            break;
+          }
+        }
+
         if (!IS_INSTANCE(ku_peek(vm, 1))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;

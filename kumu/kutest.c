@@ -99,6 +99,117 @@ static int kut_table_count(kuvm *vm, kutab *tab) {
   return count;
 }
 
+int tclass_cons = 0;
+int tclass_scall = 0;
+int tclass_sget = 0;
+int tclass_sput = 0;
+int tclass_sfree = 0;
+int tclass_smark = 0;
+int tclass_icall = 0;
+int tclass_iget = 0;
+int tclass_iput = 0;
+int tclass_imark = 0;
+int tclass_ifree = 0;
+
+kuval test_cons(kuvm *vm, int argc, kuval *argv) {
+  tclass_cons++;
+  return NIL_VAL;
+}
+
+kuval test_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+  tclass_scall++;
+  return NIL_VAL;
+}
+
+kuval test_sget(kuvm *vm, kustr *p) {
+  tclass_sget++;
+  return NIL_VAL;
+}
+kuval test_sput(kuvm *vm, kustr *p, kuval v) {
+  tclass_sput = (int)AS_NUM(v);
+  return NIL_VAL;
+}
+
+kuval test_sfree(kuvm *vm, kuobj *cc) {
+  tclass_sfree++;
+  return NIL_VAL;
+}
+
+kuval test_smark(kuvm *vm, kuobj *cc) {
+  tclass_smark++;
+  return NIL_VAL;
+}
+
+kuval test_icall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+  tclass_icall++;
+  return NIL_VAL;
+}
+
+kuval test_iget(kuvm *vm, kustr *p) {
+  tclass_iget++;
+  return NIL_VAL;
+}
+
+kuval test_iput(kuvm *vm, kustr *p, kuval v) {
+  tclass_iput++;
+  return NIL_VAL;
+}
+
+kuval test_ifree(kuvm *vm, kuobj *o) {
+  tclass_ifree++;
+  return NIL_VAL;
+}
+
+kuval test_imark(kuvm *vm, kuobj *cc) {
+  tclass_imark++;
+  return NIL_VAL;
+}
+
+void tclass_reset(kuvm *vm) {
+  tclass_cons = 0;
+  tclass_scall = 0;
+  tclass_sget = 0;
+  tclass_sput = 0;
+  tclass_sfree = 0;
+  tclass_smark = 0;
+  tclass_icall = 0;
+  tclass_iget = 0;
+  tclass_iput = 0;
+  tclass_imark = 0;
+  tclass_ifree = 0;
+}
+
+#define SCALL   0x00000001
+#define SGET    0x00000002
+#define SPUT    0x00000004
+#define SMARK   0x00000008
+#define SFREE   0x00000010
+#define CONS    0x00000020
+#define IGET    0x00000040
+#define IPUT    0x00000080
+#define IMARK   0x00000100
+#define IFREE   0x00000200
+
+#define ALL     0x00000fff
+
+void tclass_init(kuvm *vm, uint64_t flags) {
+  tclass_reset(vm);
+  kucclass *cc = ku_cclassnew(vm, "test");
+  
+  if (flags & SCALL) cc->scall = test_scall;
+  if (flags & SGET) cc->sget = test_sget;
+  if (flags & SPUT) cc->sput = test_sput;
+  if (flags & SMARK) cc->smark = test_smark;
+  if (flags & SFREE) cc->sfree = test_sfree;
+  if (flags & CONS) cc->cons = test_cons;
+  if (flags & IGET) cc->iget = test_iget;
+  if (flags & IPUT) cc->iput = test_iput;
+  if (flags & IMARK) cc->imark = test_imark;
+  if (flags & IFREE) cc->ifree = test_ifree;
+  
+  ku_cclassdef(vm, cc);
+}
+
 
 void ku_test() {
   kuvm *vm = kut_new(false);
@@ -1062,6 +1173,42 @@ void ku_test() {
   res = ku_exec(vm, "var x=0xcafeb10b;");
   EXPECT_INT(vm, res, KVM_OK, "hex res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0xcafeb10b), "hex ret");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, 0);
+  res = ku_exec(vm, "var x=test;");
+  EXPECT_INT(vm, res, KVM_OK, "class res");
+  EXPECT_TRUE(vm, IS_CCLASS(ku_get_global(vm, "x")), "class ret");
+  ku_free(vm);
+  EXPECT_INT(vm, tclass_sfree, 0, "class no sfree");
+
+  vm = kut_new(false);
+  tclass_init(vm, SFREE);
+  res = ku_exec(vm, "var x=test;");
+  EXPECT_INT(vm, res, KVM_OK, "class res");
+  EXPECT_TRUE(vm, IS_CCLASS(ku_get_global(vm, "x")), "class ret");
+  ku_free(vm);
+  EXPECT_INT(vm, tclass_sfree, 1, "class sfree");
+
+  vm = kut_new(false);
+  tclass_init(vm, 0);
+  res = ku_exec(vm, "var x=test.prop;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "class no sget res");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, SGET);
+  res = ku_exec(vm, "var x=test.prop;");
+  EXPECT_INT(vm, res, KVM_OK, "class sget res");
+  EXPECT_INT(vm, tclass_sget, 1, "class sget ret");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, SPUT);
+  res = ku_exec(vm, "test.prop=8;");
+  EXPECT_INT(vm, res, KVM_OK, "class sput res");
+  EXPECT_INT(vm, tclass_sput, 8, "class sput ret");
   ku_free(vm);
 
   ku_test_summary();
