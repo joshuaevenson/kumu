@@ -3,17 +3,17 @@
 
 
 // ********************** changelog **********************
-// ✓ arrow expr: arg => expr, arg => { ... }
-// ✓ arrow block: { a, b => exp }, { a, b => { ... } }
-// ✓ break
-// ✓ continue
+// ✓ arrow function expressions: arg => expr, arg => { ... }
+// ✓ arrow function blocks: { a, b => exp }, { a, b => { ... } }
+// ✓ break, continue support
 // ✓ remove print statement
-// ✓ native call no frame adjustment
+// ✓ bug fix native call no frame adjustment
 // ✓ native call error handling
-// ✓ string literal escape sequences
+// ✓ string literal escape sequences (\n\r\t)
 // ✓ strlen() function
 // ✓ number hex, sci literals
 // ✓ native classes
+// ✓ math native class
 // 𐄂 format(fmt, ...) function
 // 𐄂 array, table, sqlite native classes
 // 𐄂 persistent tasks (save, load)
