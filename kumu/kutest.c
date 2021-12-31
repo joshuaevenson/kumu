@@ -1275,5 +1275,15 @@ void ku_test() {
   ku_free(vm);
   EXPECT_INT(vm, tclass_ifree, 1, "class ifree");
 
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE | IMARK);
+  vm->flags |= KVM_F_GCSTRESS;
+  res = ku_exec(vm, "var x=test(4);");
+  ku_gc(vm);
+  EXPECT_TRUE(vm, tclass_sfree == 0, "class sfree");
+  EXPECT_INT(vm, res, KVM_OK, "class imark res");
+  EXPECT_TRUE(vm, tclass_imark > 0, "class imark");
+  ku_free(vm);
+
   ku_test_summary();
 }
