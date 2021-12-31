@@ -18,7 +18,7 @@ static void EXPECT_TRUE(kuvm* vm, bool b, const char* msg) {
     return;
   }
   ktest_fail++;
-  printf(">>> expected true found false [%s]", msg);
+  printf(">>> expected true found false [%s]\n", msg);
 }
 
 static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
@@ -1241,6 +1241,16 @@ void ku_test() {
   res = ku_exec(vm, "var x=math.tan(math.pi/4);");
   EXPECT_INT(vm, res, KVM_OK, "math.tan res");
   EXPECT_TRUE(vm, APPROX(ku_get_global(vm, "x"), 1), "math.tan ret");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, SMARK);
+  res = ku_exec(vm, "var x=test;");
+  ku_gc(vm);
+  EXPECT_INT(vm, tclass_smark, 1, "class smark false");
+  res = ku_exec(vm, "x=nil;");
+  ku_gc(vm);
+  EXPECT_TRUE(vm, tclass_smark > 1, "class smark false");
   ku_free(vm);
 
   ku_test_summary();
