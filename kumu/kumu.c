@@ -70,6 +70,14 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
       break;
     }
       
+    case OBJ_CCLASS: {
+      kucclass *cc = (kucclass*)obj;
+      if (cc->sfree) {
+        cc->sfree(vm, obj);
+      }
+      FREE(vm, kucclass, obj);
+      break;
+    }
     case OBJ_CFUNC:
       FREE(vm, kucfunc, obj);
       break;
@@ -1908,6 +1916,16 @@ kures ku_run(kuvm *vm) {
       }
         
       case OP_GET_PROP: {
+        if (IS_CCLASS(ku_peek(vm, 0))) {
+          kucclass *cc = AS_CCLASS(ku_peek(vm, 0));
+          if (cc->sget) {
+            kustr *name = READ_STRING(vm);
+            kuval ret = cc->sget(vm, name);
+            ku_pop(vm); // instance
+            ku_push(vm, ret);
+            break;
+          }
+        }
         if (!IS_INSTANCE(ku_peek(vm, 0))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
@@ -2410,10 +2428,30 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
   return NIL_VAL;
 }
 
+#include <math.h>
+
+#define M2(c,s) (c->len==2 && c->chars[0]==s[0] && \
+                              c->chars[1]==s[1])
+
+#define M3(c,s) (c->len==3 && c->chars[0]==s[0] && \
+                              c->chars[1]==s[1] && \
+                              c->chars[2]==s[2])
+
+kuval math_sget(kuvm *vm, kustr *p) {
+  if (M2(p, "PI")) {
+    return NUM_VAL(M_PI);
+  }
+  return NIL_VAL;
+}
+
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "printf", ku_print);
   ku_cfuncdef(vm, "strlen", ku_strlen);
+  
+  kucclass *math = ku_cclassnew(vm, "math");
+  math->sget = math_sget;
+  ku_cclassdef(vm, math);
 }
 
 // ********************** closure **********************
@@ -2479,6 +2517,14 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
       break;
     }
       
+    case OBJ_CCLASS: {
+      kucclass *cc = (kucclass*)o;
+      ku_markobj(vm, (kuobj*)cc->name);
+      if (cc->smark) {
+        cc->smark(vm, o);
+      }
+      break;
+    }
     case OBJ_CLASS: {
       kuclass *c = (kuclass*)o;
       ku_markobj(vm, (kuobj*)c->name);
@@ -2684,6 +2730,11 @@ static void ku_printobj(kuvm* vm, kuval val) {
     case OBJ_CFUNC:
       ku_printf(vm, "<cfunc>");
       break;
+    case OBJ_CCLASS: {
+      kucclass *cc = AS_CCLASS(val);
+      ku_printf(vm, "<class %s>", cc->name->chars);
+      break;
+    }
     case OBJ_CLOSURE:
       ku_printfunc(vm, AS_CLOSURE(val)->func);
       break;
@@ -2769,4 +2820,34 @@ void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to, bool rev) {
     c->code[patch->offset[i]] = (delta >> 8) & 0xff;
     c->code[patch->offset[i]+1] = delta & 0xff;
   }
+}
+
+
+// ********************** native class **********************
+kucclass *ku_cclassnew(kuvm *vm, const char *name) {
+  int len = (int)strlen(name);
+  kustr *sname = ku_strfrom(vm, name, len);
+
+  kucclass *cc = KALLOC_OBJ(vm, kucclass, OBJ_CCLASS);
+  cc->name = sname;
+  cc->cons = NULL;
+  cc->scall = NULL;
+  cc->sget = NULL;
+  cc->sput = NULL;
+  cc->sfree = NULL;
+  cc->smark = NULL;
+  cc->icall = NULL;
+  cc->iget = NULL;
+  cc->iput = NULL;
+  cc->ifree = NULL;
+  cc->imark = NULL;
+  return cc;
+}
+
+void ku_cclassdef(kuvm *vm, kucclass *cc) {
+  ku_push(vm, OBJ_VAL(cc->name));
+  ku_push(vm, OBJ_VAL((kuobj*)cc));
+  ku_tabset(vm, &vm->globals, AS_STR(vm->stack[0]), vm->stack[1]);
+  ku_pop(vm);
+  ku_pop(vm);
 }

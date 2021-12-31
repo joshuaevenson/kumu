@@ -3,7 +3,7 @@
 
 
 // ********************** changelog **********************
-// ✓ arrow function: arg => expr, arg => { ... }
+// ✓ arrow expr: arg => expr, arg => { ... }
 // ✓ arrow block: { a, b => exp }, { a, b => { ... } }
 // ✓ break
 // ✓ continue
@@ -14,7 +14,7 @@
 // ✓ strlen() function
 // ✓ number hex, sci literals
 // 𐄂 native classes
-// 𐄂 strfmt(format, ...) function
+// 𐄂 format(fmt, ...) function
 // 𐄂 arrays
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient tasks (suspend, resume)
@@ -51,6 +51,7 @@ typedef struct kuvm kuvm;
 typedef enum {
   OBJ_FUNC,
   OBJ_CFUNC,
+  OBJ_CCLASS,
   OBJ_CLOSURE,
   OBJ_STR,
   OBJ_UPVAL,
@@ -161,6 +162,7 @@ static inline kuval ku_num2val(double d) {
 #define IS_STR(v) (ku_objis(v, OBJ_STR))
 #define IS_FUNC(v) (ku_objis(v, OBJ_FUNC))
 #define IS_CFUNC(v) (ku_objis(v, OBJ_CFUNC))
+#define IS_CCLASS(v) (ku_objis(v, OBJ_CCLASS))
 #define IS_CLOSURE(v) (ku_objis(v, OBJ_CLOSURE))
 #define IS_CLASS(v) (ku_objis(v, OBJ_CLASS))
 #define IS_INSTANCE(v) (ku_objis(v, OBJ_INSTANCE))
@@ -189,6 +191,7 @@ static inline double ku_val2num(kuval v) {
 #define AS_CSTR(v) (((kustr*)AS_OBJ(v))->chars)
 #define AS_FUNC(v) ((kufunc*)AS_OBJ(v))
 #define AS_CFUNC(v) (((kucfunc*)AS_OBJ(v))->fn)
+#define AS_CCLASS(v) ((kucclass*)AS_OBJ(v))
 #define AS_CLOSURE(v) ((kuclosure*)AS_OBJ(v))
 #define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
 #define AS_INSTANCE(v) ((kuiobj*)AS_OBJ(v))
@@ -309,6 +312,26 @@ typedef struct {
 kucfunc *ku_cfuncnew(kuvm *vm, cfunc f);
 void ku_cfuncdef(kuvm *vm, const char *name, cfunc f);
 void ku_reglibs(kuvm *vm);
+
+// ********************** native class **********************
+typedef struct {
+  kuobj obj;
+  kustr *name;
+  kuval (*cons)(kuvm *vm, int argc, kuval *argv);
+  kuval (*scall)(kuvm *vm, kustr *m, int argc, kuval *argv);
+  kuval (*sget)(kuvm *vm, kustr *p);
+  kuval (*sput)(kuvm *vm, kustr *p, kuval v);
+  kuval (*sfree)(kuvm *vm, kuobj *cc);
+  kuval (*smark)(kuvm *vm, kuobj *cc);
+  kuval (*icall)(kuvm *vm, kustr *m, int argc, kuval *argv);
+  kuval (*iget)(kuvm *vm, kustr *p);
+  kuval (*iput)(kuvm *vm, kustr *p, kuval v);
+  kuval (*ifree)(kuvm *vm, kuobj *o);
+  kuval (*imark)(kuvm *vm, kuobj *cc);
+} kucclass;
+
+kucclass *ku_cclassnew(kuvm *vm, const char *name);
+void ku_cclassdef(kuvm *vm, kucclass *cc);
 
 // ********************** hash tables **********************
 typedef struct {
