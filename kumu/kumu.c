@@ -1701,9 +1701,20 @@ static bool ku_classinvoke(kuvm *vm, kuclass *klass, kustr *name, int argc) {
   return ku_docall(vm, AS_CLOSURE(method), argc);
 }
 
-static bool ku_invoke(kuvm *vm, kustr *name, int argc) {
+static bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
   kuval receiver = ku_peek(vm, argc);
-  
+  *native = false;
+  if (IS_CCLASS(receiver)) {
+    kucclass *cc = AS_CCLASS(receiver);
+    if (cc->scall) {
+      *native = true;
+      kuval v = cc->scall(vm, name, argc, vm->sp - argc);
+      vm->sp -= argc +1;
+      ku_push(vm, v);
+      return true;
+    }
+    return false;
+  }
   if (!IS_INSTANCE(receiver)) {
     ku_err(vm, "instance expected");
     return false;
@@ -1758,12 +1769,15 @@ kures ku_run(kuvm *vm) {
         break;
       }
       case OP_INVOKE: {
+        bool native;
         kustr *method = READ_STRING(vm);
         int argc = BYTE_READ(vm);
-        if (!ku_invoke(vm, method, argc)) {
+        if (!ku_invoke(vm, method, argc, &native)) {
           return KVM_ERR_RUNTIME;
         }
-        frame = &vm->frames[vm->framecount - 1];
+        if (!native) {
+          frame = &vm->frames[vm->framecount - 1];
+        }
         break;
       }
         
@@ -2450,8 +2464,21 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[2]==s[2])
 
 kuval math_sget(kuvm *vm, kustr *p) {
-  if (M2(p, "PI")) {
+  if (M2(p, "pi")) {
     return NUM_VAL(M_PI);
+  }
+  return NIL_VAL;
+}
+
+kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+  double x = AS_NUM(argv[0]);
+  
+  if (M3(m, "sin")) {
+    return NUM_VAL(sin(x));
+  } else if (M3(m, "cos")) {
+    return NUM_VAL(cos(x));
+  } else if (M3(m, "tan")) {
+    return NUM_VAL(tan(x));
   }
   return NIL_VAL;
 }
@@ -2463,6 +2490,7 @@ void ku_reglibs(kuvm *vm) {
   
   kucclass *math = ku_cclassnew(vm, "math");
   math->sget = math_sget;
+  math->scall = math_scall;
   ku_cclassdef(vm, math);
 }
 

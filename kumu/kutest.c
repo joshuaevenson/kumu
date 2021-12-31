@@ -117,7 +117,7 @@ kuval test_cons(kuvm *vm, int argc, kuval *argv) {
 }
 
 kuval test_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
-  tclass_scall++;
+  tclass_scall = argc;
   return NIL_VAL;
 }
 
@@ -210,6 +210,7 @@ void tclass_init(kuvm *vm, uint64_t flags) {
   ku_cclassdef(vm, cc);
 }
 
+#define APPROX(a,b) ((AS_NUM(a)-b) < 0.00000001)
 
 void ku_test() {
   kuvm *vm = kut_new(false);
@@ -1209,6 +1210,37 @@ void ku_test() {
   res = ku_exec(vm, "test.prop=8;");
   EXPECT_INT(vm, res, KVM_OK, "class sput res");
   EXPECT_INT(vm, tclass_sput, 8, "class sput ret");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, 0);
+  res = ku_exec(vm, "test.method(5,2,1);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "class no scall res");
+  ku_free(vm);
+  
+  vm = kut_new(false);
+  tclass_init(vm, SCALL);
+  res = ku_exec(vm, "test.method(5,2,1);");
+  EXPECT_INT(vm, res, KVM_OK, "class scall res");
+  EXPECT_INT(vm, tclass_scall, 3, "class scall ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=math.sin(math.pi);");
+  EXPECT_INT(vm, res, KVM_OK, "math.sin res");
+  EXPECT_TRUE(vm, APPROX(ku_get_global(vm, "x"), 0), "math.sin ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=math.cos(math.pi);");
+  EXPECT_INT(vm, res, KVM_OK, "math.cos res");
+  EXPECT_TRUE(vm, APPROX(ku_get_global(vm, "x"), -1), "math.cos ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=math.tan(math.pi/4);");
+  EXPECT_INT(vm, res, KVM_OK, "math.tan res");
+  EXPECT_TRUE(vm, APPROX(ku_get_global(vm, "x"), 1), "math.tan ret");
   ku_free(vm);
 
   ku_test_summary();
