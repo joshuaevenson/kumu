@@ -160,6 +160,8 @@ kuval test_iget(kuvm *vm, kuobj *o, kustr *p) {
 
 kuval test_iput(kuvm *vm, kuobj *o, kustr *p, kuval v) {
   tclass_iput++;
+  test_inst *ti = (test_inst*)o;
+  ti->value = AS_NUM(v);
   return NIL_VAL;
 }
 
@@ -1295,8 +1297,15 @@ void ku_test() {
 
   vm = kut_new(false);
   tclass_init(vm, CONS | IFREE );
-  res = ku_exec(vm, "var x=test(4); var y=x.prop;");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "no iget res");
+  res = ku_exec(vm, "var x=test(4); x.prop=9;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "no iput res");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE | IPUT | IGET);
+  res = ku_exec(vm, "var x=test(4); x.prop=9; var y=x.prop;");
+  EXPECT_INT(vm, res, KVM_OK, "iput res");
+  EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(9), "iput");
   ku_free(vm);
 
   ku_test_summary();

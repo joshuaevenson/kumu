@@ -13,9 +13,9 @@
 // ✓ string literal escape sequences
 // ✓ strlen() function
 // ✓ number hex, sci literals
-// 𐄂 native classes
+// ✓ native classes
 // 𐄂 format(fmt, ...) function
-// 𐄂 arrays
+// 𐄂 array, table, sqlite native classes
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient tasks (suspend, resume)
 // 𐄂 repl with readline

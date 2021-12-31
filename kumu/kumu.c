@@ -2008,6 +2008,18 @@ kures ku_run(kuvm *vm) {
           }
         }
 
+        if (IS_CINST(ku_peek(vm, 1))) {
+          kunobj *i = AS_CINST(ku_peek(vm, 1));
+          if (i->klass->iput) {
+            kustr *name = READ_STRING(vm);
+            kuval val = ku_pop(vm);
+            ku_pop(vm); // instance
+            val = i->klass->iput(vm, (kuobj*)i, name, val);
+            ku_push(vm, val);
+            break;
+          }
+        }
+
         if (!IS_INSTANCE(ku_peek(vm, 1))) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
