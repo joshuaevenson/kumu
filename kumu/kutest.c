@@ -111,9 +111,16 @@ int tclass_iput = 0;
 int tclass_imark = 0;
 int tclass_ifree = 0;
 
+typedef struct {
+  kunobj base;
+  double value;
+} test_inst;
+
 kuval test_cons(kuvm *vm, int argc, kuval *argv) {
   tclass_cons++;
-  return NIL_VAL;
+  test_inst *i = (test_inst*)ku_objalloc(vm, sizeof(test_inst), OBJ_CINST);
+  i->value = AS_NUM(argv[0]);
+  return OBJ_VAL(i);
 }
 
 kuval test_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
@@ -157,6 +164,7 @@ kuval test_iput(kuvm *vm, kustr *p, kuval v) {
 
 kuval test_ifree(kuvm *vm, kuobj *o) {
   tclass_ifree++;
+  ku_alloc(vm, o, sizeof(test_inst), 0);
   return NIL_VAL;
 }
 
@@ -1252,6 +1260,20 @@ void ku_test() {
   ku_gc(vm);
   EXPECT_TRUE(vm, tclass_smark > 1, "class smark false");
   ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, 0);
+  res = ku_exec(vm, "var x = test(4);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "class no cons");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE);
+  res = ku_exec(vm, "var x = test(4);");
+  EXPECT_INT(vm, res, KVM_OK, "class cons res");
+  EXPECT_TRUE(vm, IS_CINST(ku_get_global(vm, "x")), "class cons ret");
+  ku_free(vm);
+  EXPECT_INT(vm, tclass_ifree, 1, "class ifree");
 
   ku_test_summary();
 }

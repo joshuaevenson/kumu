@@ -57,6 +57,7 @@ typedef enum {
   OBJ_UPVAL,
   OBJ_CLASS,
   OBJ_INSTANCE,
+  OBJ_CINST,
   OBJ_BOUND_METHOD,
 } kuobj_t;
 
@@ -166,6 +167,7 @@ static inline kuval ku_num2val(double d) {
 #define IS_CLOSURE(v) (ku_objis(v, OBJ_CLOSURE))
 #define IS_CLASS(v) (ku_objis(v, OBJ_CLASS))
 #define IS_INSTANCE(v) (ku_objis(v, OBJ_INSTANCE))
+#define IS_CINST(v) (ku_objis(v, OBJ_CINST))
 #define IS_BOUND_METHOD(v) (ku_objis(v, OBJ_BOUND_METHOD))
 
 #ifdef NAN_BOX
@@ -196,6 +198,7 @@ static inline double ku_val2num(kuval v) {
 #define AS_CLASS(v) ((kuclass*)AS_OBJ(v))
 #define AS_INSTANCE(v) ((kuiobj*)AS_OBJ(v))
 #define AS_BOUND_METHOD(v) ((kubound*)AS_OBJ(v))
+#define AS_CINST(v) ((kunobj*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -215,7 +218,7 @@ void ku_arrwrite(kuvm* vm, kuarr* array, kuval value);
 
 // ********************** memory **********************
 char* ku_alloc(kuvm* vm, void* p, size_t oldsize, size_t newsize);
-
+kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type);
 // ********************** bytecodes **********************
 typedef enum {
   OP_ADD,
@@ -370,6 +373,12 @@ typedef struct {
 } kuiobj;
 
 kuiobj *ku_instnew(kuvm *vm, kuclass *klass);
+
+// ********************** native instance **********************
+typedef struct {
+  kuobj obj;
+  kucclass *klass;
+} kunobj;
 
 // ********************** bound methods **********************
 typedef struct {

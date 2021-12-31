@@ -46,7 +46,7 @@ static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
 static void ku_function(kuvm *vm, kufunc_t type);
 // ********************** object **********************
-static kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
+kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
   obj->type = type;
   obj->marked = false;
@@ -76,6 +76,14 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
         cc->sfree(vm, obj);
       }
       FREE(vm, kucclass, obj);
+      break;
+    }
+
+    case OBJ_CINST: {
+      kunobj *i = (kunobj*)obj;
+      if (i->klass->ifree) {
+        i->klass->ifree(vm, obj);
+      }
       break;
     }
     case OBJ_CFUNC:
@@ -1593,6 +1601,23 @@ static bool ku_callvalue(kuvm *vm, kuval callee, int argc, bool *native) {
   *native = false;
   if (IS_OBJ(callee)) {
     switch (OBJ_TYPE(callee)) {
+      case OBJ_CCLASS: {
+        kucclass *cc = AS_CCLASS(callee);
+        if (cc->cons) {
+          kuval res = cc->cons(vm, argc, vm->sp - argc);
+          vm->sp -= argc + 1;
+          ku_push(vm, res);
+          *native = true;
+          if (!ku_objis(res, OBJ_CINST)) {
+            ku_err(vm, "invalid instance");
+          } else {
+            kunobj *i = AS_CINST(res);
+            i->klass = cc;
+          }
+          return !vm->err;
+        }
+        break;
+      }
       case OBJ_CFUNC: {
         cfunc cf = AS_CFUNC(callee);
         kuval res = cf(vm, argc, vm->sp - argc);
@@ -2546,6 +2571,14 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_CFUNC:
       break;
       
+    case OBJ_CINST: {
+      kunobj *i = (kunobj*)o;
+      ku_markobj(vm, (kuobj*)i->klass);
+      if (i->klass->imark) {
+        i->klass->imark(vm, o);
+      }
+      break;
+    }
     case OBJ_UPVAL:
       ku_markval(vm, ((kuxobj*)o)->closed);
       break;
@@ -2770,6 +2803,11 @@ static void ku_printobj(kuvm* vm, kuval val) {
     case OBJ_CFUNC:
       ku_printf(vm, "<cfunc>");
       break;
+    case OBJ_CINST: {
+      kunobj *i = AS_CINST(val);
+      ku_printf(vm, "<%s instance>", i->klass->name->chars);
+      break;
+    }
     case OBJ_CCLASS: {
       kucclass *cc = AS_CCLASS(val);
       ku_printf(vm, "<class %s>", cc->name->chars);
