@@ -9,9 +9,19 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>kumu_readline.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>82195CA3278103DA000DC1DD</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>82EE3AED274EE08100D6B09E</key>
 		<dict>
 			<key>primary</key>

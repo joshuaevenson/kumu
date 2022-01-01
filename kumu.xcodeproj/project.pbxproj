@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		82195CA5278103DA000DC1DD /* kumain.c in Sources */ = {isa = PBXBuildFile; fileRef = 82E8AB86275FCA23003A7A54 /* kumain.c */; };
+		82195CA6278103DA000DC1DD /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF1274EE08100D6B09E /* main.c */; };
+		82195CA7278103DA000DC1DD /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
+		82195CB027810855000DC1DD /* libreadline.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 82195CAF278103E8000DC1DD /* libreadline.tbd */; };
 		82E8AB83275FC069003A7A54 /* kutest.c in Sources */ = {isa = PBXBuildFile; fileRef = 82E8AB82275FC069003A7A54 /* kutest.c */; };
 		82E8AB84275FC1A7003A7A54 /* kumu.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EE3AF9274EE0B600D6B09E /* kumu.c */; };
 		82E8AB87275FCA23003A7A54 /* kumain.c in Sources */ = {isa = PBXBuildFile; fileRef = 82E8AB86275FCA23003A7A54 /* kumain.c */; };
@@ -16,6 +20,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		82195CA9278103DA000DC1DD /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		82EE3AEC274EE08100D6B09E /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -28,6 +41,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		82195CAD278103DA000DC1DD /* kumu */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kumu; sourceTree = BUILT_PRODUCTS_DIR; };
+		82195CAF278103E8000DC1DD /* libreadline.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libreadline.tbd; path = usr/lib/libreadline.tbd; sourceTree = SDKROOT; };
 		82E8AB81275FC069003A7A54 /* kutest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kutest.h; sourceTree = "<group>"; };
 		82E8AB82275FC069003A7A54 /* kutest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kutest.c; sourceTree = "<group>"; };
 		82E8AB85275FCA23003A7A54 /* kumain.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kumain.h; sourceTree = "<group>"; };
@@ -41,6 +56,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		82195CA8278103DA000DC1DD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82195CB027810855000DC1DD /* libreadline.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		82EE3AEB274EE08100D6B09E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -58,12 +81,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		82195CAE278103E8000DC1DD /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				82195CAF278103E8000DC1DD /* libreadline.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		82EE3AE5274EE08100D6B09E = {
 			isa = PBXGroup;
 			children = (
 				82EE3AF0274EE08100D6B09E /* kumu */,
 				82F283B727531F77008A1DBD /* tests_macOS */,
 				82EE3AEF274EE08100D6B09E /* Products */,
+				82195CAE278103E8000DC1DD /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -72,6 +104,7 @@
 			children = (
 				82EE3AEE274EE08100D6B09E /* kumu */,
 				82F283B627531F77008A1DBD /* tests_macOS.xctest */,
+				82195CAD278103DA000DC1DD /* kumu */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,6 +134,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		82195CA3278103DA000DC1DD /* kumu_readline */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 82195CAA278103DA000DC1DD /* Build configuration list for PBXNativeTarget "kumu_readline" */;
+			buildPhases = (
+				82195CA4278103DA000DC1DD /* Sources */,
+				82195CA8278103DA000DC1DD /* Frameworks */,
+				82195CA9278103DA000DC1DD /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = kumu_readline;
+			productName = kumu;
+			productReference = 82195CAD278103DA000DC1DD /* kumu */;
+			productType = "com.apple.product-type.tool";
+		};
 		82EE3AED274EE08100D6B09E /* kumu */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 82EE3AF5274EE08100D6B09E /* Build configuration list for PBXNativeTarget "kumu" */;
@@ -167,6 +217,7 @@
 			targets = (
 				82EE3AED274EE08100D6B09E /* kumu */,
 				82F283B527531F77008A1DBD /* tests_macOS */,
+				82195CA3278103DA000DC1DD /* kumu_readline */,
 			);
 		};
 /* End PBXProject section */
@@ -182,6 +233,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		82195CA4278103DA000DC1DD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82195CA5278103DA000DC1DD /* kumain.c in Sources */,
+				82195CA6278103DA000DC1DD /* main.c in Sources */,
+				82195CA7278103DA000DC1DD /* kumu.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		82EE3AEA274EE08100D6B09E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -205,6 +266,24 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		82195CAB278103DA000DC1DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = USE_READLINE;
+				PRODUCT_NAME = kumu;
+			};
+			name = Debug;
+		};
+		82195CAC278103DA000DC1DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = USE_READLINE;
+				PRODUCT_NAME = kumu;
+			};
+			name = Release;
+		};
 		82EE3AF3274EE08100D6B09E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -377,6 +456,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		82195CAA278103DA000DC1DD /* Build configuration list for PBXNativeTarget "kumu_readline" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				82195CAB278103DA000DC1DD /* Debug */,
+				82195CAC278103DA000DC1DD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		82EE3AE9274EE08100D6B09E /* Build configuration list for PBXProject "kumu" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

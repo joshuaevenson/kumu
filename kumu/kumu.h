@@ -13,11 +13,11 @@
 // ✓ strlen() function
 // ✓ native classes
 // ✓ math native class
+// ✓ repl USE_READLINE
 // 𐄂 format(fmt, ...) function
 // 𐄂 array, table, sqlite native classes
 // 𐄂 persistent tasks (save, load)
 // 𐄂 transient tasks (suspend, resume)
-// 𐄂 repl with readline
 
 #ifndef KUMU_H
 #define KUMU_H

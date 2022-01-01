@@ -8,6 +8,27 @@
 #include "kumain.h"
 #include "kumu.h"
 
+#define KU_MAXINPUT 1024
+
+#if defined(USE_READLINE)
+
+#include <readline/readline.h>
+#include <readline/history.h>
+#define ku_initreadline(K)  ((void)K, rl_readline_name="kumu")
+#define ku_readline(K,b,p)  ((void)K, ((b)=readline(p)) != NULL)
+#define ku_saveline(K,line)  ((void)K, add_history(line))
+#define ku_freeline(K,b)  ((void)K, free(b))
+
+#else
+
+#define ku_initreadline(K)  ((void)K)
+#define ku_readline(K,b,p) \
+        ((void)K, fputs(p, stdout), fflush(stdout),  /* show prompt */ \
+        fgets(b, KU_MAXINPUT, stdin) != NULL)  /* get line */
+#define ku_saveline(K,line)  { (void)K; (void)line; }
+#define ku_freeline(K,b)  { (void)K; (void)b; }
+
+#endif
 
 static char *ku_readfile(kuvm *vm, const char *path) {
   FILE * file = fopen(path , "rb");
@@ -142,21 +163,30 @@ static void ku_repl(kuvm *vm) {
   ku_tabset(vm, &vm->globals, under, NIL_VAL);
 
   
-  char line[1024];
-  
+
+  ku_initreadline(vm);
   while(true) {
-    printf("> ");
+    char line[KU_MAXINPUT];
+    char *b = line;
+    int readstatus = ku_readline(vm, b, "> ");
+    if (readstatus == 0)
+      continue;
+
+    size_t l = strlen(b);
+    if (l > 0 && b[l-1] == '\n') {
+      b[l-1] = '\0';
+    }
+//    printf("> ");
+//    if (!fgets(line, sizeof(line), stdin)) {
+//      printf("\n");
+//      break;
+//    }
     
-    if (!fgets(line, sizeof(line), stdin)) {
-      printf("\n");
+    if (strcmp(b, ".quit") == 0) {
       break;
     }
     
-    if (strcmp(line, ".quit\n") == 0) {
-      break;
-    }
-    
-    if (strcmp(line, ".help\n") == 0) {
+    if (strcmp(b, ".help") == 0) {
       for (int i = 0; i < sizeof(ku_repl_flags)/sizeof(ku_repl_flag); i++) {
         ku_repl_flag *flag = &ku_repl_flags[i];
         printf(".%s\n", flag->name);
@@ -164,14 +194,16 @@ static void ku_repl(kuvm *vm) {
       continue;
     }
 
-    if (ku_check_flags(vm, line)) continue;;
+    if (ku_check_flags(vm, b)) continue;;
 
-    if (strcmp(line, ".mem\n") == 0) {
+    if (strcmp(b, ".mem") == 0) {
       ku_printmem(vm);
       continue;
     }
     
-    ku_replexec(vm, line, under);
+    ku_replexec(vm, b, under);
+    ku_saveline(vm, b);
+    ku_freeline(vm, b);
   }
 }
 
