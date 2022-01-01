@@ -2,16 +2,15 @@
 // basic (hawaiian): small, fast, portable, familiar
 
 
-// ********************** changelog **********************
+// ********************** change log **********************
 // ✓ arrow function expressions: arg => expr, arg => { ... }
 // ✓ arrow function blocks: { a, b => exp }, { a, b => { ... } }
 // ✓ break, continue support
 // ✓ remove print statement
 // ✓ bug fix native call no frame adjustment
 // ✓ native call error handling
-// ✓ string literal escape sequences (\n\r\t)
+// ✓ string escapes (\n\r\t), number hex, sci literals
 // ✓ strlen() function
-// ✓ number hex, sci literals
 // ✓ native classes
 // ✓ math native class
 // 𐄂 format(fmt, ...) function
