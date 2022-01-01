@@ -9,22 +9,23 @@
 // ✓ remove print statement
 // ✓ bug fix native call no frame adjustment
 // ✓ native call error handling
-// ✓ string escapes (\n\r\t), number hex, sci literals
-// ✓ strlen() function
-// ✓ native classes
-// ✓ math native class
+// ✓ string (\n\r\t), number 0x, number _._e_
+// ✓ native classe support
+// ✓ math: sin(), cos(), tan(), pi
 // ✓ repl USE_READLINE
-// 𐄂 format(fmt, ...) function
-// 𐄂 array, table, sqlite native classes
-// 𐄂 persistent tasks (save, load)
+// 𐄂 string - s.count, string.format(fmt,...)
+// 𐄂 array(), a.count, a.set(i,v), a.get(v), a.iter(fn)
+// 𐄂 table(), t.set(k,v), t.get(k), t.iter(fn)
+// 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)
+// 𐄂 persistent tasks (save, load)
 
 #ifndef KUMU_H
 #define KUMU_H
 
 // ********************** macros **********************
 #define KVM_MAJOR          0
-#define KVM_MINOR          7
+#define KVM_MINOR          8
 
 #define NAN_BOX
 //#define TRACE_ENABLED
