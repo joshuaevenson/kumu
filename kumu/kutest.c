@@ -1366,5 +1366,13 @@ void ku_test() {
   ku_printval(vm, v);
   ku_free(vm);
 
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE );
+  res = ku_exec(vm, "var z=\"he\"; var x=z+\"llo\";");
+  v = ku_get_global(vm, "x");
+  str = AS_STR(v);
+  EXPECT_INT(vm, strcmp(str->chars, "hello"), 0, "var + string ret");
+  ku_free(vm);
+
   ku_test_summary();
 }
