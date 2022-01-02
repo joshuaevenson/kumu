@@ -18,7 +18,7 @@
 // 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)
 // 𐄂 persistent tasks (save, load)
-// 𐄂 debugger
+// 𐄂 debugger and ku_compilehook functions
 
 #ifndef KUMU_H
 #define KUMU_H
