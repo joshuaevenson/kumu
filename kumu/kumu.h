@@ -18,6 +18,7 @@
 // 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)
 // 𐄂 persistent tasks (save, load)
+// 𐄂 debugger
 
 #ifndef KUMU_H
 #define KUMU_H
@@ -38,7 +39,7 @@
 // which is 128k of data. This can be overridden with
 // a build flag similar to below to reduce the size of
 // each VM instance
-// #define STACK_MAX_OVERRIDE 128
+// #define STACK_MAX_OVERRIDE 512
 #ifdef STACK_MAX_OVERRIDE
 #define STACK_MAX STACK_MAX_OVERRIDE
 #else
