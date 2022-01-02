@@ -45,7 +45,7 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset);
 static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
 static void ku_function(kuvm *vm, kufunc_t type);
-kuval str_iget(kuvm *vm, kuobj *obj, kustr *prop);
+kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
 // ********************** object **********************
 kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
@@ -1968,7 +1968,7 @@ kures ku_run(kuvm *vm) {
         kuobj *obj = AS_OBJ(target);
         
         if (obj->type == OBJ_STR) {
-          ku_push(vm, str_iget(vm, obj, name));
+          ku_push(vm, string_iget(vm, obj, name));
           break;
         }
         
@@ -2524,7 +2524,76 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[3]==s[3] && \
                               c->chars[4]==s[4])
 
-kuval str_iget(kuvm *vm, kuobj *obj, kustr *prop) {
+kuval string_format(kuvm *vm, int argc, kuval *argv) {
+  if (argc < 1 || !IS_STR(argv[0])) {
+    return NIL_VAL;
+  }
+  const char *fmt = AS_STR(argv[0])->chars;
+  int fmtlen = (int)strlen(fmt);
+  int needed = fmtlen;
+  char numbuff[255];
+
+  // we only support number, string, and boolean args
+  for (int a = 0; a < argc; a++) {
+    kuval v = argv[a];
+    if (IS_STR(v)) {
+      needed += AS_STR(v)->len;
+    } else if (IS_NUM(v)) {
+      sprintf(numbuff, "%g", AS_NUM(v));
+      needed += strlen(numbuff);
+    } else if (IS_BOOL(v)) {
+      needed += 5;    // false is longer than true
+    }
+  }
+  
+  char *chars = ku_alloc(vm, NULL, 0, needed+1);
+  int arg = 1;
+  int ichars = 0;
+  for (int i = 0; i < fmtlen; i++) {
+    char ch = fmt[i];
+    if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'd') {
+      i++;
+      if (arg < argc && IS_NUM(argv[arg])) {
+        sprintf(numbuff, "%g", AS_NUM(argv[arg++]));
+        strcpy(&chars[ichars], numbuff);
+        ichars += strlen(numbuff);
+      }
+    } else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 's') {
+      i++;
+      if (arg < argc && IS_STR(argv[arg])) {
+        kustr *str = AS_STR(argv[arg++]);
+        memcpy(&chars[ichars], str->chars, str->len);
+        ichars += str->len;
+      }
+    }  else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'b') {
+      i++;
+      if (arg < argc && IS_BOOL(argv[arg])) {
+        bool b = AS_BOOL(argv[arg++]);
+        if (b) {
+          strcpy(&chars[ichars], "true");
+          ichars += 4;
+        } else {
+          strcpy(&chars[ichars], "false");
+          ichars += 5;
+        }
+      }
+    } else {
+      chars[ichars++] = ch;
+    }
+  }
+    
+  return OBJ_VAL(ku_strtake(vm, chars, needed));
+  
+}
+
+kuval string_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+  if (strcmp(m->chars, "format")==0) {
+    return string_format(vm, argc, argv);
+  }
+  return NIL_VAL;
+}
+
+kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop) {
   if (M5(prop, "count")) {
     kustr *str = (kustr*)obj;
     return NUM_VAL(str->len);
@@ -2560,6 +2629,10 @@ void ku_reglibs(kuvm *vm) {
   math->sget = math_sget;
   math->scall = math_scall;
   ku_cclassdef(vm, math);
+  
+  kucclass *string = ku_cclassnew(vm, "string");
+  string->scall = string_scall;
+  ku_cclassdef(vm, string);
 }
 
 // ********************** closure **********************

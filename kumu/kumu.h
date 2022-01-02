@@ -13,7 +13,7 @@
 // ✓ native classe support
 // ✓ math: sin(), cos(), tan(), pi
 // ✓ repl USE_READLINE
-// 𐄂 string - s.count, string.format(fmt,...)
+// ✓ string - s.count, string.format(fmt,...)
 // 𐄂 array(), a.count, a.set(i,v), a.get(v), a.iter(fn)
 // 𐄂 table(), t.set(k,v), t.get(k), t.iter(fn)
 // 𐄂 object type counts

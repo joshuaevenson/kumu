@@ -278,7 +278,8 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new(false);
-  ku_exec(vm, "2*3");
+  ku_push(vm, NUM_VAL(2));
+  ku_push(vm, NUM_VAL(3));
   ku_printstack(vm);
   ku_free(vm);
 
@@ -1306,6 +1307,63 @@ void ku_test() {
   res = ku_exec(vm, "var x=test(4); x.prop=9; var y=x.prop;");
   EXPECT_INT(vm, res, KVM_OK, "iput res");
   EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(9), "iput");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"ABC %d,%s,%b,%b\",123.45,\"FF\", true, false);");
+  EXPECT_INT(vm, res, KVM_OK, "string.format res");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_STR(v), "string.format ret");
+  kustr *str = AS_STR(v);
+  EXPECT_INT(vm, strcmp(str->chars, "ABC 123.45,FF,true,false"), 0, "string.format value");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(12);");
+  EXPECT_INT(vm, res, KVM_OK, "string.format num res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "string.format ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.bogus(12);");
+  EXPECT_INT(vm, res, KVM_OK, "string.bogus num res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "string.bogus ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"123\"; var x=s.bogus;");
+  EXPECT_INT(vm, res, KVM_OK, "s.bogus res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "s.bogus ret");
+  ku_free(vm);
+
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=math.bogus(12);");
+  EXPECT_INT(vm, res, KVM_OK, "math.bogus scall res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "math.bogus scall ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=math.bogus;");
+  EXPECT_INT(vm, res, KVM_OK, "math.bogus sget res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "math.bogus sget ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  v = ku_get_global(vm, "math");
+  ku_printval(vm, v);
+  ku_free(vm);
+
+  vm = kut_new(true);
+  v = ku_get_global(vm, "clock");
+  ku_printval(vm, v);
+  ku_free(vm);
+
+  vm = kut_new(false);
+  tclass_init(vm, CONS | IFREE );
+  res = ku_exec(vm, "var x=test(4);");
+  v = ku_get_global(vm, "x");
+  ku_printval(vm, v);
   ku_free(vm);
 
   ku_test_summary();
