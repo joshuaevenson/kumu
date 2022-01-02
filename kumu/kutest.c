@@ -1374,5 +1374,11 @@ void ku_test() {
   EXPECT_INT(vm, strcmp(str->chars, "hello"), 0, "var + string ret");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=0xCaFeb10B;");
+  EXPECT_INT(vm, res, KVM_OK, "hex mixed case res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0xcafeb10b), "hex mixed case ret");
+  ku_free(vm);
+
   ku_test_summary();
 }
