@@ -159,7 +159,12 @@ static void ku_printbuild(kuvm *vm) {
 #ifdef USE_READLINE
   printf("R");
 #endif
-  printf("]\n");
+  
+#ifdef TRACE_OBJ_COUNTS
+  printf("O");
+#endif
+  printf("] stack: %luk\n", STACK_MAX*sizeof(kuval)/1024);
+  
 }
 static void ku_repl(kuvm *vm) {
   ku_printbuild(vm);
