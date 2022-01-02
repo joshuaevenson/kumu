@@ -1154,25 +1154,25 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var y=\"12\"; var x=strlen(y);");
-  EXPECT_INT(vm, res, KVM_OK, "strlen res");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "strlen ret");
+  res = ku_exec(vm, "var y=\"12\"; var x=y.count;");
+  EXPECT_INT(vm, res, KVM_OK, "string.count res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "string.count ret");
   ku_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var x=strlen();");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "strlen() nil");
+  res = ku_exec(vm, "var x=v.count;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.count nil");
   ku_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var x=strlen(12);");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "strlen() non num");
+  res = ku_exec(vm, "var x=12; var y=x.count;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.count non num");
   ku_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var y=\"12\\n\\r\\t\"; var x=strlen(y);");
-  EXPECT_INT(vm, res, KVM_OK, "strlen res");
-  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(5), "strlen ret");
+  res = ku_exec(vm, "var y=\"12\\n\\r\\t\"; var x=y.count;");
+  EXPECT_INT(vm, res, KVM_OK, "strlit escape res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(5), "strlit escape ret");
   ku_free(vm);
 
   vm = kut_new(true);

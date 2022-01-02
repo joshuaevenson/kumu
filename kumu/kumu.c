@@ -45,6 +45,7 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset);
 static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
 static void ku_function(kuvm *vm, kufunc_t type);
+kuval str_iget(kuvm *vm, kuobj *obj, kustr *prop);
 // ********************** object **********************
 kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
@@ -1955,36 +1956,45 @@ kures ku_run(kuvm *vm) {
       }
         
       case OP_GET_PROP: {
-        if (IS_CCLASS(ku_peek(vm, 0))) {
-          kucclass *cc = AS_CCLASS(ku_peek(vm, 0));
+        kustr *name = READ_STRING(vm);
+        kuval target = ku_peek(vm, 0);
+        ku_pop(vm);   // pop the target
+
+        if (!IS_OBJ(target)) {
+          ku_err(vm, "object expected");
+          return KVM_ERR_RUNTIME;
+        }
+        
+        kuobj *obj = AS_OBJ(target);
+        
+        if (obj->type == OBJ_STR) {
+          ku_push(vm, str_iget(vm, obj, name));
+          break;
+        }
+        
+        if (obj->type == OBJ_CCLASS) {
+          kucclass *cc = (kucclass*)obj;
           if (cc->sget) {
-            kustr *name = READ_STRING(vm);
-            kuval ret = cc->sget(vm, name);
-            ku_pop(vm); // instance
-            ku_push(vm, ret);
+            ku_push(vm, cc->sget(vm, name));
             break;
           }
         }
         
-        if (IS_CINST(ku_peek(vm,0))) {
-          kunobj *i = AS_CINST(ku_peek(vm, 0));
+        if (obj->type == OBJ_CINST) {
+          kunobj *i = (kunobj*)obj;
           if (i->klass->iget) {
-            kustr *name = READ_STRING(vm);
-            kuval ret = i->klass->iget(vm, (kuobj*)i, name);
-            ku_pop(vm); // instance
-            ku_push(vm, ret);
+            ku_push(vm, i->klass->iget(vm, (kuobj*)i, name));
             break;
           }
         }
-        if (!IS_INSTANCE(ku_peek(vm, 0))) {
+        
+        if (obj->type != OBJ_INSTANCE) {
           ku_err(vm, "instance expected");
           return KVM_ERR_RUNTIME;
         }
-        kuiobj *i = AS_INSTANCE(ku_peek(vm, 0));
-        kustr *name = READ_STRING(vm);
+        kuiobj *i = (kuiobj*)obj;
         kuval val;
         if (ku_tabget(vm, &i->fields, name, &val)) {
-          ku_pop(vm); // pop instance
           ku_push(vm, val);
           break;
         }
@@ -2486,14 +2496,6 @@ static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
-static kuval ku_strlen(kuvm *vm, int argc, kuval *argv) {
-  if (argc < 1 || !IS_STR(argv[0])) {
-    ku_err(vm, "strlen string expected");
-    return NIL_VAL;
-  }
-  return NUM_VAL(strlen(AS_STR(argv[0])->chars));
-}
-
 static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
   for (int a = 0; a < argc; a++) {
     kuval v = argv[a];
@@ -2510,6 +2512,25 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
 #define M3(c,s) (c->len==3 && c->chars[0]==s[0] && \
                               c->chars[1]==s[1] && \
                               c->chars[2]==s[2])
+
+#define M4(c,s) (c->len==4 && c->chars[0]==s[0] && \
+                              c->chars[1]==s[1] && \
+                              c->chars[2]==s[2] && \
+                              c->chars[3]==s[3])
+
+#define M5(c,s) (c->len==5 && c->chars[0]==s[0] && \
+                              c->chars[1]==s[1] && \
+                              c->chars[2]==s[2] && \
+                              c->chars[3]==s[3] && \
+                              c->chars[4]==s[4])
+
+kuval str_iget(kuvm *vm, kuobj *obj, kustr *prop) {
+  if (M5(prop, "count")) {
+    kustr *str = (kustr*)obj;
+    return NUM_VAL(str->len);
+  }
+  return NIL_VAL;
+}
 
 kuval math_sget(kuvm *vm, kustr *p) {
   if (M2(p, "pi")) {
@@ -2534,7 +2555,6 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "printf", ku_print);
-  ku_cfuncdef(vm, "strlen", ku_strlen);
   
   kucclass *math = ku_cclassnew(vm, "math");
   math->sget = math_sget;

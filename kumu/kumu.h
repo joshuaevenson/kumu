@@ -16,6 +16,7 @@
 // 𐄂 string - s.count, string.format(fmt,...)
 // 𐄂 array(), a.count, a.set(i,v), a.get(v), a.iter(fn)
 // 𐄂 table(), t.set(k,v), t.get(k), t.iter(fn)
+// 𐄂 object type counts
 // 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)
 // 𐄂 persistent tasks (save, load)
