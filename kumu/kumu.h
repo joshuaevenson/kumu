@@ -32,7 +32,18 @@
 #define UPSTACK_MAX (UINT8_MAX + 1)
 #define LOCALS_MAX    (UINT8_MAX + 1)
 #define FRAMES_MAX 64
+
+
+// Default is 64 frames with up to 255 values on the stack
+// which is 128k of data. This can be overridden with
+// a build flag similar to below to reduce the size of
+// each VM instance
+// #define STACK_MAX_OVERRIDE 128
+#ifdef STACK_MAX_OVERRIDE
+#define STACK_MAX STACK_MAX_OVERRIDE
+#else
 #define STACK_MAX (FRAMES_MAX * UPSTACK_MAX)
+#endif
 
 // ********************** includes **********************
 #include <stdbool.h>
