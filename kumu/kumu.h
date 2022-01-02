@@ -1,7 +1,6 @@
 // ********************** kumu **********************
 // basic (hawaiian): small, fast, portable, familiar
 
-
 // ********************** change log **********************
 // ✓ arrow function expressions: arg => expr, arg => { ... }
 // ✓ arrow function blocks: { a, b => exp }, { a, b => { ... } }
@@ -16,7 +15,6 @@
 // ✓ string - s.count, string.format(fmt,...)
 // 𐄂 array(), a.count, a.set(i,v), a.get(v), a.iter(fn)
 // 𐄂 table(), t.set(k,v), t.get(k), t.iter(fn)
-// 𐄂 object type counts
 // 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)
 // 𐄂 persistent tasks (save, load)
@@ -30,6 +28,7 @@
 
 #define NAN_BOX
 //#define TRACE_ENABLED
+//#define TRACE_OBJ_COUNTS
 #define UPSTACK_MAX (UINT8_MAX + 1)
 #define LOCALS_MAX    (UINT8_MAX + 1)
 #define FRAMES_MAX 64
@@ -513,6 +512,9 @@ typedef struct kuvm {
   
   bool err;
   size_t allocated;
+#ifdef TRACE_OBJ_COUNTS
+  size_t alloc_counts[OBJ_BOUND_METHOD+1];
+#endif
   size_t gcnext;
   kuclasscomp *curclass;
 

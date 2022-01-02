@@ -48,6 +48,9 @@ static void ku_function(kuvm *vm, kufunc_t type);
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
 // ********************** object **********************
 kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
+#ifdef  TRACE_OBJ_COUNTS
+  vm->alloc_counts[type]++;
+#endif
   kuobj* obj = (kuobj*)ku_alloc(vm, NULL, 0, size);
   obj->type = type;
   obj->marked = false;
@@ -63,6 +66,10 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
   if (vm->flags & KVM_F_GCLOG) {
     ku_printf(vm, "%p free type %d\n", (void*)obj, obj->type);
   }
+  
+#ifdef TRACE_OBJ_COUNTS
+  vm->alloc_counts[obj->type]--;
+#endif
   switch (obj->type) {
     case OBJ_FUNC: {
       kufunc *fn = (kufunc*)obj;
@@ -2908,7 +2915,20 @@ static void ku_printf(kuvm *vm, const char *fmt, ...) {
 }
 
 void ku_printmem(kuvm *vm) {
-  ku_printf(vm, "delta: %ld\n", vm->allocated);
+  ku_printf(vm, "allocated: %ld\n", vm->allocated);
+#ifdef TRACE_OBJ_COUNTS
+  ku_printf(vm, "  OBJ_FUNC:          %d\n", vm->alloc_counts[OBJ_FUNC]);
+  ku_printf(vm, "  OBJ_DFUNC:         %d\n", vm->alloc_counts[OBJ_CFUNC]);
+  ku_printf(vm, "  OBJ_CCLASS:        %d\n", vm->alloc_counts[OBJ_CCLASS]);
+  ku_printf(vm, "  OBJ_CLOSURE:       %d\n", vm->alloc_counts[OBJ_CLOSURE]);
+  ku_printf(vm, "  OBJ_STR:           %d\n", vm->alloc_counts[OBJ_STR]);
+  ku_printf(vm, "  OBJ_UPVAL:         %d\n", vm->alloc_counts[OBJ_UPVAL]);
+  ku_printf(vm, "  OBJ_CLASS:         %d\n", vm->alloc_counts[OBJ_CLASS]);
+  ku_printf(vm, "  OBJ_FUNC:          %d\n", vm->alloc_counts[OBJ_FUNC]);
+  ku_printf(vm, "  OBJ_INSTANCE:      %d\n", vm->alloc_counts[OBJ_INSTANCE]);
+  ku_printf(vm, "  OBJ_CINST:         %d\n", vm->alloc_counts[OBJ_CINST]);
+  ku_printf(vm, "  OBJ_BOUND_METHOD:  %d\n", vm->alloc_counts[OBJ_BOUND_METHOD]);
+#endif
 }
 
 static void ku_printobj(kuvm* vm, kuval val) {
