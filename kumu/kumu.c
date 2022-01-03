@@ -1532,7 +1532,9 @@ kuvm *ku_new(void) {
   ku_tabinit(vm, &vm->globals);
   ku_reset(vm);
   vm->initstr = NULL; // GC can run when we do str_copy below
+  vm->countstr = NULL;
   vm->initstr = ku_strfrom(vm, "init", 4);
+  vm->countstr = ku_strfrom(vm, "count", 5);
 
   return vm;
 }
@@ -1553,6 +1555,8 @@ static void ku_freeobjects(kuvm* vm) {
 
 void ku_free(kuvm *vm) {
   vm->initstr = NULL; // free_objects will take care of it
+  vm->countstr = NULL;
+  
   ku_freeobjects(vm);
   ku_tabfree(vm, &vm->strings);
   ku_tabfree(vm, &vm->globals);
@@ -2601,7 +2605,7 @@ kuval string_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
 }
 
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop) {
-  if (M5(prop, "count")) {
+  if (prop == vm->countstr) {
     kustr *str = (kustr*)obj;
     return NUM_VAL(str->len);
   }
@@ -2863,6 +2867,7 @@ void ku_gc(kuvm *vm) {
   
   ku_markroots(vm);
   ku_markobj(vm, (kuobj*)vm->initstr);
+  ku_markobj(vm, (kuobj*)vm->countstr);
   ku_tracerefs(vm);
   ku_freeweak(vm, &vm->strings);
   ku_sweep(vm);
