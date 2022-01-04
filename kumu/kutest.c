@@ -1483,7 +1483,6 @@ void ku_test() {
   ku_free(vm);
 
   vm = kut_new(true);
-  vm->flags = 0;
   res = ku_exec(vm, "var a=[1,3,4]; var x=a.map(e => e*2);");
   EXPECT_INT(vm, res, KVM_OK, "array.map res");
   v = ku_get_global(vm, "x");
@@ -1492,6 +1491,25 @@ void ku_test() {
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 1), NUM_VAL(6), "array.map[1]");
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(8), "array.map[2]");
   ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.map();");
+  EXPECT_INT(vm, res, KVM_OK, "array.map res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map nil");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.map(9);");
+  EXPECT_INT(vm, res, KVM_OK, "array.map res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map type");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.map({ e, b => e*2 });");
+  EXPECT_INT(vm, res, KVM_OK, "array.map res");
+  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map arity");
+  ku_free(vm);
+
 
   ku_test_summary();
 

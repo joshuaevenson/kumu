@@ -1337,7 +1337,7 @@ int ku_arraydis(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
   uint16_t count = (uint16_t)(chunk->code[offset + 1] << 8);
   count |= chunk->code[offset + 2];
   ku_printf(vm, "%-16s %4d", name, count);
-  return offset + count + 3;
+  return offset + 3;
 }
 
 int ku_jumpdis(kuvm *vm, const char *name, int sign, kuchunk *chunk,
