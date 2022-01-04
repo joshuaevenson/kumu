@@ -1458,6 +1458,24 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "array get value");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=array(7);");
+  EXPECT_INT(vm, res, KVM_OK, "array cons res");
+  v = ku_get_global(vm, "a");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "array cons type");
+  ao = AS_ARRAY(v);
+  EXPECT_INT(vm, ao->elements.capacity, 7, "array cons cap");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=array(0);");
+  EXPECT_INT(vm, res, KVM_OK, "array cons(0) res");
+  v = ku_get_global(vm, "a");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "array cons(0) type");
+  ao = AS_ARRAY(v);
+  EXPECT_INT(vm, ao->elements.capacity, 0, "array cons(0) cap");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

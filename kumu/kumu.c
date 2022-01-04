@@ -2592,6 +2592,15 @@ void ku_cfuncdef(kuvm *vm, const char *name, cfunc f) {
 
 // ********************** library **********************
 #include <time.h>
+
+static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
+  int cap = 0;
+  if (argc > 0 && IS_NUM(argv[0])) {
+    cap = (int)AS_NUM(argv[0]);
+  }
+  return OBJ_VAL(ku_arrnew(vm, cap));
+}
+
 static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
@@ -2617,12 +2626,6 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[1]==s[1] && \
                               c->chars[2]==s[2] && \
                               c->chars[3]==s[3])
-
-#define M5(c,s) (c->len==5 && c->chars[0]==s[0] && \
-                              c->chars[1]==s[1] && \
-                              c->chars[2]==s[2] && \
-                              c->chars[3]==s[3] && \
-                              c->chars[4]==s[4])
 
 kuval string_format(kuvm *vm, int argc, kuval *argv) {
   if (argc < 1 || !IS_STR(argv[0])) {
@@ -2724,6 +2727,7 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "printf", ku_print);
+  ku_cfuncdef(vm, "array", ku_arraycons);
   
   kucclass *math = ku_cclassnew(vm, "math");
   math->sget = math_sget;
