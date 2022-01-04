@@ -1476,6 +1476,12 @@ void ku_test() {
   EXPECT_INT(vm, ao->elements.capacity, 0, "array cons(0) cap");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.count;");
+  EXPECT_INT(vm, res, KVM_OK, "array count res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "array count ret");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

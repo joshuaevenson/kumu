@@ -14,8 +14,8 @@
 // ✓ repl USE_READLINE
 // ✓ strings: s.count, string.format(fmt,...)
 // ✓ intern "count" string for speed
-// 𐄂 arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
-// 𐄂 arr.map(e => k), arr.reduce(v0, { v,e => n });
+// ✓ arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
+// 𐄂 arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
 // 𐄂 table(), t[k]=v, t[k], t.iter({ k,v => ...}),
 // 𐄂 sqlite() native class
 // 𐄂 transient tasks (suspend, resume)

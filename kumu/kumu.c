@@ -2063,6 +2063,11 @@ kures ku_run(kuvm *vm) {
         
         kuobj *obj = AS_OBJ(target);
         
+        if (obj->type == OBJ_ARRAY && name == vm->countstr) {
+          kuaobj *ao = AS_ARRAY(target);
+          ku_push(vm, NUM_VAL(ao->elements.count));
+          break;
+        }
         if (obj->type == OBJ_STR) {
           ku_push(vm, string_iget(vm, obj, name));
           break;
