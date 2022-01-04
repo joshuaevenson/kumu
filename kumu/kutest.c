@@ -1380,5 +1380,29 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0xcafeb10b), "hex mixed case ret");
   ku_free(vm);
 
+  vm = kut_new(false);
+  kuaobj *ao = ku_arrnew(vm, 0);
+  EXPECT_TRUE(vm, ao->elements.capacity == 0, "array(0) alloc free");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  ao = ku_arrnew(vm, 24);
+  EXPECT_TRUE(vm, ao->elements.capacity == 24, "array(24) alloc free");
+  ku_free(vm);
+
+  vm = kut_new(false);
+  ao = ku_arrnew(vm, 0);
+  ku_arrset(vm, ao, 5, NUM_VAL(12));
+  EXPECT_TRUE(vm, ao->elements.capacity > 0, "array(0) set(5) cap");
+  v = ku_arrget(vm, ao, 5);
+  EXPECT_VAL(vm, v, NUM_VAL(12), "array(0) set(5) get (5)");
+  v = ku_arrget(vm, ao, 1);
+  EXPECT_VAL(vm, v, NIL_VAL, "array(0) set(5) get (1)");
+  v = ku_arrget(vm, ao, 1000);
+  EXPECT_VAL(vm, v, NIL_VAL, "array(0) set(5) get (1000)");
+  ku_printval(vm, OBJ_VAL(ao));
+  ku_free(vm);
+
   ku_test_summary();
+
 }

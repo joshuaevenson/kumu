@@ -74,6 +74,7 @@ typedef enum {
   OBJ_CLASS,
   OBJ_INSTANCE,
   OBJ_CINST,
+  OBJ_ARRAY,
   OBJ_BOUND_METHOD,
 } kuobj_t;
 
@@ -184,6 +185,7 @@ static inline kuval ku_num2val(double d) {
 #define IS_CLASS(v) (ku_objis(v, OBJ_CLASS))
 #define IS_INSTANCE(v) (ku_objis(v, OBJ_INSTANCE))
 #define IS_CINST(v) (ku_objis(v, OBJ_CINST))
+#define IS_ARRAY(v) (ku_objis(v, OBJ_ARRAY))
 #define IS_BOUND_METHOD(v) (ku_objis(v, OBJ_BOUND_METHOD))
 
 #ifdef NAN_BOX
@@ -215,6 +217,7 @@ static inline double ku_val2num(kuval v) {
 #define AS_INSTANCE(v) ((kuiobj*)AS_OBJ(v))
 #define AS_BOUND_METHOD(v) ((kubound*)AS_OBJ(v))
 #define AS_CINST(v) ((kunobj*)AS_OBJ(v))
+#define AS_ARRAY(v) ((kuaobj*)AS_OBJ(v))
 
 #define OBJ_TYPE(v) (AS_OBJ(v)->type)
 
@@ -395,6 +398,16 @@ typedef struct {
   kuobj obj;
   kucclass *klass;
 } kunobj;
+
+// ********************** array object **********************
+typedef struct {
+  kuobj obj;
+  kuarr elements;
+} kuaobj;
+
+kuaobj *ku_arrnew(kuvm* vm, int capacity);
+void ku_arrset(kuvm* vm, kuaobj* array, int index, kuval value);
+kuval ku_arrget(kuvm* vm, kuaobj* array, int index);
 
 // ********************** bound methods **********************
 typedef struct {

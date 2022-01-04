@@ -77,7 +77,22 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
       FREE(vm, kufunc, obj);
       break;
     }
-      
+
+    case OBJ_ARRAY: {
+      kuaobj *ao = (kuaobj*)obj;
+      for (int i = 0; i < ao->elements.count; i++) {
+        kuval e = ao->elements.values[i];
+        if (IS_OBJ(e)) {
+          ku_objfree(vm, AS_OBJ(e));
+        }
+      }
+      ku_alloc(vm, ao->elements.values, sizeof(kuval)*ao->elements.capacity, 0);
+      ao->elements.values = NULL;
+      ao->elements.count = 0;
+      ao->elements.count = 0;
+      FREE(vm, kuaobj, obj);
+      break;
+    }
     case OBJ_CCLASS: {
       kucclass *cc = (kucclass*)obj;
       if (cc->sfree) {
@@ -2698,6 +2713,11 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_CFUNC:
       break;
       
+    case OBJ_ARRAY: {
+      kuaobj *ao = (kuaobj*)o;
+      ku_markarray(vm, &ao->elements);
+      break;
+    }
     case OBJ_CINST: {
       kunobj *i = (kunobj*)o;
       ku_markobj(vm, (kuobj*)i->klass);
@@ -2944,6 +2964,9 @@ static void ku_printobj(kuvm* vm, kuval val) {
     case OBJ_CFUNC:
       ku_printf(vm, "<cfunc>");
       break;
+    case OBJ_ARRAY:
+      ku_printf(vm, "<array %d>", AS_ARRAY(val)->elements.count);
+      break;
     case OBJ_CINST: {
       kunobj *i = AS_CINST(val);
       ku_printf(vm, "<%s instance>", i->klass->name->chars);
@@ -3069,4 +3092,47 @@ void ku_cclassdef(kuvm *vm, kucclass *cc) {
   ku_tabset(vm, &vm->globals, AS_STR(vm->stack[0]), vm->stack[1]);
   ku_pop(vm);
   ku_pop(vm);
+}
+
+// ********************** array object **********************
+kuaobj * ku_arrnew(kuvm* vm, int capacity) {
+  kuaobj *arr = KALLOC_OBJ(vm, kuaobj, OBJ_ARRAY);
+  arr->elements.count = 0;
+  arr->elements.capacity = capacity;
+  arr->elements.values = NULL;
+  
+  kuarr *e = &arr->elements;
+  if (capacity > 0) {
+    e->values = (kuval*)ku_alloc(vm, NULL, 0, sizeof(kuval)*capacity);
+
+    for (int i = 0; i < capacity; i++) {
+      e->values[i] = NIL_VAL;
+    }
+  }
+  return arr;
+}
+
+void ku_arrset(kuvm* vm, kuaobj* arr, int index, kuval value) {
+  kuarr *e = &arr->elements;
+  
+  int oldcount = e->count;
+  
+  if (e->capacity <= index) {
+    int old = e->capacity;
+    e->capacity = CAPACITY_GROW(index);
+    e->values = ARRAY_GROW(vm, kuval, e->values, old, e->capacity);
+  }
+  
+  for (int i = oldcount; i < index; i++) {
+    e->values[i] = NIL_VAL;
+  }
+  e->values[index] = value;
+  e->count = index + 1;
+}
+
+kuval ku_arrget(kuvm* vm, kuaobj* arr, int index) {
+  if (index < arr->elements.count) {
+    return arr->elements.values[index];
+  }
+  return NIL_VAL;
 }
