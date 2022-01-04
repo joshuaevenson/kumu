@@ -1059,8 +1059,8 @@ static void ku_functail(kuvm *vm, kucomp *compiler, bool lambda) {
 
 static void ku_params(kuvm *vm) {
   do {
-    vm->compiler->function->argc++;
-    if (vm->compiler->function->argc > vm->max_params) {
+    vm->compiler->function->arity++;
+    if (vm->compiler->function->arity > vm->max_params) {
       ku_perr(vm, "too many params");
     }
     
@@ -1234,7 +1234,7 @@ static void ku_lambda(kuvm *vm, kutok name) {
   ku_addlocal(vm, name);
   ku_markinit(vm);
   ku_lbody(vm, &compiler);
-  compiler.function->argc = 1;
+  compiler.function->arity = 1;
 }
 
 
@@ -1635,8 +1635,8 @@ static void ku_err(kuvm *vm, const char *fmt, ...) {
 }
 
 static bool ku_docall(kuvm *vm, kuclosure *cl, int argc) {
-  if (argc != cl->func->argc) {
-    ku_err(vm, "%d expected got %d", cl->func->argc, argc);
+  if (argc != cl->func->arity) {
+    ku_err(vm, "%d expected got %d", cl->func->arity, argc);
     return false;
   }
   
@@ -2571,7 +2571,7 @@ int ku_opslotdis(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
 // ********************** function **********************
 kufunc *ku_funcnew(kuvm *vm) {
   kufunc *fn = (kufunc*)KALLOC_OBJ(vm, kufunc, OBJ_FUNC);
-  fn->argc = 0;
+  fn->arity = 0;
   fn->upcount = 0;
   fn->name = NULL;
   ku_chunkinit(vm, &fn->chunk);

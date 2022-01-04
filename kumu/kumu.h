@@ -308,7 +308,7 @@ kuxobj *ku_xobjnew(kuvm *vm, kuval *slot);
 // ********************** functions **********************
 typedef struct {
   kuobj obj;
-  int argc;
+  int arity;
   int upcount;
   kuchunk chunk;
   kustr *name;
