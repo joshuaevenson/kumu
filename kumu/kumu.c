@@ -902,7 +902,14 @@ static void ku_array(kuvm *vm, bool lhs) {
 }
 
 static void ku_index(kuvm *vm, bool lhs) {
-  
+  ku_expr(vm);
+  ku_pconsume(vm, TOK_RBRACKET, "']' expected");
+  if (lhs && ku_pmatch(vm, TOK_EQ)) {
+    ku_expr(vm);
+    ku_emitbyte(vm, OP_ASET);
+  } else {
+    ku_emitbyte(vm, OP_AGET);
+  }
 }
 
 static void ku_unary(kuvm *vm, bool lhs) {
@@ -1309,6 +1316,7 @@ static void ku_bin(kuvm *vm, bool lhs) {
     default: return;
   }
 }
+
 static void ku_dot(kuvm *vm, bool lhs) {
   ku_pconsume(vm, TOK_IDENT, "property name expected");
   uint8_t name = ku_pidconst(vm, &vm->parser.prev);
@@ -1470,7 +1478,7 @@ kuprule ku_rules[] = {
   [TOK_RPAR] =        { NULL,        NULL,     P_NONE },
   [TOK_LBRACE] =      { ku_lblock,   NULL,     P_NONE },
   [TOK_RBRACE] =      { NULL,        NULL,     P_NONE },
-  [TOK_LBRACKET] =    { ku_array,    ku_index, P_NONE },
+  [TOK_LBRACKET] =    { ku_array,    ku_index, P_CALL },
   [TOK_RBRACKET] =    { NULL,        NULL,     P_NONE },
 
   [TOK_COMMA] =       { NULL,        NULL,     P_NONE },
@@ -1992,6 +2000,34 @@ kures ku_run(kuvm *vm) {
         break;
       }
 
+      case OP_ASET: {
+        kuval val = ku_pop(vm);
+        kuval ival = ku_pop(vm);
+        kuval aval = ku_pop(vm);
+        
+        if (!IS_ARRAY(aval)) {
+          ku_err(vm, "array expected");
+        }
+        if (!IS_NUM(ival)) {
+          ku_err(vm, "number index expected");
+        }
+        kuaobj *aobj = AS_ARRAY(aval);
+        ku_arrset(vm, aobj, (int)AS_NUM(ival), val);
+        break;
+      }
+      case OP_AGET: {
+        kuval ival = ku_pop(vm);
+        kuval aval = ku_pop(vm);
+        
+        if (!IS_ARRAY(aval)) {
+          ku_err(vm, "array expected");
+        }
+        if (!IS_NUM(ival)) {
+          ku_err(vm, "number index expected");
+        }
+        ku_push(vm, ku_arrget(vm, AS_ARRAY(aval), (int)AS_NUM(ival)));
+        break;
+      }
       case OP_GET_LOCAL: {
         uint8_t slot = BYTE_READ(vm);
         ku_push(vm, frame->bp[slot]);
@@ -2343,6 +2379,8 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_LT: return ku_opdis(vm, "OP_LT", offset);
     case OP_EQ: return ku_opdis(vm, "OP_EQ", offset);
     case OP_POP: return ku_opdis(vm, "OP_POP", offset);
+    case OP_ASET: return ku_opdis(vm, "OP_ASET", offset);
+    case OP_AGET: return ku_opdis(vm, "OP_AGET", offset);
     case OP_CLASS: return ku_constdis(vm, "OP_CLASS", chunk, offset);
     case OP_METHOD: return ku_constdis(vm, "OP_METHOD", chunk, offset);
     case OP_INVOKE: return ku_invokedis(vm, "OP_INVOKE", chunk, offset);

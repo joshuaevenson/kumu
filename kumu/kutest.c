@@ -1441,6 +1441,23 @@ void ku_test() {
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 3), NUM_VAL(4), "mix array[3]");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a[1];");
+  EXPECT_INT(vm, res, KVM_OK, "array get res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "array get value");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a[1;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "array get ']'");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; a[1]=9; var x=a[1];");
+  EXPECT_INT(vm, res, KVM_OK, "array set res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "array get value");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

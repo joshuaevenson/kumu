@@ -242,6 +242,8 @@ kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type);
 typedef enum {
   OP_ADD,
   OP_ARRAY,
+  OP_ASET,
+  OP_AGET,
   OP_CALL,
   OP_CLASS,
   OP_CLOSE_UPVAL,
