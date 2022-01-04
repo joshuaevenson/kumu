@@ -46,6 +46,7 @@ static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
 static void ku_function(kuvm *vm, kufunc_t type);
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
+bool array_invoke(kuvm *vm, kuval arr, kustr *method, int argc, kuval *argv);
 // ********************** object **********************
 kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
 #ifdef  TRACE_OBJ_COUNTS
@@ -1795,6 +1796,10 @@ static bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
     }
     return false;
   }
+  
+  if (IS_ARRAY(receiver)) {
+    return array_invoke(vm, receiver, name, argc, vm->sp - argc);
+  }
   if (!IS_INSTANCE(receiver)) {
     ku_err(vm, "instance expected");
     return false;
@@ -1940,8 +1945,9 @@ kures ku_run(kuvm *vm) {
         kuval v = ku_pop(vm);
         ku_close(vm, frame->bp);
         vm->framecount--;
-        if (vm->framecount <= 0) {
+        if (vm->framecount <= vm->baseframe) {
           ku_pop(vm);
+          ku_push(vm, v);
           res = KVM_OK;
           break;
         }
@@ -2247,8 +2253,11 @@ kures ku_exec(kuvm *vm, char *source) {
   kuclosure *closure = ku_closurenew(vm, fn);
   ku_pop(vm);
   ku_push(vm, OBJ_VAL(closure));
+  vm->baseframe = 0;
   ku_docall(vm, closure, 0);
-  return ku_run(vm);
+  kures res = ku_run(vm);  
+  ku_pop(vm); // remove last return item for global call
+  return res;
 }
 
 // ********************** memory **********************
@@ -2627,10 +2636,55 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[1]==s[1] && \
                               c->chars[2]==s[2])
 
-#define M4(c,s) (c->len==4 && c->chars[0]==s[0] && \
-                              c->chars[1]==s[1] && \
-                              c->chars[2]==s[2] && \
-                              c->chars[3]==s[3])
+kuval array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
+  if (argc != 1) {
+    return NIL_VAL;
+  }
+  
+  if (!IS_CLOSURE(argv[0])) {
+    return NIL_VAL;
+  }
+  
+  
+  kuclosure *cl = AS_CLOSURE(argv[0]);
+  if (cl->func->arity != 1) {
+    return NIL_VAL;
+  }
+  
+  kuaobj *dest = ku_arrnew(vm, src->elements.capacity);
+  vm->baseframe = vm->framecount;
+  for (int i = 0; i < src->elements.count; i++) {
+    kuval e = ku_arrget(vm, src, i);
+    ku_push(vm, e);
+    if (ku_docall(vm, cl, 1)) {
+      kures res = ku_run(vm);
+      if (res == KVM_OK) {
+        kuval n = ku_pop(vm);
+        ku_arrset(vm, dest, i, n);
+      }
+    }
+  }
+  ku_pop(vm);   // closure
+  ku_pop(vm);   // receiver
+  return OBJ_VAL(dest);
+}
+
+kuval array_reduce(kuvm *vm, kuaobj *arr, int argc, kuval *argv) {
+  return NIL_VAL;
+}
+
+bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
+  if (M3(method, "map")) {
+    ku_push(vm, array_map(vm, AS_ARRAY(obj), argc, argv));
+    return true;
+  }
+  
+  if (method->len == 6 && strcmp(method->chars, "reduce") == 0) {
+    ku_push(vm, array_reduce(vm, AS_ARRAY(obj), argc, argv));
+    return true;
+  }
+  return false;
+}
 
 kuval string_format(kuvm *vm, int argc, kuval *argv) {
   if (argc < 1 || !IS_STR(argv[0])) {

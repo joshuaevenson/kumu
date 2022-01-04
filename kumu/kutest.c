@@ -1482,6 +1482,17 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "array count ret");
   ku_free(vm);
 
+  vm = kut_new(true);
+  vm->flags = 0;
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.map(e => e*2);");
+  EXPECT_INT(vm, res, KVM_OK, "array.map res");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "array.map type");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 0), NUM_VAL(2), "array.map[0]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 1), NUM_VAL(6), "array.map[1]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(8), "array.map[2]");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

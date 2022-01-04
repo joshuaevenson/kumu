@@ -553,6 +553,7 @@ typedef struct kuvm {
 
   kuframe frames[FRAMES_MAX];
   int framecount;
+  int baseframe;      // used for native calls
   kuval stack[STACK_MAX];
   kuval* sp;
 
