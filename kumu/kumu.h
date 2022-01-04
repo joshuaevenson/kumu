@@ -241,6 +241,7 @@ kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type);
 // ********************** bytecodes **********************
 typedef enum {
   OP_ADD,
+  OP_ARRAY,
   OP_CALL,
   OP_CLASS,
   OP_CLOSE_UPVAL,
@@ -423,6 +424,7 @@ typedef enum {
   // Single-character tokens.
   TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
   TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
+  TOK_LBRACKET, TOK_RBRACKET,
   // One or two character tokens.
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
   TOK_LE, TOK_ARROW,

@@ -80,12 +80,6 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
 
     case OBJ_ARRAY: {
       kuaobj *ao = (kuaobj*)obj;
-      for (int i = 0; i < ao->elements.count; i++) {
-        kuval e = ao->elements.values[i];
-        if (IS_OBJ(e)) {
-          ku_objfree(vm, AS_OBJ(e));
-        }
-      }
       ku_alloc(vm, ao->elements.values, sizeof(kuval)*ao->elements.capacity, 0);
       ao->elements.values = NULL;
       ao->elements.count = 0;
@@ -591,6 +585,8 @@ kutok ku_scan(kuvm *vm) {
   switch (c) {
     case '(': return ku_tokmake(vm, TOK_LPAR);
     case ')': return ku_tokmake(vm, TOK_RPAR);
+    case '[': return ku_tokmake(vm, TOK_LBRACKET);
+    case ']': return ku_tokmake(vm, TOK_RBRACKET);
     case '{': return ku_tokmake(vm, TOK_LBRACE);
     case '}': return ku_tokmake(vm, TOK_RBRACE);
     case ';': return ku_tokmake(vm, TOK_SEMI);
@@ -869,9 +865,9 @@ static void ku_expr(kuvm *vm) {
   ku_prec(vm, P_ASSIGN);
 }
 
-static uint8_t ku_arglist(kuvm *vm) {
+static uint8_t ku_arglist(kuvm *vm, kutok_t right) {
   uint8_t argc = 0;
-  if (!ku_pcheck(vm, TOK_RPAR)) {
+  if (!ku_pcheck(vm, right)) {
     do {
       ku_expr(vm);
       if (argc > vm->max_params) {
@@ -881,18 +877,32 @@ static uint8_t ku_arglist(kuvm *vm) {
     } while (ku_pmatch(vm, TOK_COMMA));
   }
   
-  ku_pconsume(vm, TOK_RPAR, "')' expected");
+  if (right == TOK_RPAR)
+    ku_pconsume(vm, right, "')' expected");
+  else
+    ku_pconsume(vm, right, "']' expected");
   return argc;
 }
 
 static void ku_call(kuvm *vm, bool lhs) {
-  uint8_t argc = ku_arglist(vm);
+  uint8_t argc = ku_arglist(vm, TOK_RPAR);
   ku_emitbytes(vm, OP_CALL, argc);
 }
 
 static void ku_grouping(kuvm *vm, bool lhs) {
   ku_expr(vm);
   ku_pconsume(vm, TOK_RPAR, "')' expected");
+}
+
+static void ku_array(kuvm *vm, bool lhs) {
+  int count = ku_arglist(vm, TOK_RBRACKET);
+  ku_emitbyte(vm, OP_ARRAY);
+  ku_emitbyte(vm, (count >> 8) & 0xff);
+  ku_emitbyte(vm, count & 0xff);
+}
+
+static void ku_index(kuvm *vm, bool lhs) {
+  
 }
 
 static void ku_unary(kuvm *vm, bool lhs) {
@@ -1270,7 +1280,7 @@ static void ku_super(kuvm *vm, bool lhs) {
   ku_namedvar(vm, ku_maketok(vm, "this"), false); // [ ... GET_LOCAL <0> ]
   
   if (ku_pmatch(vm, TOK_LPAR)) {
-    uint8_t argc = ku_arglist(vm);
+    uint8_t argc = ku_arglist(vm, TOK_RPAR);
     ku_namedvar(vm, ku_maketok(vm, "super"), false);
     ku_emitbytes(vm, OP_SUPER_INVOKE, name);
     ku_emitbyte(vm, argc);
@@ -1306,12 +1316,19 @@ static void ku_dot(kuvm *vm, bool lhs) {
     ku_expr(vm);
     ku_emitbytes(vm, OP_SET_PROP, name);
   } else if (ku_pmatch(vm, TOK_LPAR)) {
-    uint8_t argc = ku_arglist(vm);
+    uint8_t argc = ku_arglist(vm, TOK_RPAR);
     ku_emitbytes(vm, OP_INVOKE, name);
     ku_emitbyte(vm, argc);
   } else {
     ku_emitbytes(vm, OP_GET_PROP, name);
   }
+}
+
+int ku_arraydis(kuvm *vm, const char *name, kuchunk *chunk, int offset) {
+  uint16_t count = (uint16_t)(chunk->code[offset + 1] << 8);
+  count |= chunk->code[offset + 2];
+  ku_printf(vm, "%-16s %4d", name, count);
+  return offset + count + 3;
 }
 
 int ku_jumpdis(kuvm *vm, const char *name, int sign, kuchunk *chunk,
@@ -1449,46 +1466,49 @@ void ku_or(kuvm *vm, bool lhs) {
   ku_patchjump(vm, end_jump);
 }
 kuprule ku_rules[] = {
-  [TOK_LPAR] =   { ku_grouping, ku_call,  P_CALL },
-  [TOK_RPAR] =   { NULL,        NULL,     P_NONE },
-  [TOK_LBRACE] = { ku_lblock,   NULL,     P_NONE },
-  [TOK_RBRACE] = { NULL,        NULL,     P_NONE },
-  [TOK_COMMA] =  { NULL,        NULL,     P_NONE },
-  [TOK_DOT] =    { NULL,        ku_dot,   P_CALL },
-  [TOK_MINUS] =  { ku_unary,    ku_bin,   P_TERM },
-  [TOK_PLUS] =   { NULL,        ku_bin,   P_TERM },
-  [TOK_SEMI] =   { NULL,        NULL,     P_NONE },
-  [TOK_SLASH] =  { NULL,        ku_bin,   P_FACTOR },
-  [TOK_STAR] =   { NULL,        ku_bin,   P_FACTOR },
-  [TOK_BANG] =   { ku_unary,    NULL,     P_NONE },
-  [TOK_NE] =     { NULL,        ku_bin,   P_EQ },
-  [TOK_EQ] =     { NULL,        NULL,     P_NONE },
-  [TOK_EQEQ] =   { NULL,        ku_bin,   P_EQ },
-  [TOK_GT] =     { NULL,        ku_bin,   P_COMP },
-  [TOK_GE] =     { NULL,        ku_bin,   P_COMP },
-  [TOK_LT] =     { NULL,        ku_bin,   P_COMP },
-  [TOK_LE] =     { NULL,        ku_bin,   P_COMP },
-  [TOK_IDENT] =  { ku_pvar,     NULL,     P_NONE },
-  [TOK_STR] =    { ku_string,   NULL,     P_NONE },
-  [TOK_STRESC] = { ku_xstring,  NULL,     P_NONE },
-  [TOK_NUM] =    { ku_number,   NULL,     P_NONE },
-  [TOK_HEX] =    { ku_hex,      NULL,     P_NONE },
-  [TOK_AND] =    { NULL,        ku_and,   P_AND },
-  [TOK_CLASS] =  { NULL,        NULL,     P_NONE },
-  [TOK_ELSE] =   { NULL,        NULL,     P_NONE },
-  [TOK_FALSE] =  { ku_lit,      NULL,     P_NONE },
-  [TOK_FOR] =    { NULL,        NULL,     P_NONE },
-  [TOK_FUN] =    { ku_funcexpr, NULL,     P_NONE },
-  [TOK_IF] =     { NULL,        NULL,     P_NONE },
-  [TOK_NIL] =    { ku_lit,      NULL,     P_NONE },
-  [TOK_OR] =     { NULL,        ku_or,    P_OR },
-  [TOK_SUPER] =  { ku_super,    NULL,     P_NONE },
-  [TOK_THIS] =   { ku_this,     NULL,     P_NONE },
-  [TOK_TRUE] =   { ku_lit,      NULL,     P_NONE },
-  [TOK_VAR] =    { NULL,        NULL,     P_NONE },
-  [TOK_WHILE] =  { NULL,        NULL,     P_NONE },
-  [TOK_ERR] =    { NULL,        NULL,     P_NONE },
-  [TOK_EOF] =    { NULL,        NULL,     P_NONE },
+  [TOK_LPAR] =        { ku_grouping, ku_call,  P_CALL },
+  [TOK_RPAR] =        { NULL,        NULL,     P_NONE },
+  [TOK_LBRACE] =      { ku_lblock,   NULL,     P_NONE },
+  [TOK_RBRACE] =      { NULL,        NULL,     P_NONE },
+  [TOK_LBRACKET] =    { ku_array,    ku_index, P_NONE },
+  [TOK_RBRACKET] =    { NULL,        NULL,     P_NONE },
+
+  [TOK_COMMA] =       { NULL,        NULL,     P_NONE },
+  [TOK_DOT] =         { NULL,        ku_dot,   P_CALL },
+  [TOK_MINUS] =       { ku_unary,    ku_bin,   P_TERM },
+  [TOK_PLUS] =        { NULL,        ku_bin,   P_TERM },
+  [TOK_SEMI] =        { NULL,        NULL,     P_NONE },
+  [TOK_SLASH] =       { NULL,        ku_bin,   P_FACTOR },
+  [TOK_STAR] =        { NULL,        ku_bin,   P_FACTOR },
+  [TOK_BANG] =        { ku_unary,    NULL,     P_NONE },
+  [TOK_NE] =          { NULL,        ku_bin,   P_EQ },
+  [TOK_EQ] =          { NULL,        NULL,     P_NONE },
+  [TOK_EQEQ] =        { NULL,        ku_bin,   P_EQ },
+  [TOK_GT] =          { NULL,        ku_bin,   P_COMP },
+  [TOK_GE] =          { NULL,        ku_bin,   P_COMP },
+  [TOK_LT] =          { NULL,        ku_bin,   P_COMP },
+  [TOK_LE] =          { NULL,        ku_bin,   P_COMP },
+  [TOK_IDENT] =       { ku_pvar,     NULL,     P_NONE },
+  [TOK_STR] =         { ku_string,   NULL,     P_NONE },
+  [TOK_STRESC] =      { ku_xstring,  NULL,     P_NONE },
+  [TOK_NUM] =         { ku_number,   NULL,     P_NONE },
+  [TOK_HEX] =         { ku_hex,      NULL,     P_NONE },
+  [TOK_AND] =         { NULL,        ku_and,   P_AND },
+  [TOK_CLASS] =       { NULL,        NULL,     P_NONE },
+  [TOK_ELSE] =        { NULL,        NULL,     P_NONE },
+  [TOK_FALSE] =       { ku_lit,      NULL,     P_NONE },
+  [TOK_FOR] =         { NULL,        NULL,     P_NONE },
+  [TOK_FUN] =         { ku_funcexpr, NULL,     P_NONE },
+  [TOK_IF] =          { NULL,        NULL,     P_NONE },
+  [TOK_NIL] =         { ku_lit,      NULL,     P_NONE },
+  [TOK_OR] =          { NULL,        ku_or,    P_OR },
+  [TOK_SUPER] =       { ku_super,    NULL,     P_NONE },
+  [TOK_THIS] =        { ku_this,     NULL,     P_NONE },
+  [TOK_TRUE] =        { ku_lit,      NULL,     P_NONE },
+  [TOK_VAR] =         { NULL,        NULL,     P_NONE },
+  [TOK_WHILE] =       { NULL,        NULL,     P_NONE },
+  [TOK_ERR] =         { NULL,        NULL,     P_NONE },
+  [TOK_EOF] =         { NULL,        NULL,     P_NONE },
 };
 
 static kuprule *ku_getrule(kuvm *vm, kutok_t optype) {
@@ -1799,6 +1819,20 @@ kures ku_run(kuvm *vm) {
 #endif // TRACE_ENABLED
 
     switch(op = BYTE_READ(vm)) {
+      case OP_ARRAY: {
+        int count = READ_SHORT(vm);
+        kuaobj *ao = ku_arrnew(vm, count);
+        kuval *argv = vm->sp - count;
+        
+        for (int i = 0; i < count; i++) {
+          ku_arrset(vm, ao, i, argv[i]);
+        }
+        
+        vm->sp -= count;
+        ku_push(vm, OBJ_VAL(ao));
+        break;
+      }
+
       case OP_CALL: {
         int argc = BYTE_READ(vm);
         bool native;
@@ -2344,6 +2378,8 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_jumpdis(vm, "OP_LOOP", -1, chunk, offset);
     case OP_CALL:
       return ku_opslotdis(vm, "OP_CALL", chunk, offset);
+    case OP_ARRAY:
+      return ku_arraydis(vm, "OP_ARRAY", chunk, offset);
     case OP_CLOSE_UPVAL:
       return ku_opdis(vm, "OP_CLOSE_UPVAL", offset);
     case OP_CLOSURE: {

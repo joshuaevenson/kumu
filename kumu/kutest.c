@@ -309,7 +309,7 @@ void ku_test() {
   ku_free(vm);
   
   vm = kut_new(false);
-  ku_lexinit(vm, "and class else false for fun if nil or return super this true while {}!+-*/=!=><>=<= == => break continue far\ttrick\nart\rcool eek too fund");
+  ku_lexinit(vm, "and class else false for fun if nil or return super this true while {}[]!+-*/=!=><>=<= == => break continue far\ttrick\nart\rcool eek too fund");
   kutok t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_AND, "[and]");
   t = ku_scan(vm);
@@ -342,6 +342,10 @@ void ku_test() {
   EXPECT_INT(vm, t.type, TOK_LBRACE, "[{]");
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_RBRACE, "[}]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_LBRACKET, "[[]");
+  t = ku_scan(vm);
+  EXPECT_INT(vm, t.type, TOK_RBRACKET, "[]]");
   t = ku_scan(vm);
   EXPECT_INT(vm, t.type, TOK_BANG, "[!]");
   t = ku_scan(vm);
@@ -1401,6 +1405,40 @@ void ku_test() {
   v = ku_arrget(vm, ao, 1000);
   EXPECT_VAL(vm, v, NIL_VAL, "array(0) set(5) get (1000)");
   ku_printval(vm, OBJ_VAL(ao));
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[1,2,3;");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "array missing ']'");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  vm->flags |= KVM_F_LIST | KVM_F_NOEXEC;
+  res = ku_exec(vm, "var x=[1,2,3,4,5];");
+  EXPECT_INT(vm, res, KVM_OK, "OP_ARRAY disassemble");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[1,2,3];");
+  EXPECT_INT(vm, res, KVM_OK, "array init");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "array type");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 0), NUM_VAL(1), "array[0]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 1), NUM_VAL(2), "array[1]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(3), "array[2]");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[1,\"hello\",3,4];");
+  EXPECT_INT(vm, res, KVM_OK, "mix array res");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "mix array type");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 0), NUM_VAL(1), "mix array[0]");
+  kuval s = ku_arrget(vm, AS_ARRAY(v), 1);
+  EXPECT_TRUE(vm, IS_STR(s), "mix array[1] type");
+  EXPECT_INT(vm, strcmp(AS_STR(s)->chars, "hello"), 0, "mixarray[1] value");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(3), "mix array[2]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 3), NUM_VAL(4), "mix array[3]");
   ku_free(vm);
 
   ku_test_summary();
