@@ -1653,6 +1653,18 @@ static bool ku_docall(kuvm *vm, kuclosure *cl, int argc) {
   return true;
 }
 
+kures ku_nativecall(kuvm *vm, kuclosure *cl, int argc) {
+  int oldbase = vm->baseframe;
+  vm->baseframe = vm->framecount;
+  if (ku_docall(vm, cl, argc)) {
+    kures res = ku_run(vm);
+    vm->baseframe = oldbase;
+    return res;
+  }
+  vm->baseframe = oldbase;
+  return KVM_ERR_RUNTIME;
+}
+
 static bool ku_callvalue(kuvm *vm, kuval callee, int argc, bool *native) {
   *native = false;
   if (IS_OBJ(callee)) {
@@ -2636,32 +2648,24 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[1]==s[1] && \
                               c->chars[2]==s[2])
 
+
 kuval array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
-  if (argc != 1) {
+  if (argc != 1 || !IS_CLOSURE(argv[0])) {
     return NIL_VAL;
   }
-  
-  if (!IS_CLOSURE(argv[0])) {
-    return NIL_VAL;
-  }
-  
-  
+    
   kuclosure *cl = AS_CLOSURE(argv[0]);
   if (cl->func->arity != 1) {
     return NIL_VAL;
   }
   
   kuaobj *dest = ku_arrnew(vm, src->elements.capacity);
-  vm->baseframe = vm->framecount;
   for (int i = 0; i < src->elements.count; i++) {
     kuval e = ku_arrget(vm, src, i);
     ku_push(vm, e);
-    if (ku_docall(vm, cl, 1)) {
-      kures res = ku_run(vm);
-      if (res == KVM_OK) {
-        kuval n = ku_pop(vm);
-        ku_arrset(vm, dest, i, n);
-      }
+    if (ku_nativecall(vm, cl, 1) == KVM_OK) {
+      kuval n = ku_pop(vm);
+      ku_arrset(vm, dest, i, n);
     }
   }
   ku_pop(vm);   // closure
