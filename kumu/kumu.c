@@ -2649,14 +2649,14 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[2]==s[2])
 
 
-kuval array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
+bool array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
   if (argc != 1 || !IS_CLOSURE(argv[0])) {
-    return NIL_VAL;
+    return false;
   }
     
   kuclosure *cl = AS_CLOSURE(argv[0]);
   if (cl->func->arity != 1) {
-    return NIL_VAL;
+    return false;
   }
   
   kuaobj *dest = ku_arrnew(vm, src->elements.capacity);
@@ -2666,26 +2666,59 @@ kuval array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
     if (ku_nativecall(vm, cl, 1) == KVM_OK) {
       kuval n = ku_pop(vm);
       ku_arrset(vm, dest, i, n);
+    } else {
+      return false;
     }
   }
   ku_pop(vm);   // closure
   ku_pop(vm);   // receiver
-  return OBJ_VAL(dest);
+  *ret = OBJ_VAL(dest);
+  return true;
 }
 
-kuval array_reduce(kuvm *vm, kuaobj *arr, int argc, kuval *argv) {
-  return NIL_VAL;
+bool array_reduce(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
+  if (argc != 2 || !IS_CLOSURE(argv[1])) {
+    return false;
+  }
+    
+  kuclosure *cl = AS_CLOSURE(argv[1]);
+  if (cl->func->arity != 2) {
+    return false;
+  }
+  
+  kuval arg = argv[0];
+  for (int i = 0; i < src->elements.count; i++) {
+    kuval e = ku_arrget(vm, src, i);
+    ku_push(vm, arg);
+    ku_push(vm, e);
+    if (ku_nativecall(vm, cl, 2) == KVM_OK) {
+      arg = ku_pop(vm);
+    } else {
+      return false;
+    }
+  }
+  ku_pop(vm);   // closure
+  ku_pop(vm);   // receiver
+  *ret = arg;
+  return true;
 }
 
 bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
   if (M3(method, "map")) {
-    ku_push(vm, array_map(vm, AS_ARRAY(obj), argc, argv));
-    return true;
+    kuval ret;
+    if(array_map(vm, AS_ARRAY(obj), argc, argv, &ret)) {
+      ku_push(vm, ret);
+      return true;
+    }
+    return false;
   }
   
   if (method->len == 6 && strcmp(method->chars, "reduce") == 0) {
-    ku_push(vm, array_reduce(vm, AS_ARRAY(obj), argc, argv));
-    return true;
+    kuval ret;
+    if(array_reduce(vm, AS_ARRAY(obj), argc, argv, &ret)) {
+      ku_push(vm, ret);
+      return true;
+    }
   }
   return false;
 }

@@ -1494,22 +1494,50 @@ void ku_test() {
 
   vm = kut_new(true);
   res = ku_exec(vm, "var a=[1,3,4]; var x=a.map();");
-  EXPECT_INT(vm, res, KVM_OK, "array.map res");
-  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map nil");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.map nil");
   ku_free(vm);
 
   vm = kut_new(true);
   res = ku_exec(vm, "var a=[1,3,4]; var x=a.map(9);");
-  EXPECT_INT(vm, res, KVM_OK, "array.map res");
-  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map type");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.map num");
   ku_free(vm);
 
   vm = kut_new(true);
   res = ku_exec(vm, "var a=[1,3,4]; var x=a.map({ e, b => e*2 });");
-  EXPECT_INT(vm, res, KVM_OK, "array.map res");
-  EXPECT_TRUE(vm, IS_NIL(ku_get_global(vm, "x")), "array.map arity");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.map args");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var sum=[1,3,4].reduce(0, {v,e => v+e});");
+  EXPECT_INT(vm, res, KVM_OK, "array.reduce res");
+  EXPECT_VAL(vm, ku_get_global(vm, "sum"), NUM_VAL(8), "array.reduce value");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var sum=[1,3,4].reduce(9);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.reduce num");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var sum=[1,3,4].reduce();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.reduce nil");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var sum=[1,3,4].reduce(0, {v=> v*2});");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.reduce 1 arg");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x =a.bogus();");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "array.invoke bogus");
+  ku_free(vm);
+
+  
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,3,4]; var x=a.map(e => f(e));");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.map arg err res");
+  ku_free(vm);
 
   ku_test_summary();
 
