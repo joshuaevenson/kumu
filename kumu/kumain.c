@@ -117,6 +117,33 @@ static bool ku_check_flags(kuvm *vm, char *line) {
   return false;
 }
 
+static void ku_printarr(kuvm* vm, kuval arr) {
+  kuaobj* ao = AS_ARRAY(arr);
+  int limit = ao->elements.count < 5 ? ao->elements.count : 5;
+
+  ku_printf(vm, "[");
+  for (int i = 0; i < limit; i++) {
+    ku_printval(vm, ao->elements.values[i]);
+    if (i < limit - 1) {
+      ku_printf(vm, ",");
+    }
+  }
+
+  if (limit < ao->elements.count) {
+    ku_printf(vm, "...");
+  }
+  ku_printf(vm, "]");
+}
+
+static void ku_printr(kuvm* vm, kuval v) {
+  if (IS_ARRAY(v)) {
+    ku_printarr(vm, v);
+  }
+  else {
+    ku_printval(vm, v);
+  }
+}
+
 static void ku_replexec(kuvm *vm, char *expr, kustr *under) {
   uint64_t oldflags = vm->flags;
   vm->flags |= KVM_F_QUIET;
@@ -131,7 +158,7 @@ static void ku_replexec(kuvm *vm, char *expr, kustr *under) {
       ku_exec(vm, alt);
       kuval v;
       ku_tabget(vm, &vm->globals, under, &v);
-      ku_printval(vm, v);
+      ku_printr(vm, v);
       printf("\n");
     }
   } else {
@@ -139,7 +166,7 @@ static void ku_replexec(kuvm *vm, char *expr, kustr *under) {
     ku_exec(vm, expr);
     if (vm->sp > vm->stack) {
       kuval v = ku_pop(vm);
-      ku_printval(vm, v);
+      ku_printr(vm, v);
       printf("\n");
     }
   }

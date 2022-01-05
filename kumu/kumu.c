@@ -36,7 +36,6 @@
 static void ku_err(kuvm *vm, const char *fmt, ...);
 kuval ku_peek(kuvm *vm, int distance);
 
-static void ku_printf(kuvm *vm, const char *fmt, ...);
 static void ku_printobj(kuvm* vm, kuval val);
 void ku_printval(kuvm *vm, kuval value);
 static void ku_printfunc(kuvm *vm, kufunc *fn);
@@ -3102,7 +3101,7 @@ kubound *ku_boundnew(kuvm *vm, kuval receiver, kuclosure *method) {
 }
 
 // ********************** print **********************
-static void ku_printf(kuvm *vm, const char *fmt, ...) {
+void ku_printf(kuvm *vm, const char *fmt, ...) {
   va_list args;
 
   if (vm->flags & KVM_F_QUIET) {

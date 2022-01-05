@@ -224,6 +224,7 @@ static inline double ku_val2num(kuval v) {
 bool ku_equal(kuval v1, kuval v2);
 
 void ku_printval(kuvm* vm, kuval value);
+void ku_printf(kuvm* vm, const char* fmt, ...);
 
 // ********************** arrays **********************
 typedef struct {
