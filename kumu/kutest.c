@@ -1544,6 +1544,17 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1.23e-2), "1.23e-2");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "for(var i=0; i<10; i=i+1) { if (i>2) break; if (i>3) break; }");
+  EXPECT_INT(vm, res, KVM_OK, "two break");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  vm->max_patches = 1;
+  res = ku_exec(vm, "for(var i=0; i<10; i=i+1) { if (i>2) break; if (i>3) break; }");
+  EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "patch limit");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

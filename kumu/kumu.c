@@ -1563,6 +1563,7 @@ kuvm *ku_new(void) {
   vm->max_body = UINT16_MAX;
   vm->max_frames = FRAMES_MAX;
   vm->max_locals = LOCALS_MAX;
+  vm->max_patches = PATCH_MAX;
   
   vm->flags = 0;
   vm->curclass = NULL;
@@ -2758,7 +2759,7 @@ kuval string_format(kuvm *vm, int argc, kuval *argv) {
       if (arg < argc && IS_NUM(argv[arg])) {
         sprintf(numbuff, "%g", AS_NUM(argv[arg++]));
         strcpy(&chars[ichars], numbuff);
-        ichars += strlen(numbuff);
+        ichars += (int)strlen(numbuff);
       }
     } else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 's') {
       i++;
@@ -2976,9 +2977,11 @@ static void ku_markobj(kuvm *vm, kuobj *o) {
   
   if (vm->gccap < vm->gccount + 1) {
     vm->gccap = CAPACITY_GROW(vm->gccap);
-    vm->gcstack = (kuobj**)realloc(vm->gcstack, sizeof(kuobj*)*vm->gccap);
+    // for VC++ C6308
+    kuobj **temp = (kuobj**)realloc(vm->gcstack, sizeof(kuobj*) * vm->gccap);
+    assert(temp != NULL);
+    vm->gcstack = temp;
     
-    assert (vm->gcstack != NULL);
   }
   vm->gcstack[vm->gccount++] = o;
 }
@@ -3229,6 +3232,10 @@ void ku_loopinit(kuvm *vm, kuloop *loop) {
 }
 
 void ku_emitpatch(kuvm *vm, kupatch *patch, uint8_t op) {
+  if (patch->count == vm->max_patches) {
+    ku_perr(vm, "max break / continue limit reached");
+    return;
+  }
   patch->offset[patch->count++] = ku_emitjump(vm, op);
 }
 

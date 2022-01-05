@@ -544,6 +544,7 @@ typedef struct kuvm {
   int max_body;
   int max_frames;
   int max_locals;
+  int max_patches;
   
   bool err;
   size_t allocated;
@@ -597,9 +598,10 @@ void ku_printmem(kuvm *vm);
 void ku_printstack(kuvm *vm);
 
 // ********************** loop patch **********************
+#define PATCH_MAX  32
 typedef struct {
   int count;
-  uint16_t offset[UINT16_MAX];
+  uint16_t offset[PATCH_MAX];
 } kupatch;
 
 typedef struct {
