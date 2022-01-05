@@ -2,21 +2,22 @@
 // basic (hawaiian): small, fast, portable, familiar
 
 // ********************** change log **********************
-// ✓ arrow function expressions: arg => expr, arg => { ... }
-// ✓ arrow function blocks: { a, b => exp }, { a, b => { ... } }
-// ✓ break, continue support
-// ✓ remove print statement
-// ✓ bug fix native call no frame adjustment
-// ✓ native call error handling
-// ✓ string (\n\r\t), number 0x, number _._e_
-// ✓ native classe support
-// ✓ math: sin(), cos(), tan(), pi
-// ✓ repl USE_READLINE
-// ✓ strings: s.count, string.format(fmt,...)
-// ✓ intern "count" string for speed
-// ✓ arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
-// ✓ arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
-// ?  REPL print array
+// + arrow function expressions: arg => expr, arg => { ... }
+// + arrow function blocks: { a, b => exp }, { a, b => { ... } }
+// + break, continue support
+// + remove print statement
+// + bug fix native call no frame adjustment
+// + native call error handling
+// + string (\n\r\t), number 0x, number _._e_
+// + native classe support
+// + math: sin(), cos(), tan(), pi
+// + repl USE_READLINE
+// + strings: s.count, string.format(fmt,...)
+// + intern "count" string for speed
+// + arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
+// + arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
+// +  REPL print array
+// ? VC++ build warnings
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)
 // ? persistent tasks (save, load)

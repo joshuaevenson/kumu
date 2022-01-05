@@ -1539,6 +1539,11 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.map arg err res");
   ku_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=1.23e-2;");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1.23e-2), "1.23e-2");
+  ku_free(vm);
+
   ku_test_summary();
 
 }

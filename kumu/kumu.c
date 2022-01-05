@@ -493,6 +493,9 @@ static kutok ku_lexnum(kuvm *vm) {
 
   if (ku_lexpeek(vm) == 'e' || ku_lexpeek(vm) == 'E') {
     ku_advance(vm);
+    if (ku_lexpeek(vm) == '-') {
+      ku_advance(vm);
+    }
     while(ku_isdigit(ku_lexpeek(vm))) ku_advance(vm);
   }
 
