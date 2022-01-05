@@ -221,7 +221,7 @@ void tclass_init(kuvm *vm, uint64_t flags) {
   ku_cclassdef(vm, cc);
 }
 
-#define APPROX(a,b) ((AS_NUM(a)-b) < 0.00000001)
+#define APPROX(a,b) ((AS_NUM(a)-(b)) < 0.00000001)
 
 void ku_test() {
   kuvm *vm = kut_new(false);

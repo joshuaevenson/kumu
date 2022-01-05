@@ -16,13 +16,13 @@
 // ✓ intern "count" string for speed
 // ✓ arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
 // ✓ arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
-// 𐄂 table([keys],[vals]), t[k]=v, t[k], t.iter({ k,v => ...}),
-// 𐄂 sqlite() native class
-// 𐄂 transient tasks (suspend, resume)
-// 𐄂 persistent tasks (save, load)
-// 𐄂 debugger line mode, instruction mode
-// 𐄂 profiler and code coverage
-// 𐄂 chunk file association
+// ?  REPL print array
+// ? sqlite() native class
+// ? transient tasks (suspend, resume)
+// ? persistent tasks (save, load)
+// ? debugger line mode, instruction mode
+// ? profiler and code coverage
+// ? chunk file association
 
 #ifndef KUMU_H
 #define KUMU_H

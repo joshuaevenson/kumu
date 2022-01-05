@@ -2639,6 +2639,7 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
   return NIL_VAL;
 }
 
+#define  _USE_MATH_DEFINES    // for windows
 #include <math.h>
 
 #define M2(c,s) (c->len==2 && c->chars[0]==s[0] && \
@@ -2739,7 +2740,7 @@ kuval string_format(kuvm *vm, int argc, kuval *argv) {
       needed += AS_STR(v)->len;
     } else if (IS_NUM(v)) {
       sprintf(numbuff, "%g", AS_NUM(v));
-      needed += strlen(numbuff);
+      needed += (int)strlen(numbuff);
     } else if (IS_BOOL(v)) {
       needed += 5;    // false is longer than true
     }
