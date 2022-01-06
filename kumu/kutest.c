@@ -147,7 +147,7 @@ kuval test_smark(kuvm *vm, kuobj *cc) {
   return NIL_VAL;
 }
 
-kuval test_icall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+kuval test_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
   tclass_icall++;
   return NIL_VAL;
 }
@@ -1553,6 +1553,68 @@ void ku_test() {
   vm->max_patches = 1;
   res = ku_exec(vm, "for(var i=0; i<10; i=i+1) { if (i>2) break; if (i>3) break; }");
   EXPECT_INT(vm, res, KVM_ERR_SYNTAX, "patch limit");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  vm->flags |= KVM_F_GCSTRESS;
+  res = ku_exec(vm, "var t=table(); t.x=1; t.y=2; var x=t.x+t.y;");
+  EXPECT_INT(vm, res, KVM_OK, "table res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "table ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.x=1; t.y=2; var x=t.z;");
+  EXPECT_INT(vm, res, KVM_OK, "table res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "table nil ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.set(\"x\",1); var x=t.get(\"x\");");
+  EXPECT_INT(vm, res, KVM_OK, "table set get res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1), "table set get ret");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.set(1,1); var x=t.get(\"x\");");
+  EXPECT_INT(vm, res, KVM_OK, "table set(nil) res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "table set(nil)");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.set(\"x\",1); var x=t.get(1);");
+  EXPECT_INT(vm, res, KVM_OK, "table get(nil) res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "table get(nil)");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); var x = t.bogus();");
+  EXPECT_INT(vm, res, KVM_OK, "table bogus res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "table bogus");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.x=1; t.y=2; t.z=3; var K=\"\"; var V=0; t.iter({ k,v => { K=K+k; V=V+v; }} );");
+  EXPECT_INT(vm, res, KVM_OK, "table iter res");
+  v = ku_get_global(vm, "K");
+  EXPECT_TRUE(vm, IS_STR(v), "table iter K type");
+  // this is fragile depends on hashing and key insertion order
+  EXPECT_INT(vm, strcmp(AS_STR(v)->chars, "yzx"), 0, "table iter K");
+  EXPECT_VAL(vm, ku_get_global(vm, "V"), NUM_VAL(6), "table iter V");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.iter(k => k);");
+  EXPECT_INT(vm, res, KVM_OK, "table iter argc res");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.iter();");
+  EXPECT_INT(vm, res, KVM_OK, "table iter nil res");
+  ku_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var t=table(); t.iter(12);");
+  EXPECT_INT(vm, res, KVM_OK, "table iter num res");
   ku_free(vm);
 
   ku_test_summary();

@@ -16,8 +16,9 @@
 // + intern "count" string for speed
 // + arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
 // + arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
-// +  REPL print array
-// ? VC++ build warnings
+// + REPL print array
+// + VC++ build warnings
+// + tables: t=table(); t.key=val; v=t.key; t.iter({k,v => ...});
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)
 // ? persistent tasks (save, load)
@@ -350,7 +351,7 @@ typedef struct {
   kuval (*sput)(kuvm *vm, kustr *p, kuval v);
   kuval (*sfree)(kuvm *vm, kuobj *cc);
   kuval (*smark)(kuvm *vm, kuobj *cc);
-  kuval (*icall)(kuvm *vm, kustr *m, int argc, kuval *argv);
+  kuval (*icall)(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv);
   kuval (*iget)(kuvm *vm, kuobj *o, kustr *p);
   kuval (*iput)(kuvm *vm, kuobj *o, kustr *p, kuval v);
   kuval (*ifree)(kuvm *vm, kuobj *o);

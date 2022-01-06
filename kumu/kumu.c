@@ -46,6 +46,10 @@ static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 static void ku_function(kuvm *vm, kufunc_t type);
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
 bool array_invoke(kuvm *vm, kuval arr, kustr *method, int argc, kuval *argv);
+static void ku_markval(kuvm *vm, kuval v);
+static void ku_markobj(kuvm *vm, kuobj *o);
+static void ku_marktable(kuvm *vm, kutab *tab);
+
 // ********************** object **********************
 kuobj* ku_objalloc(kuvm* vm, size_t size, kuobj_t type) {
 #ifdef  TRACE_OBJ_COUNTS
@@ -1812,6 +1816,17 @@ static bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
     return false;
   }
   
+  if (IS_CINST(receiver)) {
+    kunobj *no = AS_CINST(receiver);
+    if (no->klass->icall) {
+      *native = true;
+      kuval v = no->klass->icall(vm, (kuobj*)no, name, argc, vm->sp - argc);
+      vm->sp -= argc + 1;
+      ku_push(vm, v);
+      return true;
+    }
+  }
+  
   if (IS_ARRAY(receiver)) {
     return array_invoke(vm, receiver, name, argc, vm->sp - argc);
   }
@@ -2620,31 +2635,6 @@ void ku_cfuncdef(kuvm *vm, const char *name, cfunc f) {
 }
 
 // ********************** library **********************
-#include <time.h>
-
-static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
-  int cap = 0;
-  if (argc > 0 && IS_NUM(argv[0])) {
-    cap = (int)AS_NUM(argv[0]);
-  }
-  return OBJ_VAL(ku_arrnew(vm, cap));
-}
-
-static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
-  return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
-}
-
-static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
-  for (int a = 0; a < argc; a++) {
-    kuval v = argv[a];
-    ku_printval(vm, v);
-  }
-  return NIL_VAL;
-}
-
-#define  _USE_MATH_DEFINES    // for windows
-#include <math.h>
-
 #define M2(c,s) (c->len==2 && c->chars[0]==s[0] && \
                               c->chars[1]==s[1])
 
@@ -2652,6 +2642,16 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
                               c->chars[1]==s[1] && \
                               c->chars[2]==s[2])
 
+#include <time.h>
+
+// ********************** array **********************
+static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
+  int cap = 0;
+  if (argc > 0 && IS_NUM(argv[0])) {
+    cap = (int)AS_NUM(argv[0]);
+  }
+  return OBJ_VAL(ku_arrnew(vm, cap));
+}
 
 bool array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
   if (argc != 1 || !IS_CLOSURE(argv[0])) {
@@ -2727,6 +2727,120 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
   return false;
 }
 
+// ********************** utility **********************
+static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
+  return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
+}
+
+static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
+  for (int a = 0; a < argc; a++) {
+    kuval v = argv[a];
+    ku_printval(vm, v);
+  }
+  return NIL_VAL;
+}
+
+// ********************** math **********************
+#define  _USE_MATH_DEFINES    // for windows
+#include <math.h>
+
+kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
+  double x = AS_NUM(argv[0]);
+  
+  if (M3(m, "sin")) {
+    return NUM_VAL(sin(x));
+  } else if (M3(m, "cos")) {
+    return NUM_VAL(cos(x));
+  } else if (M3(m, "tan")) {
+    return NUM_VAL(tan(x));
+  }
+  return NIL_VAL;
+}
+
+
+// ********************** table **********************
+typedef struct {
+  kunobj base;
+  kutab data;
+} kutobj;
+
+kuval table_cons(kuvm *vm, int argc, kuval *argv) {
+  kutobj *to = (kutobj*)ku_objalloc(vm, sizeof(kutobj), OBJ_CINST);
+  ku_tabinit(vm, &to->data);
+  return OBJ_VAL(to);
+}
+
+kuval table_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
+  if (M3(m, "get") && argc > 0 && IS_STR(argv[0])) {
+    kutobj *to = (kutobj*)o;
+    kustr *s = AS_STR(argv[0]);
+    kuval ret;
+    if (ku_tabget(vm, &to->data, s, &ret)) {
+      return ret;
+    }
+    return NIL_VAL;
+  }
+  
+  if (M3(m, "set") && argc > 1 && IS_STR(argv[0])) {
+    kutobj *to = (kutobj*)o;
+    kustr *s = AS_STR(argv[0]);
+    ku_tabset(vm, &to->data, s, argv[1]);
+    return argv[1];
+  }
+  
+  if (m->len == 4 && strcmp(m->chars, "iter") == 0) {
+    if (argc != 1 || !IS_CLOSURE(argv[0])) {
+      return NIL_VAL;
+    }
+      
+    kuclosure *cl = AS_CLOSURE(argv[0]);
+    if (cl->func->arity != 2) {
+      return NIL_VAL;
+    }
+    
+    kutobj *to = (kutobj*)o;
+    for (int i = 0; i < to->data.capacity; i++) {
+      kuentry *e = &to->data.entries[i];
+      if (e->key != NULL) {
+        ku_push(vm, OBJ_VAL(e->key));
+        ku_push(vm, e->value);
+        ku_nativecall(vm, cl, 2);
+      }
+    }
+  }
+  return NIL_VAL;
+}
+
+kuval table_iget(kuvm *vm, kuobj *o, kustr *p) {
+  kutobj *to = (kutobj*)o;
+  kuval ret;
+  
+  if (ku_tabget(vm, &to->data, p, &ret)) {
+    return ret;
+  }
+  return NIL_VAL;
+}
+
+kuval table_iput(kuvm *vm, kuobj *o, kustr *p, kuval v) {
+  kutobj *to = (kutobj*)o;
+  ku_tabset(vm, &to->data, p, v);
+  return v;
+}
+
+kuval table_ifree(kuvm *vm, kuobj *o) {
+  kutobj *to = (kutobj*)o;
+  ku_tabfree(vm, &to->data);
+  FREE(vm, kutobj, to);
+  return NIL_VAL;
+}
+
+kuval table_imark(kuvm *vm, kuobj *o) {
+  kutobj *to = (kutobj*)o;
+  ku_marktable(vm, &to->data);
+  return NIL_VAL;
+}
+
+// ********************** string **********************
 kuval string_format(kuvm *vm, int argc, kuval *argv) {
   if (argc < 1 || !IS_STR(argv[0])) {
     return NIL_VAL;
@@ -2811,19 +2925,6 @@ kuval math_sget(kuvm *vm, kustr *p) {
   return NIL_VAL;
 }
 
-kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
-  double x = AS_NUM(argv[0]);
-  
-  if (M3(m, "sin")) {
-    return NUM_VAL(sin(x));
-  } else if (M3(m, "cos")) {
-    return NUM_VAL(cos(x));
-  } else if (M3(m, "tan")) {
-    return NUM_VAL(tan(x));
-  }
-  return NIL_VAL;
-}
-
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "printf", ku_print);
@@ -2837,6 +2938,15 @@ void ku_reglibs(kuvm *vm) {
   kucclass *string = ku_cclassnew(vm, "string");
   string->scall = string_scall;
   ku_cclassdef(vm, string);
+
+  kucclass *table = ku_cclassnew(vm, "table");
+  table->cons = table_cons;
+  table->icall = table_icall;
+  table->iget = table_iget;
+  table->iput = table_iput;
+  table->ifree = table_ifree;
+  table->imark = table_imark;
+  ku_cclassdef(vm, table);
 }
 
 // ********************** closure **********************
@@ -2868,10 +2978,6 @@ kuxobj *ku_xobjnew(kuvm *vm, kuval *slot) {
 }
 
 // ********************** garbage collection **********************
-static void ku_markval(kuvm *vm, kuval v);
-static void ku_markobj(kuvm *vm, kuobj *o);
-static void ku_marktable(kuvm *vm, kutab *tab);
-
 static void ku_markarray(kuvm *vm, kuarr *array) {
   for (int i = 0; i < array->count; i++) {
     ku_markval(vm, array->values[i]);
