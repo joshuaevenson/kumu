@@ -26,8 +26,12 @@
 // ? debugger line mode, instruction mode
 // ? profiler and code coverage
 // ? chunk file association
-// ? REPL .disassemble command
-// ? REPL .save, .load commands
+// ? .dissassemble [<func>] command
+// ? .gc command
+// ? .save [file], .load [file] commands
+// ? .import [file] command
+// ? .help interactive session use tests
+// ? .list [file][:line[,line]] command
 
 #ifndef KUMU_H
 #define KUMU_H
