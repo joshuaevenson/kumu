@@ -295,6 +295,8 @@ void ku_test() {
   ku_push(vm, NUM_VAL(2));
   ku_push(vm, NUM_VAL(3));
   ku_printstack(vm);
+  ku_pop(vm);
+  ku_pop(vm);
   kut_free(vm);
 
   vm = kut_new(false);
@@ -1525,6 +1527,12 @@ void ku_test() {
   res = ku_exec(vm, "var sum=[1,3,4].reduce(0, {v,e => v+e});");
   EXPECT_INT(vm, res, KVM_OK, "array.reduce res");
   EXPECT_VAL(vm, ku_get_global(vm, "sum"), NUM_VAL(8), "array.reduce value");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  vm->flags = 0;
+  res = ku_exec(vm, "var sum=[1,3,4].reduce(0, {v,e => bad()});");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.reduce bad fn");
   kut_free(vm);
 
   vm = kut_new(true);

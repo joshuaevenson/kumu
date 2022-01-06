@@ -19,7 +19,7 @@
 // + REPL print array
 // + VC++ build warnings
 // + tables: t=table(); t.key=val; v=t.key; t.iter({k,v => ...});
-// ? stack balance on native calls
+// + stack balance on native calls
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)
 // ? persistent tasks (save, load)

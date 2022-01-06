@@ -2285,8 +2285,14 @@ kures ku_exec(kuvm *vm, char *source) {
   ku_push(vm, OBJ_VAL(closure));
   vm->baseframe = 0;
   ku_docall(vm, closure, 0);
-  kures res = ku_run(vm);  
-  ku_pop(vm); // remove last return item for global call
+  kures res = ku_run(vm);
+  
+  // runtime error -> stack is invalid, reset
+  if (res != KVM_OK) {
+    ku_reset(vm);
+  } else {
+    ku_pop(vm); // remove last return item for global call
+  }
   return res;
 }
 
@@ -2697,11 +2703,13 @@ bool array_reduce(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
     ku_push(vm, e);
     if (ku_nativecall(vm, cl, 2) == KVM_OK) {
       arg = ku_pop(vm);
+      ku_pop(vm); // arg
     } else {
       return false;
     }
   }
   ku_pop(vm);   // closure
+  ku_pop(vm);   // arg
   ku_pop(vm);   // receiver
   *ret = arg;
   return true;
@@ -2805,6 +2813,8 @@ kuval table_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
         ku_push(vm, OBJ_VAL(e->key));
         ku_push(vm, e->value);
         ku_nativecall(vm, cl, 2);
+        ku_pop(vm); // call result
+        ku_pop(vm); // key
       }
     }
   }
@@ -3316,7 +3326,11 @@ void ku_printval(kuvm *vm, kuval value) {
 
 
 static void ku_printfunc(kuvm *vm, kufunc *fn) {
-  ku_printf(vm, "<fn %s>", fn->name ? fn->name->chars : "__main__");
+  if (fn->name) {
+    ku_printf(vm, "<fn %.*s>", fn->name->len, fn->name);
+  } else {
+    ku_printf(vm, "<fn __main__>");
+  }
 }
 
 void ku_printstack(kuvm *vm) {
