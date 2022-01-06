@@ -26,12 +26,15 @@
 // ? debugger line mode, instruction mode
 // ? profiler and code coverage
 // ? chunk file association
-// ? .dissassemble [<func>] command
+// ? .dasm [<func>] command
 // ? .gc command
-// ? .save [file], .load [file] commands
+// ? .save [file]
+// ? .load [file] command
 // ? .import [file] command
-// ? .help interactive session use tests
+// ? .help command
 // ? .list [file][:line[,line]] command
+// ? .break command
+// ? .clear command
 
 #ifndef KUMU_H
 #define KUMU_H
