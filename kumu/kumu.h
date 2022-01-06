@@ -26,6 +26,8 @@
 // ? debugger line mode, instruction mode
 // ? profiler and code coverage
 // ? chunk file association
+// ? REPL .disassemble command
+// ? REPL .save, .load commands
 
 #ifndef KUMU_H
 #define KUMU_H
