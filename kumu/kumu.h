@@ -20,7 +20,7 @@
 // + VC++ build warnings
 // + tables: t=table(); t.key=val; v=t.key; t.iter({k,v => ...});
 // + stack balance on native calls
-
+// ? kuvm userdata support
 // ? dynamic stack size alloc next to vm
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)
