@@ -1064,7 +1064,6 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(false);
-  vm->flags = 0;
   res = ku_exec(vm, "fun O() { var a=1; var b=2; fun e() { a=9; return a*b; } return e; }\n var z=O(); var x=z();");
   EXPECT_INT(vm, res, KVM_OK, "closure set res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(18), "closure set ret");
@@ -1530,7 +1529,6 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
-  vm->flags = 0;
   res = ku_exec(vm, "var sum=[1,3,4].reduce(0, {v,e => bad()});");
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.reduce bad fn");
   kut_free(vm);
