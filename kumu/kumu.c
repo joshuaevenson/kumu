@@ -33,7 +33,6 @@
 } while (false)
 
 // ********************** forwards **********************
-static void ku_err(kuvm *vm, const char *fmt, ...);
 kuval ku_peek(kuvm *vm, int distance);
 
 static void ku_printobj(kuvm* vm, kuval val);
@@ -47,7 +46,7 @@ static void ku_function(kuvm *vm, kufunc_t type);
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
 bool array_invoke(kuvm *vm, kuval arr, kustr *method, int argc, kuval *argv);
 static void ku_markval(kuvm *vm, kuval v);
-static void ku_markobj(kuvm *vm, kuobj *o);
+void ku_markobj(kuvm *vm, kuobj *o);
 static void ku_marktable(kuvm *vm, kutab *tab);
 
 // ********************** object **********************
@@ -1617,7 +1616,7 @@ void ku_free(kuvm *vm) {
   free(vm);
 }
 
-static void ku_err(kuvm *vm, const char *fmt, ...) {
+void ku_err(kuvm *vm, const char *fmt, ...) {
   va_list args;
   char out[1024];
 
@@ -3077,7 +3076,7 @@ static void ku_tracerefs(kuvm *vm) {
   }
 }
 
-static void ku_markobj(kuvm *vm, kuobj *o) {
+void ku_markobj(kuvm *vm, kuobj *o) {
   if (o == NULL) {
     return;
   }

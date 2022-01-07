@@ -505,6 +505,7 @@ bool ku_identeq(kuvm *vm, kutok *a, kutok *b);
 int ku_resolvelocal(kuvm *vm, kucomp *compiler, kutok *name);
 void ku_markinit(kuvm *vm);
 int ku_opslotdis(kuvm *vm, const char *name, kuchunk *chunk, int offset);
+void ku_markobj(kuvm *vm, kuobj *o);
 
 // ********************** parser **********************
 typedef struct {
@@ -638,6 +639,7 @@ int ku_jumpdis(kuvm *vm, const char *name,
 void ku_and(kuvm *vm, bool lhs);
 void ku_or(kuvm *vm, bool lhs);
 void ku_block(kuvm *vm, kuloop *loop);
+void ku_err(kuvm *vm, const char *fmt, ...);
 
 #endif /* KUMU_H */
 
