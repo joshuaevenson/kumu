@@ -2735,15 +2735,88 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
 }
 
 // ********************** utility **********************
+char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
+  if (argc < 1 || !IS_STR(argv[0])) {
+    return NULL;
+  }
+  const char *fmt = AS_STR(argv[0])->chars;
+  int fmtlen = (int)strlen(fmt);
+  int needed = fmtlen;
+  char numbuff[255];
+
+  // we only support number, string, and boolean args
+  for (int a = 0; a < argc; a++) {
+    kuval v = argv[a];
+    if (IS_STR(v)) {
+      needed += AS_STR(v)->len;
+    } else if (IS_NUM(v)) {
+      sprintf(numbuff, "%g", AS_NUM(v));
+      needed += (int)strlen(numbuff);
+    } else if (IS_BOOL(v)) {
+      needed += 5;    // false is longer than true
+    }
+  }
+  
+  char *chars = ku_alloc(vm, NULL, 0, needed+1);
+  int arg = 1;
+  int ichars = 0;
+  for (int i = 0; i < fmtlen; i++) {
+    char ch = fmt[i];
+    if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'd') {
+      i++;
+      if (arg < argc && IS_NUM(argv[arg])) {
+        sprintf(numbuff, "%g", AS_NUM(argv[arg++]));
+        strcpy(&chars[ichars], numbuff);
+        ichars += (int)strlen(numbuff);
+      }
+    } else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 's') {
+      i++;
+      if (arg < argc && IS_STR(argv[arg])) {
+        kustr *str = AS_STR(argv[arg++]);
+        memcpy(&chars[ichars], str->chars, str->len);
+        ichars += str->len;
+      }
+    }  else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'b') {
+      i++;
+      if (arg < argc && IS_BOOL(argv[arg])) {
+        bool b = AS_BOOL(argv[arg++]);
+        if (b) {
+          strcpy(&chars[ichars], "true");
+          ichars += 4;
+        } else {
+          strcpy(&chars[ichars], "false");
+          ichars += 5;
+        }
+      }
+    } else {
+      chars[ichars++] = ch;
+    }
+  }
+  
+  if (count) {
+    *count = needed;
+  }
+  return chars;
+}
+
+
 static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
 static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
-  for (int a = 0; a < argc; a++) {
-    kuval v = argv[a];
-    ku_printval(vm, v);
+  
+  if (argc > 0 && !IS_STR(argv[0])) {
+    for (int i = 0; i < argc; i++) {
+      ku_printval(vm, argv[i]);
+    }
+    return NIL_VAL;
   }
+  
+  int needed;
+  char *str = format_core(vm, argc, argv, &needed);
+  ku_printf(vm, str);
+  ku_alloc(vm, str, needed+1, 0);
   return NIL_VAL;
 }
 
@@ -2851,65 +2924,12 @@ kuval table_imark(kuvm *vm, kuobj *o) {
 
 // ********************** string **********************
 kuval string_format(kuvm *vm, int argc, kuval *argv) {
-  if (argc < 1 || !IS_STR(argv[0])) {
+  int needed;
+  char *chars = format_core(vm, argc, argv, &needed);
+  if (!chars) {
     return NIL_VAL;
   }
-  const char *fmt = AS_STR(argv[0])->chars;
-  int fmtlen = (int)strlen(fmt);
-  int needed = fmtlen;
-  char numbuff[255];
-
-  // we only support number, string, and boolean args
-  for (int a = 0; a < argc; a++) {
-    kuval v = argv[a];
-    if (IS_STR(v)) {
-      needed += AS_STR(v)->len;
-    } else if (IS_NUM(v)) {
-      sprintf(numbuff, "%g", AS_NUM(v));
-      needed += (int)strlen(numbuff);
-    } else if (IS_BOOL(v)) {
-      needed += 5;    // false is longer than true
-    }
-  }
-  
-  char *chars = ku_alloc(vm, NULL, 0, needed+1);
-  int arg = 1;
-  int ichars = 0;
-  for (int i = 0; i < fmtlen; i++) {
-    char ch = fmt[i];
-    if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'd') {
-      i++;
-      if (arg < argc && IS_NUM(argv[arg])) {
-        sprintf(numbuff, "%g", AS_NUM(argv[arg++]));
-        strcpy(&chars[ichars], numbuff);
-        ichars += (int)strlen(numbuff);
-      }
-    } else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 's') {
-      i++;
-      if (arg < argc && IS_STR(argv[arg])) {
-        kustr *str = AS_STR(argv[arg++]);
-        memcpy(&chars[ichars], str->chars, str->len);
-        ichars += str->len;
-      }
-    }  else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'b') {
-      i++;
-      if (arg < argc && IS_BOOL(argv[arg])) {
-        bool b = AS_BOOL(argv[arg++]);
-        if (b) {
-          strcpy(&chars[ichars], "true");
-          ichars += 4;
-        } else {
-          strcpy(&chars[ichars], "false");
-          ichars += 5;
-        }
-      }
-    } else {
-      chars[ichars++] = ch;
-    }
-  }
-    
   return OBJ_VAL(ku_strtake(vm, chars, needed));
-  
 }
 
 kuval string_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
