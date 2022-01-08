@@ -33,6 +33,11 @@ static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
   printf(">>> expected: %d found %d [%s]\n", v2, v1, m);
 }
 
+static void EXPECT_STR(kuvm *vm, kuval v, const char *s, const char *msg) {
+  EXPECT_TRUE(vm, IS_STR(v), msg);
+  EXPECT_INT(vm, strcmp(AS_STR(v)->chars, s), 0, msg);
+}
+
 static void EXPECT_VAL(kuvm* vm, kuval v1, kuval v2, const char *msg) {
   last_test = msg;
   if (ku_equal(v1, v2)) {
@@ -1329,12 +1334,52 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var x=string.format(\"ABC %d,%s,%b,%b\",123.45,\"FF\", true, false);");
+  res = ku_exec(vm, "var x=string.format(\"ABC %g,%s,%b,%b\",123.45,\"FF\", true, false);");
   EXPECT_INT(vm, res, KVM_OK, "string.format res");
   v = ku_get_global(vm, "x");
   EXPECT_TRUE(vm, IS_STR(v), "string.format ret");
   kustr *str = AS_STR(v);
   EXPECT_INT(vm, strcmp(str->chars, "ABC 123.45,FF,true,false"), 0, "string.format value");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%x\",0xfb1cfd);");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "fb1cfd", "string.format %x");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%d\",123.45);");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "123", "string.format %d");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%d\",true);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format bool to %d");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%s\",true);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format bool to %s");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%g\",true);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format bool to %g");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%x\",true);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format bool to %x");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%b\",12);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format num to %b");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"hello%\",12);");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "hello%", "string.format trailing %");
   kut_free(vm);
 
   vm = kut_new(true);

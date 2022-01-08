@@ -1810,7 +1810,7 @@ bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
       kuval v = cc->scall(vm, name, argc, vm->sp - argc);
       vm->sp -= argc +1;
       ku_push(vm, v);
-      return true;
+      return !vm->err;
     }
     return false;
   }
@@ -2735,63 +2735,111 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
 }
 
 // ********************** utility **********************
+static int arglen(kuvm *vm, const char *f, kuval arg) {
+  char s = *(f+1);
+  if (s == 0) {
+    return 0;
+  }
+  
+  int len = 0;
+  char buff[255];
+
+  switch (s) {
+    case 'd':
+      if (IS_NUM(arg)) {
+        sprintf(buff, "%d", (int)AS_NUM(arg));
+        return (int)strlen(buff);
+      }
+      return -1;
+    case 'g':
+      if (IS_NUM(arg)) {
+        sprintf(buff, "%g", AS_NUM(arg));
+        return (int)strlen(buff);
+      }
+      return -1;
+    case 'x':
+      if (IS_NUM(arg)) {
+        sprintf(buff, "%x", (int)AS_NUM(arg));
+        return (int)strlen(buff);
+      }
+      return -1;
+    case 's':
+      if (IS_STR(arg)) {
+        return AS_STR(arg)->len;
+      }
+      return -1;
+    case 'b':
+      if (IS_BOOL(arg)) {
+        return 5;
+      }
+      return -1;
+  }
+  return len;
+}
+
 char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
   if (argc < 1 || !IS_STR(argv[0])) {
     return NULL;
   }
-  const char *fmt = AS_STR(argv[0])->chars;
+  
+  kustr *sfmt = AS_STR(argv[0]);
+  const char *fmt = sfmt->chars;
   int fmtlen = (int)strlen(fmt);
   int needed = fmtlen;
-  char numbuff[255];
 
-  // we only support number, string, and boolean args
-  for (int a = 0; a < argc; a++) {
-    kuval v = argv[a];
-    if (IS_STR(v)) {
-      needed += AS_STR(v)->len;
-    } else if (IS_NUM(v)) {
-      sprintf(numbuff, "%g", AS_NUM(v));
-      needed += (int)strlen(numbuff);
-    } else if (IS_BOOL(v)) {
-      needed += 5;    // false is longer than true
-    }
-  }
-  
-  char *chars = ku_alloc(vm, NULL, 0, needed+1);
-  int arg = 1;
-  int ichars = 0;
-  for (int i = 0; i < fmtlen; i++) {
-    char ch = fmt[i];
-    if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'd') {
-      i++;
-      if (arg < argc && IS_NUM(argv[arg])) {
-        sprintf(numbuff, "%g", AS_NUM(argv[arg++]));
-        strcpy(&chars[ichars], numbuff);
-        ichars += (int)strlen(numbuff);
-      }
-    } else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 's') {
-      i++;
-      if (arg < argc && IS_STR(argv[arg])) {
-        kustr *str = AS_STR(argv[arg++]);
-        memcpy(&chars[ichars], str->chars, str->len);
-        ichars += str->len;
-      }
-    }  else if (ch == '%' && i < (fmtlen-1) && fmt[i+1] == 'b') {
-      i++;
-      if (arg < argc && IS_BOOL(argv[arg])) {
-        bool b = AS_BOOL(argv[arg++]);
-        if (b) {
-          strcpy(&chars[ichars], "true");
-          ichars += 4;
-        } else {
-          strcpy(&chars[ichars], "false");
-          ichars += 5;
+  int iarg = 0;
+  for (int i = 0; i < sfmt->len; i++) {
+    if (fmt[i] == '%') {
+      if (iarg < argc) {
+        int len = arglen(vm, fmt+i, argv[++iarg]);
+        if (len < 0) {
+          ku_err(vm, "%%%c invalid argument %d", fmt[i+1], iarg);
+          return NULL;
         }
+        needed += len;
       }
-    } else {
-      chars[ichars++] = ch;
     }
   }
+    
+  char *chars = ku_alloc(vm, NULL, 0, needed+1);
+  
+  iarg = 0;
+  char *d = chars;
+  
+  for (char *p = (char*)fmt; *p; p++) {
+    if (*p == '%' && *(p+1) == 'd') {
+      sprintf(d, "%d", (int)AS_NUM(argv[++iarg]));
+      d = strchr(d, 0);
+      p++;
+    } else if (*p == '%' && *(p+1) == 'x') {
+      sprintf(d, "%x", (int)AS_NUM(argv[++iarg]));
+      d = strchr(d, 0);
+      p++;
+    } else if (*p == '%' && *(p+1) == 'g') {
+      sprintf(d, "%g", AS_NUM(argv[++iarg]));
+      d = strchr(d, 0);
+      p++;
+    } else if (*p == '%' && *(p+1) == 's') {
+      ++iarg;
+      sprintf(d, "%s", AS_STR(argv[iarg])->chars);
+      d += AS_STR(argv[iarg])->len;
+      p++;
+    } else if (*p == '%' && *(p+1) == 'b') {
+      ++iarg;
+      if (AS_BOOL(argv[iarg])) {
+        sprintf(d, "%s", "true");
+        d += 4;
+      } else {
+        sprintf(d, "%s", "false");
+        d += 5;
+      }
+      p++;
+    } else {
+      *d++ = *p;
+    }
+    *(d+1) = 0;
+  }
+  *d = '\0';
   
   if (count) {
     *count = needed;

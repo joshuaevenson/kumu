@@ -21,6 +21,7 @@
 // + tables: t=table(); t.key=val; v=t.key; t.iter({k,v => ...});
 // + stack balance on native calls
 // + printf take format string
+// + format handle %d, %g, and %x
 //
 // ? REPL leak between executions
 // ? dynamic stack size alloc next to vm
