@@ -22,6 +22,7 @@
 // + stack balance on native calls
 // + printf take format string
 // + format handle %d, %g, and %x
+// + string.format() return string too long
 //
 // ? REPL leak between executions
 // ? dynamic stack size alloc next to vm

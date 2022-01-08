@@ -35,6 +35,7 @@ static void EXPECT_INT(kuvm *vm, int v1, int v2, const char *m) {
 
 static void EXPECT_STR(kuvm *vm, kuval v, const char *s, const char *msg) {
   EXPECT_TRUE(vm, IS_STR(v), msg);
+  EXPECT_INT(vm, (int)strlen(AS_STR(v)->chars), (int)strlen(s), msg);
   EXPECT_INT(vm, strcmp(AS_STR(v)->chars, s), 0, msg);
 }
 

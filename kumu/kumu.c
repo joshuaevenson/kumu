@@ -2784,7 +2784,7 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
   
   kustr *sfmt = AS_STR(argv[0]);
   const char *fmt = sfmt->chars;
-  int fmtlen = (int)strlen(fmt);
+  int fmtlen = 0;
   int needed = fmtlen;
 
   int iarg = 0;
@@ -2797,7 +2797,10 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
           return NULL;
         }
         needed += len;
+        i++;
       }
+    } else {
+      needed++;
     }
   }
     
