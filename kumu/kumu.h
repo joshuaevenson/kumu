@@ -640,6 +640,7 @@ void ku_and(kuvm *vm, bool lhs);
 void ku_or(kuvm *vm, bool lhs);
 void ku_block(kuvm *vm, kuloop *loop);
 void ku_err(kuvm *vm, const char *fmt, ...);
+bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native);
 
 #endif /* KUMU_H */
 

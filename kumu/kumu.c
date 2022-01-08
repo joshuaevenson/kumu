@@ -1800,7 +1800,7 @@ static bool ku_classinvoke(kuvm *vm, kuclass *klass, kustr *name, int argc) {
   return ku_docall(vm, AS_CLOSURE(method), argc);
 }
 
-static bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
+bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
   kuval receiver = ku_peek(vm, argc);
   *native = false;
   if (IS_CCLASS(receiver)) {
