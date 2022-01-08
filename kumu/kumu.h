@@ -23,8 +23,8 @@
 // + printf take format string
 // + format handle %d, %g, and %x
 // + string.format() return string too long
+// + REPL .gc command
 //
-// ? REPL leak between executions
 // ? dynamic stack size alloc next to vm
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)
@@ -33,7 +33,6 @@
 // ? profiler and code coverage
 // ? chunk file association
 // ? .dasm [<func>] command
-// ? .gc command
 // ? .save [file]
 // ? .load [file] command
 // ? .import [file] command

@@ -237,6 +237,10 @@ static void ku_repl(kuvm *vm) {
       continue;
     }
     
+    if (strcmp(b, ".gc") == 0) {
+      ku_gc(vm);
+      continue;;
+    }
     ku_replexec(vm, b, under);
     ku_saveline(vm, b);
     ku_freeline(vm, b);
