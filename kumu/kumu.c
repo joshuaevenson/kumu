@@ -2884,6 +2884,8 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
     return NUM_VAL(cos(x));
   } else if (M3(m, "tan")) {
     return NUM_VAL(tan(x));
+  } else if (strcmp(m->chars, "sqrt")==0) {
+    return NUM_VAL(sqrt(x));
   }
   return NIL_VAL;
 }
