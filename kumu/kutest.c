@@ -708,6 +708,7 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
+  vm->flags = 0;
   res = ku_exec(vm, "var x = 0; for(; x < 10; x=x+1) printf(x);");
   EXPECT_INT(vm, res, KVM_OK, "for no init");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(10), "for no init");
