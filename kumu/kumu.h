@@ -1,54 +1,7 @@
 // ********************** kumu **********************
 // basic (hawaiian): small, fast, portable, familiar
+// See https://github.com/velentir/kumu/tree/main
 
-// ********************** change log **********************
-// + arrow function expressions: arg => expr, arg => { ... }
-// + arrow function blocks: { a, b => exp }, { a, b => { ... } }
-// + break, continue support
-// + remove print statement
-// + bug fix native call no frame adjustment
-// + native call error handling
-// + string (\n\r\t), number 0x, number _._e_
-// + native classe support
-// + math: sin(), cos(), tan(), pi
-// + repl USE_READLINE
-// + strings: s.count, string.format(fmt,...)
-// + intern "count" string for speed
-// + arrays: x=[1,2,3]; y=arr.count; v=arr[1]; arr[2]=v;
-// + arr.arrays: map(e => k), arr.reduce(v0, { v,e => n });
-// + REPL print array
-// + VC++ build warnings
-// + tables: t=table(); t.key=val; v=t.key; t.iter({k,v => ...});
-// + stack balance on native calls
-// + printf take format string
-// + format handle %d, %g, and %x
-// + string.format() return string too long
-// + REPL .gc command
-//
-// ? move kumu to Velentir GitHub repo
-// ? re-sync and build on macOS and Windows
-// ? kunvgbase ObjC project + replica of nanovg and nanovg-metal
-// ? build and run kunv.c on Windows / Flight Simulator
-// ? add kufs2020.c for Flight Sim 2020 APIs
-// ? demo.c to kunvg images, gradients, and all APIs
-// ? kutouch.c for touch and mouse handlers
-// ? Sigma Mk5 with nanovg and kumu programming
-
-// ? dynamic stack size alloc next to vm
-// ? sqlite() native class
-// ? transient tasks (suspend, resume)
-// ? persistent tasks (save, load)
-// ? debugger line mode, instruction mode
-// ? profiler and code coverage
-// ? chunk file association
-// ? .dasm [<func>] command
-// ? .save [file]
-// ? .load [file] command
-// ? .import [file] command
-// ? .help command
-// ? .list [file][:line[,line]] command
-// ? .break command
-// ? .clear command
 
 #ifndef KUMU_H
 #define KUMU_H
