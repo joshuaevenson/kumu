@@ -2857,7 +2857,7 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
     }
     return NIL_VAL;
   }
-  // test
+  
   int needed;
   char *str = format_core(vm, argc, argv, &needed);
   if (!str) {
