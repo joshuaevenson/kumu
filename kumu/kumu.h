@@ -6,6 +6,10 @@
 #ifndef KUMU_H
 #define KUMU_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ********************** macros **********************
 #define KVM_MAJOR          0
 #define KVM_MINOR          85
@@ -606,6 +610,10 @@ void ku_or(kuvm *vm, bool lhs);
 void ku_block(kuvm *vm, kuloop *loop);
 void ku_err(kuvm *vm, const char *fmt, ...);
 bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KUMU_H */
 
