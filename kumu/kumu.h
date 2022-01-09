@@ -55,7 +55,7 @@
 
 // ********************** macros **********************
 #define KVM_MAJOR          0
-#define KVM_MINOR          8
+#define KVM_MINOR          85
 
 #define NAN_BOX
 //#define TRACE_ENABLED
