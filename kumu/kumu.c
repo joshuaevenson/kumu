@@ -2864,7 +2864,7 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
     return NIL_VAL;
   }
   ku_printf(vm, str);
-  ku_alloc(vm, str, needed+1, 0);
+  ku_alloc(vm, str, (size_t)needed+1, 0);
   return NIL_VAL;
 }
 
