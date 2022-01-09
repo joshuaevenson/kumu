@@ -2886,6 +2886,10 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
     return NUM_VAL(tan(x));
   } else if (strcmp(m->chars, "sqrt")==0) {
     return NUM_VAL(sqrt(x));
+  } else if (strcmp(m->chars, "imod")==0 && argc == 2) {
+    int a = (int)AS_NUM(argv[0]);
+    int b = (int)AS_NUM(argv[1]);
+    return NUM_VAL(a % b);
   }
   return NIL_VAL;
 }
