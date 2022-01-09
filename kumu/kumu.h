@@ -25,6 +25,15 @@
 // + string.format() return string too long
 // + REPL .gc command
 //
+// ? move kumu to Velentir GitHub repo
+// ? re-sync and build on macOS and Windows
+// ? kunvgbase ObjC project + replica of nanovg and nanovg-metal
+// ? build and run kunv.c on Windows / Flight Simulator
+// ? add kufs2020.c for Flight Sim 2020 APIs
+// ? demo.c to kunvg images, gradients, and all APIs
+// ? kutouch.c for touch and mouse handlers
+// ? Sigma Mk5 with nanovg and kumu programming
+
 // ? dynamic stack size alloc next to vm
 // ? sqlite() native class
 // ? transient tasks (suspend, resume)

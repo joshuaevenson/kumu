@@ -1684,6 +1684,12 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_OK, "table iter num res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.imod(9,5);");
+  EXPECT_INT(vm, res, KVM_OK, "imod res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(4), "imod ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
