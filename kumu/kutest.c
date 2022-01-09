@@ -1381,7 +1381,7 @@ void ku_test() {
 
   vm = kut_new(true);
   res = ku_exec(vm, "var x=string.format(\"hello%\",12);");
-  EXPECT_STR(vm, ku_get_global(vm, "x"), "hello%", "string.format trailing %");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format trailing %");
   kut_free(vm);
 
   vm = kut_new(true);

@@ -2804,43 +2804,37 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
     }
   }
     
-  char *chars = ku_alloc(vm, NULL, 0, needed+1);
+  char *chars = ku_alloc(vm, NULL, 0, (size_t)needed+1);
   
   iarg = 0;
   char *d = chars;
   
   for (char *p = (char*)fmt; *p; p++) {
-    if (*p == '%' && *(p+1) == 'd') {
-      sprintf(d, "%d", (int)AS_NUM(argv[++iarg]));
-      d = strchr(d, 0);
-      p++;
-    } else if (*p == '%' && *(p+1) == 'x') {
-      sprintf(d, "%x", (int)AS_NUM(argv[++iarg]));
-      d = strchr(d, 0);
-      p++;
-    } else if (*p == '%' && *(p+1) == 'g') {
-      sprintf(d, "%g", AS_NUM(argv[++iarg]));
-      d = strchr(d, 0);
-      p++;
-    } else if (*p == '%' && *(p+1) == 's') {
-      ++iarg;
-      sprintf(d, "%s", AS_STR(argv[iarg])->chars);
-      d += AS_STR(argv[iarg])->len;
-      p++;
-    } else if (*p == '%' && *(p+1) == 'b') {
-      ++iarg;
-      if (AS_BOOL(argv[iarg])) {
-        sprintf(d, "%s", "true");
-        d += 4;
-      } else {
-        sprintf(d, "%s", "false");
-        d += 5;
-      }
-      p++;
-    } else {
+    if (*p != '%') {
       *d++ = *p;
+      continue;
     }
-    *(d+1) = 0;
+
+    char esc = p[1];
+    kuval arg = argv[++iarg];
+    if (esc == 'd') {
+      sprintf(d, "%d", (int)AS_NUM(arg));
+    } else if (esc == 'x') {
+      sprintf(d, "%x", (int)AS_NUM(arg));
+    } else if (esc == 'g') {
+      sprintf(d, "%g", AS_NUM(arg));
+    } else if (esc == 's') {
+      strcpy(d, AS_STR(arg)->chars);
+    } else if (esc == 'b')  {
+      if (AS_BOOL(arg)) strcpy(d, "true");
+      else strcpy(d, "false");
+    } else {
+      ku_alloc(vm, chars, (size_t)needed + 1, 0);
+      ku_err(vm, "unexpected format escape %c", esc);
+      return NULL;
+    }
+    d = d + strlen(d);
+    p++;
   }
   *d = '\0';
   
@@ -2866,6 +2860,9 @@ static kuval ku_print(kuvm *vm, int argc, kuval *argv) {
   
   int needed;
   char *str = format_core(vm, argc, argv, &needed);
+  if (!str) {
+    return NIL_VAL;
+  }
   ku_printf(vm, str);
   ku_alloc(vm, str, needed+1, 0);
   return NIL_VAL;
