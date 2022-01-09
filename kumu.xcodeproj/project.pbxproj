@@ -43,6 +43,20 @@
 /* Begin PBXFileReference section */
 		82195CAD278103DA000DC1DD /* kumu */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = kumu; sourceTree = BUILT_PRODUCTS_DIR; };
 		82195CAF278103E8000DC1DD /* libreadline.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libreadline.tbd; path = usr/lib/libreadline.tbd; sourceTree = SDKROOT; };
+		826DC6A7278B75CE006EF87A /* nanovg.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = nanovg.c; sourceTree = "<group>"; };
+		826DC6A8278B75CE006EF87A /* stb_image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = stb_image.h; sourceTree = "<group>"; };
+		826DC6A9278B75CE006EF87A /* nanovg.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nanovg.h; sourceTree = "<group>"; };
+		826DC6AA278B75CE006EF87A /* nanovg_gl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nanovg_gl.h; sourceTree = "<group>"; };
+		826DC6AB278B75CE006EF87A /* fontstash.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fontstash.h; sourceTree = "<group>"; };
+		826DC6AC278B75CE006EF87A /* stb_truetype.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = stb_truetype.h; sourceTree = "<group>"; };
+		826DC6AD278B75CE006EF87A /* nanovg_gl_utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nanovg_gl_utils.h; sourceTree = "<group>"; };
+		826DC6AF278B761C006EF87A /* nanovg_mtl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nanovg_mtl.h; sourceTree = "<group>"; };
+		826DC6B0278B761C006EF87A /* nanovg_mtl_shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = nanovg_mtl_shaders.metal; sourceTree = "<group>"; };
+		826DC6B1278B761C006EF87A /* mnvg_bitcode */ = {isa = PBXFileReference; lastKnownFileType = folder; path = mnvg_bitcode; sourceTree = "<group>"; };
+		826DC6B2278B761C006EF87A /* nanovg_mtl.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = nanovg_mtl.m; sourceTree = "<group>"; };
+		826DC6B4278B7656006EF87A /* kunvg.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kunvg.c; sourceTree = "<group>"; };
+		826DC6B5278B7656006EF87A /* kunvg.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kunvg.h; sourceTree = "<group>"; };
+		826DC6B6278B7656006EF87A /* Roboto-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Roboto-Regular.ttf"; sourceTree = "<group>"; };
 		82E8AB81275FC069003A7A54 /* kutest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kutest.h; sourceTree = "<group>"; };
 		82E8AB82275FC069003A7A54 /* kutest.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = kutest.c; sourceTree = "<group>"; };
 		82E8AB85275FCA23003A7A54 /* kumain.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kumain.h; sourceTree = "<group>"; };
@@ -89,6 +103,59 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		826DC6A4278B753F006EF87A /* lib */ = {
+			isa = PBXGroup;
+			children = (
+				826DC6B3278B7649006EF87A /* kunvg */,
+				826DC6A5278B7545006EF87A /* ext */,
+			);
+			path = lib;
+			sourceTree = "<group>";
+		};
+		826DC6A5278B7545006EF87A /* ext */ = {
+			isa = PBXGroup;
+			children = (
+				826DC6AE278B7602006EF87A /* nvg_metal */,
+				826DC6A6278B75B7006EF87A /* nanovg */,
+			);
+			path = ext;
+			sourceTree = "<group>";
+		};
+		826DC6A6278B75B7006EF87A /* nanovg */ = {
+			isa = PBXGroup;
+			children = (
+				826DC6AB278B75CE006EF87A /* fontstash.h */,
+				826DC6AD278B75CE006EF87A /* nanovg_gl_utils.h */,
+				826DC6AA278B75CE006EF87A /* nanovg_gl.h */,
+				826DC6A7278B75CE006EF87A /* nanovg.c */,
+				826DC6A9278B75CE006EF87A /* nanovg.h */,
+				826DC6A8278B75CE006EF87A /* stb_image.h */,
+				826DC6AC278B75CE006EF87A /* stb_truetype.h */,
+			);
+			path = nanovg;
+			sourceTree = "<group>";
+		};
+		826DC6AE278B7602006EF87A /* nvg_metal */ = {
+			isa = PBXGroup;
+			children = (
+				826DC6B1278B761C006EF87A /* mnvg_bitcode */,
+				826DC6B0278B761C006EF87A /* nanovg_mtl_shaders.metal */,
+				826DC6AF278B761C006EF87A /* nanovg_mtl.h */,
+				826DC6B2278B761C006EF87A /* nanovg_mtl.m */,
+			);
+			path = nvg_metal;
+			sourceTree = "<group>";
+		};
+		826DC6B3278B7649006EF87A /* kunvg */ = {
+			isa = PBXGroup;
+			children = (
+				826DC6B4278B7656006EF87A /* kunvg.c */,
+				826DC6B5278B7656006EF87A /* kunvg.h */,
+				826DC6B6278B7656006EF87A /* Roboto-Regular.ttf */,
+			);
+			path = kunvg;
+			sourceTree = "<group>";
+		};
 		82EE3AE5274EE08100D6B09E = {
 			isa = PBXGroup;
 			children = (
@@ -112,6 +179,7 @@
 		82EE3AF0274EE08100D6B09E /* kumu */ = {
 			isa = PBXGroup;
 			children = (
+				826DC6A4278B753F006EF87A /* lib */,
 				82EE3AF1274EE08100D6B09E /* main.c */,
 				82EE3AF8274EE0B600D6B09E /* kumu.h */,
 				82EE3AF9274EE0B600D6B09E /* kumu.c */,
