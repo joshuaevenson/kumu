@@ -2654,6 +2654,11 @@ static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
   int cap = 0;
   if (argc > 0 && IS_NUM(argv[0])) {
     cap = (int)AS_NUM(argv[0]);
+    kuaobj *ao = ku_arrnew(vm, cap);
+    for (int i = 0; i < cap; i++) {
+      ku_arrset(vm, ao, i, NIL_VAL);
+    }
+    return OBJ_VAL(ao);
   }
   return OBJ_VAL(ku_arrnew(vm, cap));
 }
@@ -2887,6 +2892,8 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
     int a = (int)AS_NUM(argv[0]);
     int b = (int)AS_NUM(argv[1]);
     return NUM_VAL(a % b);
+  } else if (M3(m, "pow") && argc == 2) {
+    return NUM_VAL(pow(x,AS_NUM(argv[1])));
   }
   return NIL_VAL;
 }

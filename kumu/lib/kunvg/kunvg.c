@@ -9,7 +9,57 @@
 
 NVGcontext *nvgContextFor(const char *key, kunvobj *target);
 
+static inline NVGcolor NVGColorFromInt(uint64_t rgba) {
+  uint64_t r = (rgba >> 24) & 0xff;
+  uint64_t g = (rgba >> 16) & 0xff;
+  uint64_t b = (rgba >> 8) & 0xff;
+  uint64_t a = rgba & 0xff;
+  return nvgRGBA(r, g, b, a);
+}
 
+static uint64_t NVGcolorToInt(NVGcolor color) {
+  uint64_t r = 255.0 * color.r;
+  uint64_t g = 255.0 * color.g;
+  uint64_t b = 255.0 * color.b;
+  uint64_t a = 255.0 * color.a;
+  uint64_t rgba = r << 24 | g << 16 | b << 8 | a;
+  return rgba;
+}
+
+static void NVGpaintToArray(kuvm *vm, NVGpaint *p, kuaobj *arr) {
+  ku_arrset(vm, arr, 0, NUM_VAL(p->xform[0]));
+  ku_arrset(vm, arr, 1, NUM_VAL(p->xform[1]));
+  ku_arrset(vm, arr, 2, NUM_VAL(p->xform[2]));
+  ku_arrset(vm, arr, 3, NUM_VAL(p->xform[3]));
+  ku_arrset(vm, arr, 4, NUM_VAL(p->xform[4]));
+  ku_arrset(vm, arr, 5, NUM_VAL(p->xform[5]));
+  ku_arrset(vm, arr, 6, NUM_VAL(p->extent[0]));
+  ku_arrset(vm, arr, 7, NUM_VAL(p->extent[1]));
+  ku_arrset(vm, arr, 8, NUM_VAL(p->radius));
+  ku_arrset(vm, arr, 9, NUM_VAL(p->feather));
+  ku_arrset(vm, arr, 10, NUM_VAL(NVGcolorToInt(p->innerColor)));
+  ku_arrset(vm, arr, 11, NUM_VAL(NVGcolorToInt(p->outerColor)));
+  ku_arrset(vm, arr, 12, NUM_VAL(p->image));
+}
+
+static void NVGpaintFromArray(kuvm *vm, NVGpaint *p, kuaobj *arr) {
+  p->xform[0] = AS_NUM(ku_arrget(vm, arr, 0));
+  p->xform[1] = AS_NUM(ku_arrget(vm, arr, 1));
+  p->xform[2] = AS_NUM(ku_arrget(vm, arr, 2));
+  p->xform[3] = AS_NUM(ku_arrget(vm, arr, 3));
+  p->xform[4] = AS_NUM(ku_arrget(vm, arr, 4));
+  p->xform[5] = AS_NUM(ku_arrget(vm, arr, 5));
+  
+  p->extent[0] = AS_NUM(ku_arrget(vm, arr, 6));
+  p->extent[1] = AS_NUM(ku_arrget(vm, arr, 7));
+
+  p->radius = AS_NUM(ku_arrget(vm, arr, 8));
+  p->feather = AS_NUM(ku_arrget(vm, arr, 9));
+  
+  p->innerColor = NVGColorFromInt(AS_NUM(ku_arrget(vm, arr, 10)));
+  p->outerColor = NVGColorFromInt(AS_NUM(ku_arrget(vm, arr, 11)));
+  p->image = (int)AS_NUM(ku_arrget(vm, arr, 12));
+}
 kuval nanovg_cons(kuvm *vm, int argc, kuval *argv) {
   if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_STR(argv[1])) {
     ku_err(vm, "expected nanovg(object, key)");
@@ -31,13 +81,8 @@ static inline uint64_t nanovg_args2intcolor(kuval *argv) {
   return rgba;
 }
 
-static inline NVGcolor nanovg_int2vgcolor(uint64_t rgba) {
-  uint64_t r = (rgba >> 24) & 0xff;
-  uint64_t g = (rgba >> 16) & 0xff;
-  uint64_t b = (rgba >> 8) & 0xff;
-  uint64_t a = rgba & 0xff;
-  return nvgRGBA(r, g, b, a);
-}
+
+#define AN(i) AS_NUM(argv[i])
 
 kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
   kunvobj *no = (kunvobj*)o;
@@ -58,7 +103,7 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     double h = AS_NUM(argv[3]);
     nvgRect(no->ctx, x, y, w, h);
   } else if (strcmp(m->chars, "fillColor") == 0 && argc == 1) {
-    nvgFillColor(no->ctx, nanovg_int2vgcolor((uint64_t)AS_NUM(argv[0])));
+    nvgFillColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(argv[0])));
   } else if (strcmp(m->chars, "rgba") == 0 && argc == 4) {
     return NUM_VAL(nanovg_args2intcolor(argv));
   } else if (strcmp(m->chars, "fill") == 0) {
@@ -70,7 +115,7 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
   } else if (strcmp(m->chars, "resetTransform") == 0 && argc == 0) {
     nvgResetTransform(no->ctx);
   } else if (strcmp(m->chars, "strokeColor") == 0 && argc == 1) {
-    nvgStrokeColor(no->ctx, nanovg_int2vgcolor((uint64_t)AS_NUM(argv[0])));
+    nvgStrokeColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(argv[0])));
   } else if (strcmp(m->chars, "strokeWidth") == 0 && argc == 1) {
     nvgStrokeWidth(no->ctx, AS_NUM(argv[0]));
   } else if (strcmp(m->chars, "moveTo") == 0 && argc == 2) {
@@ -124,6 +169,24 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     nvgEllipse(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]), AS_NUM(argv[2]), AS_NUM(argv[3]));
   }  else if (strcmp(m->chars, "scale") == 0 && argc == 2) {
     nvgScale(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]));
+  } else if (strcmp(m->chars, "linearGradient") == 0 && argc == 7 && IS_ARRAY(argv[6])) {
+    double sx = AN(0), sy = AN(1), ex = AN(2), ey = AN(3);
+    NVGcolor icolor = NVGColorFromInt((uint64_t)AN(4));
+    NVGcolor ocolor = NVGColorFromInt((uint64_t)AN(5));    
+    kuaobj *arr = AS_ARRAY(argv[6]);
+    NVGpaint p = nvgLinearGradient(no->ctx, sx, sy, ex, ey, icolor, ocolor);
+    NVGpaintToArray(vm, &p, arr);
+  } else if (strcmp(m->chars, "fillPaint") == 0 && argc == 1 && IS_ARRAY(argv[0])) {
+    NVGpaint paint;
+    NVGpaintFromArray(vm, &paint, AS_ARRAY(argv[0]));
+    nvgFillPaint(no->ctx, paint);
+  } else if (strcmp(m->chars, "radialGradient") == 0 && argc == 7 && IS_ARRAY(argv[6])) {
+    double cx = AN(0), cy = AN(1), inr = AN(2), outr = AN(3);
+    NVGcolor icol = NVGColorFromInt((uint64_t)AN(4));
+    NVGcolor ocol = NVGColorFromInt((uint64_t)AN(5));
+    kuaobj *arr = AS_ARRAY(argv[6]);
+    NVGpaint p = nvgRadialGradient(no->ctx, cx, cy, inr, outr, icol, ocol);
+    NVGpaintToArray(vm, &p, arr);
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
