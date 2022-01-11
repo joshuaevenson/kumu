@@ -1690,6 +1690,18 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(4), "imod ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.sqrt(4);");
+  EXPECT_INT(vm, res, KVM_OK, "sqrt res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2), "sqrt ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.pow(3,2);");
+  EXPECT_INT(vm, res, KVM_OK, "pow res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "pow ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
