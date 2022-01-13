@@ -187,6 +187,19 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     kuaobj *arr = AS_ARRAY(argv[6]);
     NVGpaint p = nvgRadialGradient(no->ctx, cx, cy, inr, outr, icol, ocol);
     NVGpaintToArray(vm, &p, arr);
+  } else if (strcmp(m->chars, "save") == 0) {
+    nvgSave(no->ctx);
+  } else if (strcmp(m->chars, "fontFace") == 0 && argc == 1 && IS_STR(argv[0])) {
+    nvgFontFace(no->ctx, AS_STR(argv[0])->chars);
+  } else if (strcmp(m->chars, "textMetrics") == 0 && argc == 0) {
+    float asc, desc, lineh;
+    nvgTextMetrics(no->ctx, &asc, &desc, &lineh);
+    kuval tab = table_cons(vm, 0, NULL);
+    kuobj *o = AS_OBJ(tab);
+    table_iput(vm, o, ku_strfrom(vm, "ascender", 8), NUM_VAL(asc));
+    table_iput(vm, o, ku_strfrom(vm, "descender", 9), NUM_VAL(desc));
+    table_iput(vm, o, ku_strfrom(vm, "lineh", 5), NUM_VAL(lineh));
+    return tab;
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);

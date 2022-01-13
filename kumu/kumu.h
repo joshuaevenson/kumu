@@ -398,6 +398,15 @@ kuaobj *ku_arrnew(kuvm* vm, int capacity);
 void ku_arrset(kuvm* vm, kuaobj* array, int index, kuval value);
 kuval ku_arrget(kuvm* vm, kuaobj* array, int index);
 
+// ********************** table objects **********************
+typedef struct {
+  kunobj base;
+  kutab data;
+} kutobj;
+kuval table_cons(kuvm *vm, int argc, kuval *argv);
+kuval table_iget(kuvm *vm, kuobj *o, kustr *p);
+kuval table_iput(kuvm *vm, kuobj *o, kustr *p, kuval v);
+
 // ********************** bound methods **********************
 typedef struct {
   kuobj obj;

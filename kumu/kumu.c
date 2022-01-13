@@ -2931,11 +2931,6 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
 
 
 // ********************** table **********************
-typedef struct {
-  kunobj base;
-  kutab data;
-} kutobj;
-
 kuval table_cons(kuvm *vm, int argc, kuval *argv) {
   kutobj *to = (kutobj*)ku_objalloc(vm, sizeof(kutobj), OBJ_CINST);
   ku_tabinit(vm, &to->data);
