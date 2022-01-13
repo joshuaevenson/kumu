@@ -406,6 +406,7 @@ typedef struct {
 kuval table_cons(kuvm *vm, int argc, kuval *argv);
 kuval table_iget(kuvm *vm, kuobj *o, kustr *p);
 kuval table_iput(kuvm *vm, kuobj *o, kustr *p, kuval v);
+kuval table_new(kuvm *vm);
 
 // ********************** bound methods **********************
 typedef struct {

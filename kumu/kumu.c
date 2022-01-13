@@ -2937,6 +2937,23 @@ kuval table_cons(kuvm *vm, int argc, kuval *argv) {
   return OBJ_VAL(to);
 }
 
+kuval table_new(kuvm *vm) {
+  kuval tcv;
+  if (!ku_tabget(vm, &vm->globals, ku_strfrom(vm, "table", 5), &tcv)) {
+    return NIL_VAL;
+  }
+  
+  if (!IS_CCLASS(tcv)) {
+    return NIL_VAL;
+  }
+  
+  kucclass *tcc = AS_CCLASS(tcv);
+  kuval tab = table_cons(vm, 0, NULL);
+  kutobj *to = (kutobj*)AS_OBJ(tab);
+  to->base.klass = tcc;
+  return tab;
+}
+
 kuval table_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
   if (M3(m, "get") && argc > 0 && IS_STR(argv[0])) {
     kutobj *to = (kutobj*)o;

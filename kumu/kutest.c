@@ -1735,6 +1735,11 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "bit and invalid res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  v = table_new(vm);
+  EXPECT_TRUE(vm, AS_CINST(v)->klass->iget == table_iget, "table new");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

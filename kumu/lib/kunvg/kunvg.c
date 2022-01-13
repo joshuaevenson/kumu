@@ -163,6 +163,13 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     nvgFontSize(no->ctx, AS_NUM(argv[0]));
   } else if (strcmp(m->chars, "text") == 0 && argc == 3) {
     nvgText(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]), AS_STR(argv[2])->chars, NULL);
+  } else if (strcmp(m->chars, "text") == 0 && argc == 5) {
+    double x = AS_NUM(argv[0]);
+    double y = AS_NUM(argv[1]);
+    const char *text = AS_STR(argv[2])->chars;
+    int start = (int)AS_NUM(argv[3]);
+    int end = (int)AS_NUM(argv[4]);
+    nvgText(no->ctx, x, y, text + start, text + end);
   } else if (strcmp(m->chars, "closePath") == 0 && argc == 0) {
     nvgClosePath(no->ctx);
   } else if (strcmp(m->chars, "ellipse") == 0 && argc == 4) {
@@ -194,12 +201,35 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
   } else if (strcmp(m->chars, "textMetrics") == 0 && argc == 0) {
     float asc, desc, lineh;
     nvgTextMetrics(no->ctx, &asc, &desc, &lineh);
-    kuval tab = table_cons(vm, 0, NULL);
+    kuval tab = table_new(vm);
     kuobj *o = AS_OBJ(tab);
     table_iput(vm, o, ku_strfrom(vm, "ascender", 8), NUM_VAL(asc));
     table_iput(vm, o, ku_strfrom(vm, "descender", 9), NUM_VAL(desc));
     table_iput(vm, o, ku_strfrom(vm, "lineh", 5), NUM_VAL(lineh));
     return tab;
+  } else if (strcmp(m->chars, "textBreakLines") == 0 && argc == 5) {
+    const char *text = AS_STR(argv[0])->chars;
+    int start = (int)AS_NUM(argv[1]);
+    int end = (int)AS_NUM(argv[2]);
+    float breakRowWidth = (float)AS_NUM(argv[3]);
+    kuaobj *rows = AS_ARRAY(argv[4]);
+    int maxRows = rows->elements.count;
+    NVGtextRow *trows = (NVGtextRow*)malloc(maxRows * sizeof(NVGtextRow));
+    int nrows = nvgTextBreakLines(no->ctx, text + start, text + end, breakRowWidth, trows, maxRows);
+    for (int r = 0; r < nrows; r++) {
+      NVGtextRow *tr = &trows[r];
+      kuval tab = table_new(vm);
+      kuobj *o = AS_OBJ(tab);
+      table_iput(vm, o, ku_strfrom(vm, "start", 5), NUM_VAL(tr->start - text));
+      table_iput(vm, o, ku_strfrom(vm, "end", 3), NUM_VAL(tr->end - text));
+      table_iput(vm, o, ku_strfrom(vm, "next", 4), NUM_VAL(tr->next - text));
+      table_iput(vm, o, ku_strfrom(vm, "width", 5), NUM_VAL(tr->width));
+      table_iput(vm, o, ku_strfrom(vm, "minx", 4), NUM_VAL(tr->minx));
+      table_iput(vm, o, ku_strfrom(vm, "maxx", 4), NUM_VAL(tr->maxx));
+      ku_arrset(vm, rows, r, tab);
+    }
+    free(trows);
+    return NUM_VAL(nrows);
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
