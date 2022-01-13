@@ -9,6 +9,33 @@
 
 NVGcontext *nvgContextFor(const char *key, kunvobj *target);
 
+static kuval NVGTextOrBoxBounds(kuvm *vm, NVGcontext *ctx, int argc, kuval *argv, bool box) {
+  double x = AS_NUM(argv[0]);
+  double y = AS_NUM(argv[1]);
+  int adj = (box) ? 1 : 0;
+  double breakRowWidth = (box) ? AS_NUM(argv[2]) : 0;
+  
+  const char *text = AS_STR(argv[2 + adj])->chars;
+  int istart = (int)AS_NUM(argv[3 + adj]);
+  int iend = (int)AS_NUM(argv[4 + adj]);
+  kuaobj *ao = AS_ARRAY(argv[5 + adj]);
+  const char *start = text + istart;
+  const char *end = text + iend;
+  float bounds[4];
+  float ret = NIL_VAL;
+  
+  if (box) {
+    nvgTextBoxBounds(ctx, x, y, breakRowWidth, start, (iend >= 0) ? end : NULL, bounds);
+  }
+  else {
+    ret = nvgTextBounds(ctx, x, y, start, (iend >= 0) ? end: NULL, bounds);
+  }
+  for (int i = 0; i < 4; i++) {
+    ku_arrset(vm, ao, i, NUM_VAL(bounds[i]));
+  }
+  return NUM_VAL(ret);
+}
+
 static inline NVGcolor NVGColorFromInt(uint64_t rgba) {
   uint64_t r = (rgba >> 24) & 0xff;
   uint64_t g = (rgba >> 16) & 0xff;
@@ -230,6 +257,33 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     }
     free(trows);
     return NUM_VAL(nrows);
+  } else if (strcmp(m->chars, "textBounds") == 0 && argc == 6) {
+    return NVGTextOrBoxBounds(vm, no->ctx, argc, argv, false);
+  } else if (strcmp(m->chars, "textLineHeight") == 0 && argc == 1) {
+    nvgTextLineHeight(no->ctx, AS_NUM(argv[0]));
+  } else if (strcmp(m->chars, "textBoxBounds") == 0 && argc == 7) {
+    return NVGTextOrBoxBounds(vm, no->ctx, argc, argv, true);
+  } else if (strcmp(m->chars, "globalAlpha") == 0 && argc == 1) {
+    nvgGlobalAlpha(no->ctx, AS_NUM(argv[0]));
+  } else if (strcmp(m->chars, "roundedRect") == 0 && argc == 5) {
+    double x = AS_NUM(argv[0]);
+    double y = AS_NUM(argv[1]);
+    double w = AS_NUM(argv[2]);
+    double h = AS_NUM(argv[3]);
+    double r = AS_NUM(argv[4]);
+    nvgRoundedRect(no->ctx, x, y, w, h, r);
+  } else if (strcmp(m->chars, "textBox") == 0) {
+    double x = AS_NUM(argv[0]);
+    double y = AS_NUM(argv[1]);
+    double breakRowWidth = AS_NUM(argv[2]);
+    const char *text = AS_STR(argv[3])->chars;
+    int istart = (int)AS_NUM(argv[4]);
+    int iend = (int)AS_NUM(argv[5]);
+    const char *start = text + istart;
+    const char *end = text + iend;
+    nvgTextBox(no->ctx, x, y, breakRowWidth, start, (iend >= 0) ? end : NULL);
+  } else if (strcmp(m->chars, "restore") == 0 && argc == 0) {
+    nvgRestore(no->ctx);
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
