@@ -1713,6 +1713,28 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "int(bool) ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 0xf7f1 | 0x9854;");
+  EXPECT_INT(vm, res, KVM_OK, "bit or res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(65525), "bit or ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 0xf7f1 & 0x9854;");
+  EXPECT_INT(vm, res, KVM_OK, "bit and res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(36944), "bit and ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 0xf7f1 | true;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "bit or invalid res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 0xf7f1 & true;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "bit and invalid res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

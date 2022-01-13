@@ -263,6 +263,8 @@ typedef enum {
   OP_SUB,
   OP_SUPER_INVOKE,
   OP_TRUE,
+  OP_BAND,
+  OP_BOR,
 } k_op;
 
 // ********************** code chunks **********************
@@ -410,7 +412,7 @@ typedef enum {
   // Single-character tokens.
   TOK_LPAR, TOK_RPAR, TOK_LBRACE, TOK_RBRACE, TOK_COMMA,
   TOK_DOT, TOK_MINUS, TOK_PLUS, TOK_SEMI, TOK_SLASH, TOK_STAR,
-  TOK_LBRACKET, TOK_RBRACKET,
+  TOK_LBRACKET, TOK_RBRACKET, TOK_AMP, TOK_PIPE,
   // One or two character tokens.
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
   TOK_LE, TOK_ARROW,

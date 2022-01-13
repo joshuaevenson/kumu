@@ -601,6 +601,8 @@ kutok ku_scan(kuvm *vm) {
     case '+': return ku_tokmake(vm, TOK_PLUS);
     case '-': return ku_tokmake(vm, TOK_MINUS);
     case '*': return ku_tokmake(vm, TOK_STAR);
+    case '&': return ku_tokmake(vm, TOK_AMP);
+    case '|': return ku_tokmake(vm, TOK_PIPE);
     case '/':
       return ku_tokmake(vm, TOK_SLASH);
     case '!':
@@ -739,6 +741,7 @@ typedef enum {
   P_COMP,       // < > <= >=
   P_TERM,       // + -
   P_FACTOR,     // * /
+  P_BIT,        // & |
   P_UNARY,      // ! -
   P_CALL,       // . ()
   P_PRIMARY
@@ -1309,6 +1312,8 @@ static void ku_bin(kuvm *vm, bool lhs) {
   ku_prec(vm, (kup_precedence)(rule->precedence + 1));
   
   switch (optype) {
+    case TOK_AMP: ku_emitbyte(vm, OP_BAND); break;
+    case TOK_PIPE: ku_emitbyte(vm, OP_BOR); break;
     case TOK_PLUS: ku_emitbyte(vm, OP_ADD); break;
     case TOK_MINUS: ku_emitbyte(vm, OP_SUB); break;
     case TOK_STAR: ku_emitbyte(vm, OP_MUL); break;
@@ -1523,6 +1528,8 @@ kuprule ku_rules[] = {
   [TOK_WHILE] =       { NULL,        NULL,     P_NONE },
   [TOK_ERR] =         { NULL,        NULL,     P_NONE },
   [TOK_EOF] =         { NULL,        NULL,     P_NONE },
+  [TOK_AMP] =         { NULL,        ku_bin,   P_BIT },
+  [TOK_PIPE] =        { NULL,        ku_bin,   P_BIT },
 };
 
 static kuprule *ku_getrule(kuvm *vm, kutok_t optype) {
@@ -2202,6 +2209,19 @@ kures ku_run(kuvm *vm) {
         }
         break;
       }
+      case OP_BAND:
+      case OP_BOR: {
+        if (IS_NUM(ku_peek(vm, 0)) && IS_NUM(ku_peek(vm, 1))) {
+          int b = (int)AS_NUM(ku_pop(vm));
+          int a = (int)AS_NUM(ku_pop(vm));
+          int c = (op == OP_BAND) ? (a & b) : (a | b);
+          ku_push(vm, NUM_VAL(c));
+        } else {
+          ku_err(vm, "numbers expected");
+          return KVM_ERR_RUNTIME;
+        }
+        break;
+      }
       case OP_SUB: BIN_OP(vm,NUM_VAL, -); break;
       case OP_MUL: BIN_OP(vm,NUM_VAL, *); break;
       case OP_DIV: BIN_OP(vm,NUM_VAL, /); break;
@@ -2418,6 +2438,8 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_RET: return ku_opdis(vm, "OP_RET", offset);
     case OP_NEG: return ku_opdis(vm, "OP_NEG", offset);
     case OP_ADD: return ku_opdis(vm, "OP_ADD", offset);
+    case OP_BAND: return ku_opdis(vm, "OP_BAND", offset);
+    case OP_BOR: return ku_opdis(vm, "OP_BOR", offset);
     case OP_SUB: return ku_opdis(vm, "OP_SUB", offset);
     case OP_MUL: return ku_opdis(vm, "OP_MUL", offset);
     case OP_DIV: return ku_opdis(vm, "OP_DIV", offset);
