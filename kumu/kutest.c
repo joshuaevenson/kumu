@@ -1702,6 +1702,17 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(9), "pow ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = int(3.2);");
+  EXPECT_INT(vm, res, KVM_OK, "int res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "int ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = int(true);");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "int(bool) ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

@@ -2849,6 +2849,15 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
   return chars;
 }
 
+static kuval ku_intf(kuvm *vm, int argc, kuval *argv) {
+  if (argc > 0 && IS_NUM(argv[0])) {
+    double d = AS_NUM(argv[0]);
+    int i = (int)d;
+    return NUM_VAL((double)i);
+  }
+  return NIL_VAL;
+}
+
 
 static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
@@ -3017,6 +3026,7 @@ kuval math_sget(kuvm *vm, kustr *p) {
 
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
+  ku_cfuncdef(vm, "int", ku_intf);
   ku_cfuncdef(vm, "printf", ku_print);
   ku_cfuncdef(vm, "array", ku_arraycons);
   
