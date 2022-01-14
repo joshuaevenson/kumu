@@ -285,6 +285,10 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     kuaobj *arr = AS_ARRAY(args[8]);
     NVGpaint p = nvgBoxGradient(no->ctx, N(0), N(1), N(2), N(3), N(4), N(5), icolor, ocolor);
     NVGpaintToArray(vm, &p, arr);
+  } else if (strcmp(m->chars, "lineCap") == 0 && argc == 1) {
+    nvgLineCap(no->ctx, (int)N(0));
+  } else if (strcmp(m->chars, "lineJoin") == 0 && argc == 1) {
+    nvgLineJoin(no->ctx, (int)N(0));
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
@@ -311,6 +315,16 @@ kuval nanovg_sget(kuvm *vm, kustr *p) {
     return NUM_VAL(NVG_ALIGN_BOTTOM);
   } else if (strcmp(p->chars, "HOLE") == 0) {
     return NUM_VAL(NVG_HOLE);
+  } else if (strcmp(p->chars, "MITER") == 0) {
+    return NUM_VAL(NVG_MITER);
+  } else if (strcmp(p->chars, "ROUND") == 0) {
+    return NUM_VAL(NVG_ROUND);
+  }  else if (strcmp(p->chars, "SQUARE") == 0) {
+    return NUM_VAL(NVG_SQUARE);
+  } else if (strcmp(p->chars, "BEVEL") == 0) {
+    return NUM_VAL(NVG_BEVEL);
+  } else if (strcmp(p->chars, "BUTT") == 0) {
+    return NUM_VAL(NVG_BUTT);
   }
   return NIL_VAL;
 }
