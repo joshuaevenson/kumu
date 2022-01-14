@@ -7,18 +7,38 @@
 
 #include "kunvg.h"
 
+static inline double _N(kuvm *vm, int argc, kuval *args, int index) {
+  if (index >= argc || !IS_NUM(args[index])) {
+    ku_err(vm, "argument invalid or out of bounds");
+    return 0.0;
+  }
+  return AS_NUM(args[index]);
+}
+
+#define N(i) _N(vm, argc, args, i)
+
+static inline const char *_S(kuvm *vm, int argc, kuval *args, int index) {
+  if (index >= argc || !IS_STR(args[index])) {
+    ku_err(vm, "argument invalid or out of bounds");
+    return "";
+  }
+  return AS_STR(args[index])->chars;
+}
+
+#define S(i) _S(vm, argc, args, i)
+
 NVGcontext *nvgContextFor(const char *key, kunvobj *target);
 
-static kuval NVGTextOrBoxBounds(kuvm *vm, NVGcontext *ctx, int argc, kuval *argv, bool box) {
-  double x = AS_NUM(argv[0]);
-  double y = AS_NUM(argv[1]);
+static kuval NVGTextOrBoxBounds(kuvm *vm, NVGcontext *ctx, int argc, kuval *args, bool box) {
+  double x = N(0);
+  double y = N(1);
   int adj = (box) ? 1 : 0;
-  double breakRowWidth = (box) ? AS_NUM(argv[2]) : 0;
+  double breakRowWidth = (box) ? N(2) : 0;
   
-  const char *text = AS_STR(argv[2 + adj])->chars;
-  int istart = (int)AS_NUM(argv[3 + adj]);
-  int iend = (int)AS_NUM(argv[4 + adj]);
-  kuaobj *ao = AS_ARRAY(argv[5 + adj]);
+  const char *text = S(2 + adj);
+  int istart = (int)N(3 + adj);
+  int iend = (int)N(4 + adj);
+  kuaobj *ao = AS_ARRAY(args[5 + adj]);
   const char *start = text + istart;
   const char *end = text + iend;
   float bounds[4];
@@ -87,97 +107,78 @@ static void NVGpaintFromArray(kuvm *vm, NVGpaint *p, kuaobj *arr) {
   p->outerColor = NVGColorFromInt(AS_NUM(ku_arrget(vm, arr, 11)));
   p->image = (int)AS_NUM(ku_arrget(vm, arr, 12));
 }
-kuval nanovg_cons(kuvm *vm, int argc, kuval *argv) {
-  if (argc < 2 || !IS_INSTANCE(argv[0]) || !IS_STR(argv[1])) {
+kuval nanovg_cons(kuvm *vm, int argc, kuval *args) {
+  if (argc < 2 || !IS_INSTANCE(args[0]) || !IS_STR(args[1])) {
     ku_err(vm, "expected nanovg(object, key)");
     return NIL_VAL;
   }
   kunvobj *no = (kunvobj*)ku_objalloc(vm, sizeof(kunvobj), OBJ_CINST);
-  no->target = argv[0];
-  no->ctx = nvgContextFor(AS_STR(argv[1])->chars, no);
+  no->target = args[0];
+  no->ctx = nvgContextFor(AS_STR(args[1])->chars, no);
   no->method = ku_strfrom(vm, "render", 6);
   return OBJ_VAL(no);
 }
 
-static inline uint64_t nanovg_args2intcolor(kuval *argv) {
-  uint64_t r = (uint64_t)AS_NUM(argv[0]);
-  uint64_t g = (uint64_t)AS_NUM(argv[1]);
-  uint64_t b = (uint64_t)AS_NUM(argv[2]);
-  uint64_t a = (uint64_t)AS_NUM(argv[3]);
+static inline uint64_t nanovg_args2intcolor(kuval *args) {
+  uint64_t r = (uint64_t)AS_NUM(args[0]);
+  uint64_t g = (uint64_t)AS_NUM(args[1]);
+  uint64_t b = (uint64_t)AS_NUM(args[2]);
+  uint64_t a = (uint64_t)AS_NUM(args[3]);
   uint64_t rgba = r << 24 | g << 16 | b << 8 | a;
   return rgba;
 }
 
 
-#define AN(i) AS_NUM(argv[i])
 
-kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
+kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
   kunvobj *no = (kunvobj*)o;
   
   if (strcmp(m->chars, "beginFrame") == 0 && argc == 3) {
-    double w = AS_NUM(argv[0]);
-    double h = AS_NUM(argv[1]);
-    double s = AS_NUM(argv[2]);
-    nvgBeginFrame(no->ctx, w, h, s);
+    nvgBeginFrame(no->ctx, N(0), N(1), N(2));
   } else if (strcmp(m->chars, "endFrame") == 0) {
     nvgEndFrame(no->ctx);
   } else if (strcmp(m->chars, "beginPath") == 0) {
     nvgBeginPath(no->ctx);
   } else if (strcmp(m->chars, "rect") == 0 && argc == 4) {
-    double x = AS_NUM(argv[0]);
-    double y = AS_NUM(argv[1]);
-    double w = AS_NUM(argv[2]);
-    double h = AS_NUM(argv[3]);
-    nvgRect(no->ctx, x, y, w, h);
+    nvgRect(no->ctx, N(0), N(1), N(2), N(3));
   } else if (strcmp(m->chars, "fillColor") == 0 && argc == 1) {
-    nvgFillColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(argv[0])));
+    nvgFillColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(args[0])));
   } else if (strcmp(m->chars, "rgba") == 0 && argc == 4) {
-    return NUM_VAL(nanovg_args2intcolor(argv));
+    return NUM_VAL(nanovg_args2intcolor(args));
   } else if (strcmp(m->chars, "fill") == 0) {
     nvgFill(no->ctx);
   } else if (strcmp(m->chars, "translate") == 0 && argc == 2) {
-    nvgTranslate(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]));
+    nvgTranslate(no->ctx, N(0), N(1));
   } else if (strcmp(m->chars, "rotate") == 0 && argc == 1) {
-    nvgRotate(no->ctx, AS_NUM(argv[0]));
+    nvgRotate(no->ctx, N(0));
   } else if (strcmp(m->chars, "resetTransform") == 0 && argc == 0) {
     nvgResetTransform(no->ctx);
   } else if (strcmp(m->chars, "strokeColor") == 0 && argc == 1) {
-    nvgStrokeColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(argv[0])));
+    nvgStrokeColor(no->ctx, NVGColorFromInt((uint64_t)N(0)));
   } else if (strcmp(m->chars, "strokeWidth") == 0 && argc == 1) {
-    nvgStrokeWidth(no->ctx, AS_NUM(argv[0]));
+    nvgStrokeWidth(no->ctx, AS_NUM(args[0]));
   } else if (strcmp(m->chars, "moveTo") == 0 && argc == 2) {
-    nvgMoveTo(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]));
+    nvgMoveTo(no->ctx, N(0), N(1));
   } else if (strcmp(m->chars, "lineTo") == 0 && argc == 2) {
-    nvgLineTo(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]));
+    nvgLineTo(no->ctx, N(0), N(1));
   } else if (strcmp(m->chars, "arc") == 0 && argc == 6) {
-    double cx = AS_NUM(argv[0]);
-    double cy = AS_NUM(argv[1]);
-    double r = AS_NUM(argv[2]);
-    double a0 = AS_NUM(argv[3]);
-    double a1 = AS_NUM(argv[4]);
-    int dir = (int)AS_NUM(argv[5]);
-    nvgArc(no->ctx, cx, cy, r, a0, a1, dir);
+    nvgArc(no->ctx, N(0), N(1), N(2), N(3), N(4), (int)N(5));
   } else if (strcmp(m->chars, "stroke") == 0 && argc == 0) {
     nvgStroke(no->ctx);
   } else if (strcmp(m->chars, "circle") == 0 && argc == 3) {
-    double cx = AS_NUM(argv[0]);
-    double cy = AS_NUM(argv[1]);
-    double r = AS_NUM(argv[2]);
-    nvgCircle(no->ctx, cx, cy, r);
+    nvgCircle(no->ctx, N(0), N(1), N(2));
   } else if (strcmp(m->chars, "createFont") == 0 && argc == 2) {
-    const char *name = AS_STR(argv[0])->chars;
-    const char *fileName = AS_STR(argv[1])->chars;
-    int i = nvgCreateFont(no->ctx, name, fileName);
+    int i = nvgCreateFont(no->ctx, S(0), S(1));
     return NUM_VAL(i);
   }  else if (strcmp(m->chars, "fontFaceId") == 0 && argc == 1) {
-    nvgFontFaceId(no->ctx, (int)AS_NUM(argv[0]));
+    nvgFontFaceId(no->ctx, (int)N(0));
   } else if (strcmp(m->chars, "textAlign") == 0 && argc == 1) {
-    nvgTextAlign(no->ctx, (int)AS_NUM(argv[0]));
+    nvgTextAlign(no->ctx, (int)N(0));
   } else if (strcmp(m->chars, "currentTransform") == 0 && argc == 1) {
-    if (IS_ARRAY(argv[0])) {
+    if (IS_ARRAY(args[0])) {
       float xform[6];
       nvgCurrentTransform(no->ctx, xform);
-      kuaobj *ao = AS_ARRAY(argv[0]);
+      kuaobj *ao = AS_ARRAY(args[0]);
       for (int i = 0; i < 6; i++) {
         ku_arrset(vm, ao, i, NUM_VAL(xform[i]));
       }
@@ -185,46 +186,41 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
       ku_err(vm, "array expected");
     }
   } else if (strcmp(m->chars, "transform") == 0 && argc == 6) {
-    nvgTransform(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]), AS_NUM(argv[2]), AS_NUM(argv[3]), AS_NUM(argv[4]), AS_NUM(argv[5]));
+    nvgTransform(no->ctx, N(0), N(1), N(2), N(3), N(4), N(5));
   } else if (strcmp(m->chars, "fontSize") == 0 && argc == 1) {
-    nvgFontSize(no->ctx, AS_NUM(argv[0]));
+    nvgFontSize(no->ctx, AS_NUM(args[0]));
   } else if (strcmp(m->chars, "text") == 0 && argc == 3) {
-    nvgText(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]), AS_STR(argv[2])->chars, NULL);
+    nvgText(no->ctx, N(0), N(1), S(2), NULL);
   } else if (strcmp(m->chars, "text") == 0 && argc == 5) {
-    double x = AS_NUM(argv[0]);
-    double y = AS_NUM(argv[1]);
-    const char *text = AS_STR(argv[2])->chars;
-    int start = (int)AS_NUM(argv[3]);
-    int end = (int)AS_NUM(argv[4]);
-    nvgText(no->ctx, x, y, text + start, text + end);
+    nvgText(no->ctx, N(0), N(1), S(2) + (int)N(3), S(2)+(int)N(4));
   } else if (strcmp(m->chars, "closePath") == 0 && argc == 0) {
     nvgClosePath(no->ctx);
   } else if (strcmp(m->chars, "ellipse") == 0 && argc == 4) {
-    nvgEllipse(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]), AS_NUM(argv[2]), AS_NUM(argv[3]));
+    nvgEllipse(no->ctx, N(0), N(1), N(2), N(3));
   }  else if (strcmp(m->chars, "scale") == 0 && argc == 2) {
-    nvgScale(no->ctx, AS_NUM(argv[0]), AS_NUM(argv[1]));
-  } else if (strcmp(m->chars, "linearGradient") == 0 && argc == 7 && IS_ARRAY(argv[6])) {
-    double sx = AN(0), sy = AN(1), ex = AN(2), ey = AN(3);
-    NVGcolor icolor = NVGColorFromInt((uint64_t)AN(4));
-    NVGcolor ocolor = NVGColorFromInt((uint64_t)AN(5));    
-    kuaobj *arr = AS_ARRAY(argv[6]);
+    nvgScale(no->ctx, N(0), N(1));
+  } else if (strcmp(m->chars, "linearGradient") == 0 && argc == 7 && IS_ARRAY(args[6])) {
+    double sx = N(0), sy = N(1), ex = N(2), ey = N(3);
+    NVGcolor icolor = NVGColorFromInt((uint64_t)N(4));
+    NVGcolor ocolor = NVGColorFromInt((uint64_t)N(5));
+    kuaobj *arr = AS_ARRAY(args[6]);
     NVGpaint p = nvgLinearGradient(no->ctx, sx, sy, ex, ey, icolor, ocolor);
     NVGpaintToArray(vm, &p, arr);
-  } else if (strcmp(m->chars, "fillPaint") == 0 && argc == 1 && IS_ARRAY(argv[0])) {
+  } else if (strcmp(m->chars, "fillPaint") == 0 && argc == 1 && IS_ARRAY(args[0])) {
     NVGpaint paint;
-    NVGpaintFromArray(vm, &paint, AS_ARRAY(argv[0]));
+    NVGpaintFromArray(vm, &paint, AS_ARRAY(args[0]));
     nvgFillPaint(no->ctx, paint);
-  } else if (strcmp(m->chars, "radialGradient") == 0 && argc == 7 && IS_ARRAY(argv[6])) {
-    double cx = AN(0), cy = AN(1), inr = AN(2), outr = AN(3);
-    NVGcolor icol = NVGColorFromInt((uint64_t)AN(4));
-    NVGcolor ocol = NVGColorFromInt((uint64_t)AN(5));
-    kuaobj *arr = AS_ARRAY(argv[6]);
+  } else if (strcmp(m->chars, "radialGradient") == 0 && argc == 7 && IS_ARRAY(args[6])) {
+    double cx = N(0), cy = N(1), inr = N(2), outr = N(3);
+    NVGcolor icol = NVGColorFromInt((uint64_t)N(4));
+    NVGcolor ocol = NVGColorFromInt((uint64_t)N(5));
+    kuaobj *arr = AS_ARRAY(args[6]);
     NVGpaint p = nvgRadialGradient(no->ctx, cx, cy, inr, outr, icol, ocol);
     NVGpaintToArray(vm, &p, arr);
   } else if (strcmp(m->chars, "save") == 0) {
     nvgSave(no->ctx);
-  } else if (strcmp(m->chars, "fontFace") == 0 && argc == 1 && IS_STR(argv[0])) {
-    nvgFontFace(no->ctx, AS_STR(argv[0])->chars);
+  } else if (strcmp(m->chars, "fontFace") == 0 && argc == 1 && IS_STR(args[0])) {
+    nvgFontFace(no->ctx, S(0));
   } else if (strcmp(m->chars, "textMetrics") == 0 && argc == 0) {
     float asc, desc, lineh;
     nvgTextMetrics(no->ctx, &asc, &desc, &lineh);
@@ -235,11 +231,11 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     table_iput(vm, o, ku_strfrom(vm, "lineh", 5), NUM_VAL(lineh));
     return tab;
   } else if (strcmp(m->chars, "textBreakLines") == 0 && argc == 5) {
-    const char *text = AS_STR(argv[0])->chars;
-    int start = (int)AS_NUM(argv[1]);
-    int end = (int)AS_NUM(argv[2]);
-    float breakRowWidth = (float)AS_NUM(argv[3]);
-    kuaobj *rows = AS_ARRAY(argv[4]);
+    const char *text = S(0);
+    int start = (int)N(1);
+    int end = (int)N(2);
+    float breakRowWidth = (float)N(3);
+    kuaobj *rows = AS_ARRAY(args[4]);
     int maxRows = rows->elements.count;
     NVGtextRow *trows = (NVGtextRow*)malloc(maxRows * sizeof(NVGtextRow));
     int nrows = nvgTextBreakLines(no->ctx, text + start, text + end, breakRowWidth, trows, maxRows);
@@ -258,30 +254,18 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     free(trows);
     return NUM_VAL(nrows);
   } else if (strcmp(m->chars, "textBounds") == 0 && argc == 6) {
-    return NVGTextOrBoxBounds(vm, no->ctx, argc, argv, false);
+    return NVGTextOrBoxBounds(vm, no->ctx, argc, args, false);
   } else if (strcmp(m->chars, "textLineHeight") == 0 && argc == 1) {
-    nvgTextLineHeight(no->ctx, AS_NUM(argv[0]));
+    nvgTextLineHeight(no->ctx, N(0));
   } else if (strcmp(m->chars, "textBoxBounds") == 0 && argc == 7) {
-    return NVGTextOrBoxBounds(vm, no->ctx, argc, argv, true);
+    return NVGTextOrBoxBounds(vm, no->ctx, argc, args, true);
   } else if (strcmp(m->chars, "globalAlpha") == 0 && argc == 1) {
-    nvgGlobalAlpha(no->ctx, AS_NUM(argv[0]));
+    nvgGlobalAlpha(no->ctx, N(0));
   } else if (strcmp(m->chars, "roundedRect") == 0 && argc == 5) {
-    double x = AS_NUM(argv[0]);
-    double y = AS_NUM(argv[1]);
-    double w = AS_NUM(argv[2]);
-    double h = AS_NUM(argv[3]);
-    double r = AS_NUM(argv[4]);
-    nvgRoundedRect(no->ctx, x, y, w, h, r);
+    nvgRoundedRect(no->ctx, N(0), N(1), N(2), N(3), N(4));
   } else if (strcmp(m->chars, "textBox") == 0) {
-    double x = AS_NUM(argv[0]);
-    double y = AS_NUM(argv[1]);
-    double breakRowWidth = AS_NUM(argv[2]);
-    const char *text = AS_STR(argv[3])->chars;
-    int istart = (int)AS_NUM(argv[4]);
-    int iend = (int)AS_NUM(argv[5]);
-    const char *start = text + istart;
-    const char *end = text + iend;
-    nvgTextBox(no->ctx, x, y, breakRowWidth, start, (iend >= 0) ? end : NULL);
+    int iend = (int)N(5);
+    nvgTextBox(no->ctx, N(0), N(1), N(2), S(3) + (int)N(4), (iend >= 0) ? S(3)+(int)N(5) : NULL);
   } else if (strcmp(m->chars, "restore") == 0 && argc == 0) {
     nvgRestore(no->ctx);
   }
