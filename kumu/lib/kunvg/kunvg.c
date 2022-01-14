@@ -268,6 +268,8 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgTextBox(no->ctx, N(0), N(1), N(2), S(3) + (int)N(4), (iend >= 0) ? S(3)+(int)N(5) : NULL);
   } else if (strcmp(m->chars, "restore") == 0 && argc == 0) {
     nvgRestore(no->ctx);
+  } else if (strcmp(m->chars, "bezierTo") == 0 && argc == 6) {
+    nvgBezierTo(no->ctx, N(0), N(1), N(2), N(3), N(4), N(5));
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
