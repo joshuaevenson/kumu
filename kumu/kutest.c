@@ -1748,6 +1748,13 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_OK, "array index crash res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  ku_exec(vm, "var x=7, y=9;");
+  EXPECT_INT(vm, res, KVM_OK, "multi-var res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(7), "multi-var x");
+  EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(9), "multi-var y");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

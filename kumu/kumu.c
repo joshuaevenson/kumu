@@ -1044,16 +1044,19 @@ static void ku_vardef(kuvm* vm, uint8_t index) {
 }
 
 static void ku_vardecl(kuvm* vm) {
-  uint8_t g = ku_var(vm, "name expected");
-  if (ku_pmatch(vm, TOK_EQ)) {
-    ku_expr(vm);
-  }
-  else {
-    ku_emitbyte(vm, OP_NIL);
-  }
+  
+  do {
+    uint8_t g = ku_var(vm, "name expected");
+    if (ku_pmatch(vm, TOK_EQ)) {
+      ku_expr(vm);
+    }
+    else {
+      ku_emitbyte(vm, OP_NIL);
+    }
+    ku_vardef(vm, g);
+  } while(ku_pmatch(vm, TOK_COMMA));
 
   ku_pconsume(vm, TOK_SEMI, "; expected");
-  ku_vardef(vm, g);
 }
 
 // common between functions and lambdas
