@@ -2055,6 +2055,7 @@ kures ku_run(kuvm *vm) {
         }
         kuaobj *aobj = AS_ARRAY(aval);
         ku_arrset(vm, aobj, (int)AS_NUM(ival), val);
+        ku_push(vm, val);
         break;
       }
       case OP_AGET: {
@@ -3543,6 +3544,10 @@ kuaobj * ku_arrnew(kuvm* vm, int capacity) {
 void ku_arrset(kuvm* vm, kuaobj* arr, int index, kuval value) {
   kuarr *e = &arr->elements;
   
+  if (arr == NULL) {
+    ku_err(vm, "null array");
+    return;
+  }
   int oldcount = e->count;
   
   if (e->capacity <= index) {
@@ -3559,6 +3564,10 @@ void ku_arrset(kuvm* vm, kuaobj* arr, int index, kuval value) {
 }
 
 kuval ku_arrget(kuvm* vm, kuaobj* arr, int index) {
+  if (arr == NULL) {
+    ku_err(vm, "null array");
+    return NIL_VAL;
+  }
   if (index < arr->elements.count) {
     return arr->elements.values[index];
   }

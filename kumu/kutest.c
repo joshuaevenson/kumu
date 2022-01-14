@@ -1739,6 +1739,14 @@ void ku_test() {
   v = ku_cinstance(vm, "table");
   EXPECT_TRUE(vm, AS_CINST(v)->klass->iget == table_iget, "table new");
   kut_free(vm);
+  
+  vm = kut_new(true);
+  ku_exec(vm, "var t=0;");
+  ku_exec(vm, "var samples=array(6);");
+  ku_exec(vm, "samples[0] = (1 + math.sin(t*1.2345 + math.cos(t*0.33457)*0.44))*0.5;");
+  res = ku_exec(vm, "var x = samples[0];");
+  EXPECT_INT(vm, res, KVM_OK, "array index crash res");
+  kut_free(vm);
 
   ku_test_summary();
 
