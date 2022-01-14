@@ -2325,7 +2325,9 @@ char *ku_alloc(kuvm *vm, void *ptr, size_t oldsize, size_t nsize) {
     ku_gc(vm);
   }
   
-  if (vm->allocated > vm->gcnext) {
+  // We don't trigger GC if we're trying to free things
+  // so we don't recurse during GC
+  if (vm->allocated > vm->gcnext && nsize > oldsize) {
     if (vm->flags & KVM_F_GCLOG) {
       ku_printf(vm, "%zu allocated %zu next -> gc()\n",
                 vm->allocated, vm->gcnext);
