@@ -2376,6 +2376,12 @@ void ku_chunkfree(kuvm *vm, kuchunk *chunk) {
 
 int ku_chunkconst(kuvm *vm, kuchunk *chunk, kuval value) {
   ku_push(vm, value); // for GC
+  for (int i = 0; i < chunk->constants.count; i++) {
+    if (ku_equal(value, chunk->constants.values[i])) {
+      ku_pop(vm);
+      return i;
+    }
+  }
   ku_arrwrite(vm, &chunk->constants, value);
   ku_pop(vm);
   return chunk->constants.count - 1;
