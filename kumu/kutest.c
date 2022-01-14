@@ -1755,6 +1755,13 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "y"), NUM_VAL(9), "multi-var y");
   kut_free(vm);
 
+  vm = kut_new(true);
+  ku_exec(vm, "var x,y;");
+  EXPECT_INT(vm, res, KVM_OK, "multi-var nil res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "multi-var nil x");
+  EXPECT_VAL(vm, ku_get_global(vm, "y"), NIL_VAL, "multi-var nil y");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
