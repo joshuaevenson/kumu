@@ -228,10 +228,12 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     float asc, desc, lineh;
     nvgTextMetrics(no->ctx, &asc, &desc, &lineh);
     kuval tab = ku_cinstance(vm, "table");
+    ku_push(vm, tab); // for GC
     kuobj *o = AS_OBJ(tab);
     table_iput(vm, o, ku_strfrom(vm, "ascender", 8), NUM_VAL(asc));
     table_iput(vm, o, ku_strfrom(vm, "descender", 9), NUM_VAL(desc));
     table_iput(vm, o, ku_strfrom(vm, "lineh", 5), NUM_VAL(lineh));
+    ku_pop(vm);
     return tab;
   } else if (strcmp(m->chars, "textBreakLines") == 0 && argc == 5) {
     const char *text = S(0);
@@ -245,6 +247,7 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     for (int r = 0; r < nrows; r++) {
       NVGtextRow *tr = &trows[r];
       kuval tab = ku_cinstance(vm, "table");
+      ku_push(vm, tab);   // for GC
       kuobj *o = AS_OBJ(tab);
       table_iput(vm, o, ku_strfrom(vm, "start", 5), NUM_VAL(tr->start - text));
       table_iput(vm, o, ku_strfrom(vm, "end", 3), NUM_VAL(tr->end - text));
@@ -253,6 +256,7 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
       table_iput(vm, o, ku_strfrom(vm, "minx", 4), NUM_VAL(tr->minx));
       table_iput(vm, o, ku_strfrom(vm, "maxx", 4), NUM_VAL(tr->maxx));
       ku_arrset(vm, rows, r, tab);
+      ku_pop(vm);
     }
     free(trows);
     return NUM_VAL(nrows);
