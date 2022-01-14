@@ -2937,9 +2937,9 @@ kuval table_cons(kuvm *vm, int argc, kuval *argv) {
   return OBJ_VAL(to);
 }
 
-kuval table_new(kuvm *vm) {
+kuval ku_cinstance(kuvm *vm, const char *cname) {
   kuval tcv;
-  if (!ku_tabget(vm, &vm->globals, ku_strfrom(vm, "table", 5), &tcv)) {
+  if (!ku_tabget(vm, &vm->globals, ku_strfrom(vm, cname, 5), &tcv)) {
     return NIL_VAL;
   }
   

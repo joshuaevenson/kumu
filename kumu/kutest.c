@@ -1736,7 +1736,7 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
-  v = table_new(vm);
+  v = ku_cinstance(vm, "table");
   EXPECT_TRUE(vm, AS_CINST(v)->klass->iget == table_iget, "table new");
   kut_free(vm);
 
