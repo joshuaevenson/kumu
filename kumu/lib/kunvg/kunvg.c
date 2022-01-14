@@ -289,6 +289,14 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgLineCap(no->ctx, (int)N(0));
   } else if (strcmp(m->chars, "lineJoin") == 0 && argc == 1) {
     nvgLineJoin(no->ctx, (int)N(0));
+  } else if (strcmp(m->chars, "degToRad") == 0 && argc == 1) {
+    return NUM_VAL(nvgDegToRad(N(0)));
+  } else if (strcmp(m->chars, "scissor") == 0 && argc == 4) {
+    nvgScissor(no->ctx, N(0), N(1), N(2), N(3));
+  } else if (strcmp(m->chars, "resetScissor") == 0 && argc == 0) {
+    nvgResetScissor(no->ctx);
+  } else if (strcmp(m->chars, "intersectScissor") == 0 && argc == 4) {
+    nvgIntersectScissor(no->ctx, N(0), N(1), N(2), N(3));
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
