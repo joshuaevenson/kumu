@@ -145,6 +145,9 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgFillColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(args[0])));
   } else if (strcmp(m->chars, "rgba") == 0 && argc == 4) {
     return NUM_VAL(nanovg_args2intcolor(args));
+  } else if (strcmp(m->chars, "hsla") == 0 && argc == 4) {
+    NVGcolor color = nvgHSLA(N(0), N(1), N(2), N(3));
+    return NUM_VAL(NVGcolorToInt(color));
   } else if (strcmp(m->chars, "fill") == 0) {
     nvgFill(no->ctx);
   } else if (strcmp(m->chars, "translate") == 0 && argc == 2) {
@@ -270,6 +273,14 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgRestore(no->ctx);
   } else if (strcmp(m->chars, "bezierTo") == 0 && argc == 6) {
     nvgBezierTo(no->ctx, N(0), N(1), N(2), N(3), N(4), N(5));
+  } else if (strcmp(m->chars, "pathWinding") == 0 && argc == 1) {
+    nvgPathWinding(no->ctx, (int)N(0));
+  } else if (strcmp(m->chars, "boxGradient") == 0 && argc == 9) {
+    NVGcolor icolor = NVGColorFromInt((uint64_t)N(6));
+    NVGcolor ocolor = NVGColorFromInt((uint64_t)N(7));
+    kuaobj *arr = AS_ARRAY(args[8]);
+    NVGpaint p = nvgBoxGradient(no->ctx, N(0), N(1), N(2), N(3), N(4), N(5), icolor, ocolor);
+    NVGpaintToArray(vm, &p, arr);
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
@@ -294,6 +305,8 @@ kuval nanovg_sget(kuvm *vm, kustr *p) {
     return NUM_VAL(NVG_ALIGN_TOP);
   } else if (strcmp(p->chars, "ALIGN_BOTTOM") == 0) {
     return NUM_VAL(NVG_ALIGN_BOTTOM);
+  } else if (strcmp(p->chars, "HOLE") == 0) {
+    return NUM_VAL(NVG_HOLE);
   }
   return NIL_VAL;
 }
