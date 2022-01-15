@@ -1790,6 +1790,12 @@ void ku_test() {
   EXPECT_STR(vm, ku_get_global(vm, "x"), "ABC", "string.frombytes ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=[1,2,3]; a[0]=4; var x=a.count;");
+  EXPECT_INT(vm, res, KVM_OK, "arr change res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr change count");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

@@ -3607,7 +3607,7 @@ void ku_arrset(kuvm* vm, kuaobj* arr, int index, kuval value) {
     e->values[i] = NIL_VAL;
   }
   e->values[index] = value;
-  e->count = index + 1;
+  e->count = (index >= oldcount) ? index + 1 : e->count;
 }
 
 kuval ku_arrget(kuvm* vm, kuaobj* arr, int index) {
