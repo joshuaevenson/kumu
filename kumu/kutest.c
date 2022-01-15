@@ -1784,6 +1784,12 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "shr arg res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = string.frombytes([65,66,67]);");
+  EXPECT_INT(vm, res, KVM_OK, "string.frombytes res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "ABC", "string.frombytes ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

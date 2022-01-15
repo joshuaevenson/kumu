@@ -3071,9 +3071,22 @@ kuval string_format(kuvm *vm, int argc, kuval *argv) {
   return OBJ_VAL(ku_strtake(vm, chars, needed));
 }
 
+static kuval string_frombytes(kuvm *vm, kuaobj *arr) {
+  int len = arr->elements.count;
+  char* buff = KALLOC(vm, char, len + 1);
+  for (int i = 0; i < len; i++) {
+    buff[i] = (int)AS_NUM(ku_arrget(vm, arr, i));
+  }
+  buff[len] = '\0';
+  kustr* res = ku_strtake(vm, buff, len);
+  return OBJ_VAL(res);
+}
+
 kuval string_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
   if (strcmp(m->chars, "format")==0) {
     return string_format(vm, argc, argv);
+  } else if (strcmp(m->chars, "frombytes") == 0 && argc == 1 && IS_ARRAY(argv[0])) {
+    return string_frombytes(vm, AS_ARRAY(argv[0]));
   }
   return NIL_VAL;
 }
