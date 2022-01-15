@@ -143,9 +143,9 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgRect(no->ctx, N(0), N(1), N(2), N(3));
   } else if (strcmp(m->chars, "fillColor") == 0 && argc == 1) {
     nvgFillColor(no->ctx, NVGColorFromInt((uint64_t)AS_NUM(args[0])));
-  } else if (strcmp(m->chars, "rgba") == 0 && argc == 4) {
+  } else if (strcmp(m->chars, "RGBA") == 0 && argc == 4) {
     return NUM_VAL(nanovg_args2intcolor(args));
-  } else if (strcmp(m->chars, "hsla") == 0 && argc == 4) {
+  } else if (strcmp(m->chars, "HSLA") == 0 && argc == 4) {
     NVGcolor color = nvgHSLA(N(0), N(1), N(2), N(3));
     return NUM_VAL(NVGcolorToInt(color));
   } else if (strcmp(m->chars, "fill") == 0) {
@@ -297,7 +297,10 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgResetScissor(no->ctx);
   } else if (strcmp(m->chars, "intersectScissor") == 0 && argc == 4) {
     nvgIntersectScissor(no->ctx, N(0), N(1), N(2), N(3));
+  } else if (strcmp(m->chars, "fontBlur") == 0 && argc == 1) {
+    nvgFontBlur(no->ctx, N(0));
   }
+  
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
   }
