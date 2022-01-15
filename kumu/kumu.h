@@ -265,6 +265,8 @@ typedef enum {
   OP_TRUE,
   OP_BAND,
   OP_BOR,
+  OP_SHL,
+  OP_SHR,
 } k_op;
 
 // ********************** code chunks **********************
@@ -425,7 +427,7 @@ typedef enum {
   TOK_LBRACKET, TOK_RBRACKET, TOK_AMP, TOK_PIPE,
   // One or two character tokens.
   TOK_BANG, TOK_NE, TOK_EQ, TOK_EQEQ, TOK_GT, TOK_GE, TOK_LT,
-  TOK_LE, TOK_ARROW,
+  TOK_LE, TOK_ARROW, TOK_LTLT, TOK_GTGT,
   // Literals.
   TOK_IDENT, TOK_STR, TOK_STRESC, TOK_NUM, TOK_HEX,
   // Keywords.

@@ -1762,6 +1762,28 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "y"), NIL_VAL, "multi-var nil y");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 2 << 4;");
+  EXPECT_INT(vm, res, KVM_OK, "shl res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(2 << 4), "shl ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 2 << true;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "shl arg res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = 16 >> 2;");
+  EXPECT_INT(vm, res, KVM_OK, "shr res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(16 >> 2), "shr ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = true >> 2;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "shr arg res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
