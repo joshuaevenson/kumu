@@ -107,15 +107,18 @@ static void NVGpaintFromArray(kuvm *vm, NVGpaint *p, kuaobj *arr) {
   p->outerColor = NVGColorFromInt(AS_NUM(ku_arrget(vm, arr, 11)));
   p->image = (int)AS_NUM(ku_arrget(vm, arr, 12));
 }
+
 kuval nanovg_cons(kuvm *vm, int argc, kuval *args) {
   if (argc < 2 || !IS_INSTANCE(args[0]) || !IS_STR(args[1])) {
     ku_err(vm, "expected nanovg(object, key)");
     return NIL_VAL;
   }
   kunvobj *no = (kunvobj*)ku_objalloc(vm, sizeof(kunvobj), OBJ_CINST);
+  ku_push(vm, OBJ_VAL(no)); // for GC
   no->target = args[0];
   no->ctx = nvgContextFor(AS_STR(args[1])->chars, no);
   no->method = ku_strfrom(vm, "render", 6);
+  ku_pop(vm);
   return OBJ_VAL(no);
 }
 
