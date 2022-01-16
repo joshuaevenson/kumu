@@ -50,8 +50,11 @@ static kuval NVGTextOrBoxBounds(kuvm *vm, NVGcontext *ctx, int argc, kuval *args
   else {
     ret = nvgTextBounds(ctx, x, y, start, (iend >= 0) ? end: NULL, bounds);
   }
-  for (int i = 0; i < 4; i++) {
-    ku_arrset(vm, ao, i, NUM_VAL(bounds[i]));
+  
+  if (IS_ARRAY(args[5 + adj])) {
+    for (int i = 0; i < 4; i++) {
+      ku_arrset(vm, ao, i, NUM_VAL(bounds[i]));
+    }
   }
   return NUM_VAL(ret);
 }
