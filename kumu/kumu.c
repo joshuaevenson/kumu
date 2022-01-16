@@ -2712,9 +2712,11 @@ static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
   if (argc > 0 && IS_NUM(argv[0])) {
     cap = (int)AS_NUM(argv[0]);
     kuaobj *ao = ku_arrnew(vm, cap);
+    ku_push(vm, OBJ_VAL(ao)); // for GC
     for (int i = 0; i < cap; i++) {
       ku_arrset(vm, ao, i, NIL_VAL);
     }
+    ku_pop(vm); // for GC
     return OBJ_VAL(ao);
   }
   return OBJ_VAL(ku_arrnew(vm, cap));
@@ -2731,6 +2733,7 @@ bool array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
   }
   
   kuaobj *dest = ku_arrnew(vm, src->elements.capacity);
+  ku_push(vm, OBJ_VAL(dest)); // for GC
   for (int i = 0; i < src->elements.count; i++) {
     kuval e = ku_arrget(vm, src, i);
     ku_push(vm, e);
@@ -2738,9 +2741,11 @@ bool array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
       kuval n = ku_pop(vm);
       ku_arrset(vm, dest, i, n);
     } else {
+      ku_pop(vm); // GC
       return false;
     }
   }
+  ku_pop(vm); // GC
   ku_pop(vm);   // closure
   ku_pop(vm);   // receiver
   *ret = OBJ_VAL(dest);
