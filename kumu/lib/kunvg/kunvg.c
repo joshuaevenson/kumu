@@ -305,8 +305,19 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     nvgIntersectScissor(no->ctx, N(0), N(1), N(2), N(3));
   } else if (strcmp(m->chars, "fontBlur") == 0 && argc == 1) {
     nvgFontBlur(no->ctx, N(0));
+  } else if (strcmp(m->chars, "createImage") == 0 && argc == 2) {    
+    return NUM_VAL(nvgCreateImage(no->ctx, S(0), (int)N(1)));
+  } else if (strcmp(m->chars, "imageSize") == 0 && argc == 2 && IS_ARRAY(args[1])) {
+    int w, h;
+    nvgImageSize(no->ctx, (int)N(0), &w, &h);
+    kuaobj *ao = AS_ARRAY(args[1]);
+    ku_arrset(vm, ao, 0, NUM_VAL(w));
+    ku_arrset(vm, ao, 1, NUM_VAL(h));
+  } else if (strcmp(m->chars, "imagePattern") == 0 && argc == 8 && IS_ARRAY(args[7])) {
+    NVGpaint paint = nvgImagePattern(no->ctx, N(0), N(1), N(2), N(3), N(4), (int)N(5), N(6));
+    kuaobj *ao = AS_ARRAY(args[7]);
+    NVGpaintToArray(vm, &paint, ao);
   }
-  
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
   }
