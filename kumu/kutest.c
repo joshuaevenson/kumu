@@ -1844,8 +1844,9 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
-  res = ku_exec(vm, "var x=2; var a = 9; if(a) x=7;");
-  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-bool if res");
+  res = ku_exec(vm, "var x=2; var a = (x > 2) and 7 or 6;");
+  EXPECT_INT(vm, res, KVM_OK, "tertiary res");
+  EXPECT_VAL(vm, ku_get_global(vm, "a"), NUM_VAL(6), "tertiary ret");
   kut_free(vm);
 
   vm = kut_new(true);
