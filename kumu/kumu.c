@@ -3585,6 +3585,7 @@ void ku_cclassdef(kuvm *vm, kucclass *cc) {
 // ********************** array object **********************
 kuaobj * ku_arrnew(kuvm* vm, int capacity) {
   kuaobj *arr = KALLOC_OBJ(vm, kuaobj, OBJ_ARRAY);
+  ku_push(vm, OBJ_VAL(arr)); // for GC
   arr->elements.count = 0;
   arr->elements.capacity = capacity;
   arr->elements.values = NULL;
@@ -3597,6 +3598,7 @@ kuaobj * ku_arrnew(kuvm* vm, int capacity) {
       e->values[i] = NIL_VAL;
     }
   }
+  ku_pop(vm); // GC
   return arr;
 }
 

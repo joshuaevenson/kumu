@@ -1806,6 +1806,19 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-array get res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "fun F() { var a=array(2); a[0]=1; a[1]=2; a[2]=3; return a[2]; } var x=F();");
+  EXPECT_INT(vm, res, KVM_OK, "arr nogc res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr no gc ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  vm->flags = KVM_F_GCSTRESS;
+  res = ku_exec(vm, "fun F() { var a=array(2); a[0]=1; a[1]=2; a[2]=3; return a[2]; } var x=F();");
+  EXPECT_INT(vm, res, KVM_OK, "arr gc res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr gc ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
