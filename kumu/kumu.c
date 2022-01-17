@@ -2748,6 +2748,39 @@ static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
   return OBJ_VAL(ku_arrnew(vm, cap));
 }
 
+bool array_filter(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
+  if (argc != 1 || !IS_CLOSURE(argv[0])) {
+    return false;
+  }
+    
+  kuclosure *cl = AS_CLOSURE(argv[0]);
+  if (cl->func->arity != 1) {
+    return false;
+  }
+  
+  kuaobj *dest = ku_arrnew(vm, 0);
+  ku_push(vm, OBJ_VAL(dest)); // for GC
+  int j = 0;
+  for (int i = 0; i < src->elements.count; i++) {
+    kuval e = ku_arrget(vm, src, i);
+    ku_push(vm, e);
+    if (ku_nativecall(vm, cl, 1) == KVM_OK) {
+      kuval n = ku_pop(vm);
+      if (!ku_falsy(n)) {
+        ku_arrset(vm, dest, j++, src->elements.values[i]);
+      }      
+    } else {
+      ku_pop(vm); // GC
+      return false;
+    }
+  }
+  ku_pop(vm); // GC
+  ku_pop(vm);   // closure
+  ku_pop(vm);   // receiver
+  *ret = OBJ_VAL(dest);
+  return true;
+}
+
 bool array_map(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
   if (argc != 1 || !IS_CLOSURE(argv[0])) {
     return false;
@@ -2816,7 +2849,16 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
     }
     return false;
   }
-  
+
+  if (method->len == 6 && strcmp(method->chars, "filter") == 0) {
+    kuval ret;
+    if(array_filter(vm, AS_ARRAY(obj), argc, argv, &ret)) {
+      ku_push(vm, ret);
+      return true;
+    }
+    return false;
+  }
+
   if (method->len == 6 && strcmp(method->chars, "reduce") == 0) {
     kuval ret;
     if(array_reduce(vm, AS_ARRAY(obj), argc, argv, &ret)) {
