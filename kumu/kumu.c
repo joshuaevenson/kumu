@@ -1582,6 +1582,11 @@ void ku_push(kuvm *vm, kuval val) {
 }
 
 kuval ku_pop(kuvm *vm) {
+#ifdef CHECK_UNDERFLOW
+  if (vm->sp <= vm->stack) {
+    vm->underflow++;
+  }
+#endif
   vm->sp--;
   return *(vm->sp);
 }
@@ -1599,6 +1604,9 @@ kuvm *ku_new(void) {
   if (!vm) {
     return NULL;
   }
+#ifdef CHECK_UNDERFLOW
+  vm->underflow = 0;
+#endif
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
   vm->max_const = UINT8_MAX;

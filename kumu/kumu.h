@@ -560,6 +560,10 @@ typedef struct kuvm {
   kuval stack[STACK_MAX];
   kuval* sp;
 
+#ifdef CHECK_UNDERFLOW
+  int underflow;
+#endif
+  
   kustr *initstr;
   kustr *countstr;
   
