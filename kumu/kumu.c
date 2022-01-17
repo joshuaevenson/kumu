@@ -2125,9 +2125,23 @@ kures ku_run(kuvm *vm) {
         
         kuobj *obj = AS_OBJ(target);
         
-        if (obj->type == OBJ_ARRAY && name == vm->countstr) {
+        if (obj->type == OBJ_ARRAY) {
           kuaobj *ao = AS_ARRAY(target);
-          ku_push(vm, NUM_VAL(ao->elements.count));
+          if (name == vm->countstr) {
+            ku_push(vm, NUM_VAL(ao->elements.count));
+          } else if (strcmp(name->chars, "first") == 0) {
+            if (ao->elements.count > 0) {
+              ku_push(vm, ao->elements.values[0]);
+            } else {
+              ku_push(vm, NIL_VAL);
+            }
+          } else if (strcmp(name->chars, "last") == 0) {
+            if (ao->elements.count > 0) {
+              ku_push(vm, ao->elements.values[ao->elements.count - 1]);
+            } else {
+              ku_push(vm, NIL_VAL);
+            }
+          }
           break;
         }
         if (obj->type == OBJ_STR) {

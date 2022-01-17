@@ -1819,6 +1819,30 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr gc ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a = []; var x = a.first;");
+  EXPECT_INT(vm, res, KVM_OK, "arr empty first res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "arr empty first ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a = [12,3]; var x = a.first;");
+  EXPECT_INT(vm, res, KVM_OK, "arr first res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(12), "arr first ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a = []; var x = a.last;");
+  EXPECT_INT(vm, res, KVM_OK, "arr empty last res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "arr empty last ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a = [12,3]; var x = a.last;");
+  EXPECT_INT(vm, res, KVM_OK, "arr last res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr last ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
