@@ -1843,6 +1843,11 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr last ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=2; var a = 9; if(a) x=7;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-bool if res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

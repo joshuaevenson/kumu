@@ -2278,6 +2278,11 @@ kures ku_run(kuvm *vm) {
         break;
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT(vm);
+        kuval exp = ku_peek(vm, 0);
+        if (!IS_BOOL(exp) && !IS_NIL(exp)) {
+          ku_err(vm, "boolean expected");
+          return KVM_ERR_RUNTIME;
+        }
         if (ku_falsy(ku_peek(vm, 0))) {
           frame->ip += offset;
         }
