@@ -2302,8 +2302,32 @@ kures ku_run(kuvm *vm) {
       case OP_SUB: BIN_OP(vm,NUM_VAL, -); break;
       case OP_MUL: BIN_OP(vm,NUM_VAL, *); break;
       case OP_DIV: BIN_OP(vm,NUM_VAL, /); break;
-      case OP_GT: BIN_OP(vm, BOOL_VAL, >); break;
-      case OP_LT: BIN_OP(vm,BOOL_VAL, <); break;
+      case OP_GT:
+      case OP_LT: {
+        if (IS_NUM(ku_peek(vm, 0)) && IS_NUM((ku_peek(vm, 1)))) {
+          double b = (int)AS_NUM(ku_pop(vm));
+          double a = (int)AS_NUM(ku_pop(vm));
+          if (op == OP_GT)
+            ku_push(vm, BOOL_VAL(a > b));
+          else
+            ku_push(vm, BOOL_VAL(a < b));
+        } else if (IS_STR(ku_peek(vm, 0)) && IS_STR(ku_peek(vm, 1))) {
+          kustr *b = AS_STR(ku_pop(vm));
+          kustr *a = AS_STR(ku_pop(vm));
+          int len = (a->len > b->len) ? a->len : b->len;
+          int res = strncmp(a->chars, b->chars, len);
+          if (op == OP_GT)
+            ku_push(vm, BOOL_VAL(res > 0));
+          else
+            ku_push(vm, BOOL_VAL(res < 0));
+        }
+        else {
+          ku_err(vm, "numbers or strings expected");
+          return KVM_ERR_RUNTIME;
+        }
+        break;          
+      }
+//      case OP_LT: BIN_OP(vm,BOOL_VAL, <); break;
       case OP_NOT:
         ku_push(vm, BOOL_VAL(ku_falsy(ku_pop(vm))));
         break;
@@ -2817,6 +2841,7 @@ int array_partition(kuvm *vm, kuval array[], int low, int high, kuclosure *cmp) 
 void array_qsort(kuvm *vm, kuval array[], int low, int high, kuclosure *cmp) {
   if (low < high) {
     int pi = array_partition(vm, array, low, high, cmp);
+    if (vm->err) return;
     array_qsort(vm, array, low, pi - 1, cmp);
     array_qsort(vm, array, pi + 1, high, cmp);
   }
@@ -2834,7 +2859,7 @@ bool array_sort(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
   array_qsort(vm, src->elements.values, 0, src->elements.count-1, cl);
   ku_pop(vm);   // closure
   ku_pop(vm);   // receiver
-  return true;
+  return !vm->err;
 }
 
 bool array_filter(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
@@ -2940,7 +2965,10 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
   }
 
   if (method->len == 4 && strcmp(method->chars, "sort") == 0) {
-    return array_sort(vm, AS_ARRAY(obj), argc, argv);
+    bool ret = array_sort(vm, AS_ARRAY(obj), argc, argv);
+    if (ret)
+      ku_push(vm, NIL_VAL);
+    return ret;
   }
 
   if (method->len == 6 && strcmp(method->chars, "filter") == 0) {

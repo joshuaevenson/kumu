@@ -476,10 +476,30 @@ void ku_test() {
   v = ku_test_eval(vm, "1<1");
   EXPECT_VAL(vm, v, BOOL_VAL(false), "< false");
   kut_free(vm);
-
+  
   vm = kut_new(false);
   v = ku_test_eval(vm, "1<2");
   EXPECT_VAL(vm, v, BOOL_VAL(true), "< true");
+  kut_free(vm);
+
+  vm = kut_new(false);
+  v = ku_test_eval(vm, "\"abc\" < \"def\"");
+  EXPECT_VAL(vm, v, BOOL_VAL(true), "string < true");
+  kut_free(vm);
+
+  vm = kut_new(false);
+  v = ku_test_eval(vm, "\"abcd\" < \"abc\"");
+  EXPECT_VAL(vm, v, BOOL_VAL(false), "string < false");
+  kut_free(vm);
+
+  vm = kut_new(false);
+  v = ku_test_eval(vm, "\"abc\" > \"def\"");
+  EXPECT_VAL(vm, v, BOOL_VAL(false), "string > false");
+  kut_free(vm);
+
+  vm = kut_new(false);
+  v = ku_test_eval(vm, "\"abcd\" > \"abc\"");
+  EXPECT_VAL(vm, v, BOOL_VAL(true), "string > true");
   kut_free(vm);
 
   vm = kut_new(false);
@@ -510,6 +530,11 @@ void ku_test() {
   vm = kut_new(false);
   v = ku_test_eval(vm, "3>=3");
   EXPECT_VAL(vm, v, BOOL_VAL(true), ">= true");
+  kut_free(vm);
+
+  vm = kut_new(false);
+  res = ku_exec(vm, "var x = 12 < true;");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "< num expected");
   kut_free(vm);
 
   vm = kut_new(false);
@@ -1881,6 +1906,8 @@ void ku_test() {
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 0), NUM_VAL(3), "array.sort[0]");
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 1), NUM_VAL(4), "array.sort[1]");
   EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(7), "array.sort[2]");
+  res = ku_exec(vm, "var c = x.count;");
+  EXPECT_VAL(vm, ku_get_global(vm, "c"), NUM_VAL(3), "array sort count");
   kut_free(vm);
 
   vm = kut_new(true);
@@ -1894,6 +1921,11 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
+  res = ku_exec(vm, "var x=[7,3,4]; x.sort({ a,b => false });");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.sort res");
+  kut_free(vm);
+
+  vm = kut_new(true);
   res = ku_exec(vm, "var x={\"a\"=1, \"b\"=2}; var z=x.a; var w=x.b;");
   EXPECT_INT(vm, res, KVM_OK, "table lit res");
   v = ku_get_global(vm, "x");
@@ -1902,6 +1934,26 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "w"), NUM_VAL(2), "table lit prop2");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var comp = { a, b => ( (a < b) and -1 or ( (a > b) and 1 or 0)) };");
+  EXPECT_INT(vm, res, KVM_OK, "tertiary comp res");
+  res = ku_exec(vm, "var x = comp(9, 7);");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1), "tertiary comp ret");
+  kut_free(vm);
+  
+  vm = kut_new(true);
+  res = ku_exec(vm, "var comp = { a, b => ( (a < b) and -1 or ( (a > b) and 1 or 0)) };");
+  EXPECT_INT(vm, res, KVM_OK, "db comp res");
+  res = ku_exec(vm, "var db = [ { \"name\" = \"mohsen\", \"age\"=55 }, { \"name\" = \"josh\", \"age\"=40 }];");
+  EXPECT_INT(vm, res, KVM_OK, "db init res");
+  res = ku_exec(vm, "db.sort({ a,b => comp(a.name, b.name)});");
+  EXPECT_INT(vm, res, KVM_OK, "db sort res");
+  res = ku_exec(vm, "var c = db.count;");
+  EXPECT_VAL(vm, ku_get_global(vm, "c"), NUM_VAL(2), "db sort count");
+  res = ku_exec(vm, "var f = db.first.name;");
+  EXPECT_STR(vm, ku_get_global(vm, "f"), "josh", "db sort first name");
+  kut_free(vm);
+  
   ku_test_summary();
 
 }
