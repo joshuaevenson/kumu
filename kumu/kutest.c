@@ -1796,6 +1796,16 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3), "arr change count");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=true; a[0]=4; ");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-array set res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var a=true; var x = a[0]; ");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "non-array get res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

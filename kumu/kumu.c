@@ -2057,30 +2057,37 @@ kures ku_run(kuvm *vm) {
       case OP_ASET: {
         kuval val = ku_pop(vm);
         kuval ival = ku_pop(vm);
-        kuval aval = ku_pop(vm);
+        kuval aval = ku_peek(vm, 0); // for GC
         
         if (!IS_ARRAY(aval)) {
           ku_err(vm, "array expected");
+          return KVM_ERR_RUNTIME;
         }
         if (!IS_NUM(ival)) {
           ku_err(vm, "number index expected");
+          return KVM_ERR_RUNTIME;
         }
         kuaobj *aobj = AS_ARRAY(aval);
         ku_arrset(vm, aobj, (int)AS_NUM(ival), val);
+        ku_pop(vm); // array
         ku_push(vm, val);
         break;
       }
       case OP_AGET: {
         kuval ival = ku_pop(vm);
-        kuval aval = ku_pop(vm);
+        kuval aval = ku_peek(vm, 0); // for GC
         
         if (!IS_ARRAY(aval)) {
           ku_err(vm, "array expected");
+          return KVM_ERR_RUNTIME;
         }
         if (!IS_NUM(ival)) {
           ku_err(vm, "number index expected");
+          return KVM_ERR_RUNTIME;
         }
-        ku_push(vm, ku_arrget(vm, AS_ARRAY(aval), (int)AS_NUM(ival)));
+        kuval v = ku_arrget(vm, AS_ARRAY(aval), (int)AS_NUM(ival));
+        ku_pop(vm);
+        ku_push(vm, v);
         break;
       }
       case OP_GET_LOCAL: {
