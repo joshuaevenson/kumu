@@ -236,10 +236,18 @@ void tclass_init(kuvm *vm, uint64_t flags) {
 
 
 void kut_free(kuvm* vm) {
-  if (vm->sp > vm->stack || vm->underflow > 0) {
+  if (vm->sp > vm->stack) {
     printf(">>> [%s] warning stack at %d\n", last_test, (int)(vm->sp - vm->stack));
     ktest_warn++;
   }
+  
+#ifdef CHECK_UNDERFLOW
+  if (vm->underflow > 0) {
+    printf(">>> [%s] warning stack underflow %d\n", last_test, vm->underflow);
+    ktest_warn++;
+  }
+#endif
+  
   ku_free(vm);
 }
 
