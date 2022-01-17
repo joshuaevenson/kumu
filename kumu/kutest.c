@@ -1872,6 +1872,26 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.filter args");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[7,3,4]; x.sort({ a,b => a-b });");
+  EXPECT_INT(vm, res, KVM_OK, "array.sort res");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_ARRAY(v), "array.sort type");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 0), NUM_VAL(3), "array.sort[0]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 1), NUM_VAL(4), "array.sort[1]");
+  EXPECT_VAL(vm, ku_arrget(vm, AS_ARRAY(v), 2), NUM_VAL(7), "array.sort[2]");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[7,3,4]; x.sort(a => 0);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.sort argc res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=[7,3,4]; x.sort();");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.sort nil res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

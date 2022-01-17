@@ -2748,6 +2748,66 @@ static kuval ku_arraycons(kuvm *vm, int argc, kuval *argv) {
   return OBJ_VAL(ku_arrnew(vm, cap));
 }
 
+
+void array_swap(kuval *a, kuval *b) {
+  kuval t = *a;
+  *a = *b;
+  *b = t;
+}
+
+int array_partition(kuvm *vm, kuval array[], int low, int high, kuclosure *cmp) {
+  kuval pivot = array[high];
+  int i = (low - 1);
+
+  for (int j = low; j < high; j++) {
+    int compres = 0;
+    ku_push(vm, array[j]);
+    ku_push(vm, pivot);
+    if (ku_nativecall(vm, cmp, 2) == KVM_OK) {
+      kuval ret = ku_pop(vm);
+      ku_pop(vm); // arg
+      if (!IS_NUM(ret)) {
+        ku_err(vm, "sort compare non-number return");
+        return 0;
+      }
+      compres = AS_NUM(ret);
+    } else {
+      ku_err(vm, "sort invalid compare function");
+      return 0;
+    }
+    
+    if (compres < 0) {
+      i++;
+      array_swap(&array[i], &array[j]);
+    }
+  }
+  array_swap(&array[i + 1], &array[high]);
+  return (i + 1);
+}
+
+void array_qsort(kuvm *vm, kuval array[], int low, int high, kuclosure *cmp) {
+  if (low < high) {
+    int pi = array_partition(vm, array, low, high, cmp);
+    array_qsort(vm, array, low, pi - 1, cmp);
+    array_qsort(vm, array, pi + 1, high, cmp);
+  }
+}
+
+bool array_sort(kuvm *vm, kuaobj *src, int argc, kuval *argv) {
+  if (argc != 1 || !IS_CLOSURE(argv[0])) {
+    return false;
+  }
+    
+  kuclosure *cl = AS_CLOSURE(argv[0]);
+  if (cl->func->arity != 2) {
+    return false;
+  }
+  array_qsort(vm, src->elements.values, 0, src->elements.count-1, cl);
+  ku_pop(vm);   // closure
+  ku_pop(vm);   // receiver
+  return true;
+}
+
 bool array_filter(kuvm *vm, kuaobj *src, int argc, kuval *argv, kuval *ret) {
   if (argc != 1 || !IS_CLOSURE(argv[0])) {
     return false;
@@ -2848,6 +2908,10 @@ bool array_invoke(kuvm *vm, kuval obj, kustr *method, int argc, kuval *argv) {
       return true;
     }
     return false;
+  }
+
+  if (method->len == 4 && strcmp(method->chars, "sort") == 0) {
+    return array_sort(vm, AS_ARRAY(obj), argc, argv);
   }
 
   if (method->len == 6 && strcmp(method->chars, "filter") == 0) {

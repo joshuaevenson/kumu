@@ -37,6 +37,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#define __STDC_WANT_LIB_EXT1__ 1
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
