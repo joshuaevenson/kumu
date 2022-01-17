@@ -1893,6 +1893,15 @@ void ku_test() {
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "array.sort nil res");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x={\"a\"=1, \"b\"=2}; var z=x.a; var w=x.b;");
+  EXPECT_INT(vm, res, KVM_OK, "table lit res");
+  v = ku_get_global(vm, "x");
+  EXPECT_TRUE(vm, IS_CINST(v), "table instance");
+  EXPECT_VAL(vm, ku_get_global(vm, "z"), NUM_VAL(1), "table lit prop1");
+  EXPECT_VAL(vm, ku_get_global(vm, "w"), NUM_VAL(2), "table lit prop2");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

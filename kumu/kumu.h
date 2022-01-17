@@ -268,6 +268,8 @@ typedef enum {
   OP_BOR,
   OP_SHL,
   OP_SHR,
+  OP_TABLE,
+  OP_DUP,
 } k_op;
 
 // ********************** code chunks **********************

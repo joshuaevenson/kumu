@@ -1031,6 +1031,12 @@ static uint8_t ku_pidconst(kuvm* vm, kutok* name) {
   return ku_pconst(vm, OBJ_VAL(ku_strfrom(vm, name->start, name->len)));
 }
 
+static uint8_t ku_strtoname(kuvm* vm, kutok* name) {
+  const char *chars = name->start + 1;
+  int len = name->len - 2;
+  return ku_pconst(vm, OBJ_VAL(ku_strfrom(vm, chars, len)));
+}
+
 static uint8_t ku_var(kuvm* vm, const char* msg) {
   ku_pconsume(vm, TOK_IDENT, msg);
   ku_declare_var(vm);
@@ -1097,6 +1103,22 @@ static void ku_lbody(kuvm *vm, kucomp *compiler) {
 }
 
 static void ku_lblock(kuvm *vm, bool lhs) {
+  if (ku_pcheck(vm, TOK_STR)) {
+    ku_emitbyte(vm, OP_TABLE);
+    do {
+      ku_emitbyte(vm, OP_DUP);
+      ku_pconsume(vm, TOK_STR, "string expected");
+      uint8_t name = ku_strtoname(vm, &vm->parser.prev);
+      ku_pconsume(vm, TOK_EQ, "table '=' expected");
+      ku_expr(vm);
+      ku_emitbytes(vm, OP_SET_PROP, name);
+      ku_emitbyte(vm, OP_POP); // remove the value
+    } while (ku_pmatch(vm, TOK_COMMA));
+    ku_pconsume(vm, TOK_RBRACE, "'}' expected");
+    // leave table on the stack
+    return;
+  }
+  
   kucomp compiler;
   ku_compinit(vm, &compiler, FUNC_STD);
   ku_beginscope(vm);
@@ -1880,6 +1902,11 @@ kures ku_run(kuvm *vm) {
 #endif // TRACE_ENABLED
 
     switch(op = BYTE_READ(vm)) {
+      case OP_TABLE: {
+        ku_push(vm, ku_cinstance(vm, "table"));
+        break;
+
+      }
       case OP_ARRAY: {
         int count = READ_SHORT(vm);
         kuaobj *ao = ku_arrnew(vm, count);
@@ -2021,6 +2048,10 @@ kures ku_run(kuvm *vm) {
         break;
       }
       
+      case OP_DUP: {
+        ku_push(vm, ku_peek(vm, 0));
+        break;
+      }
       case OP_POP: 
         ku_pop(vm);
         break;
@@ -2506,6 +2537,7 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_LT: return ku_opdis(vm, "OP_LT", offset);
     case OP_EQ: return ku_opdis(vm, "OP_EQ", offset);
     case OP_POP: return ku_opdis(vm, "OP_POP", offset);
+    case OP_DUP: return ku_opdis(vm, "OP_DUP", offset);
     case OP_ASET: return ku_opdis(vm, "OP_ASET", offset);
     case OP_AGET: return ku_opdis(vm, "OP_AGET", offset);
     case OP_CLASS: return ku_constdis(vm, "OP_CLASS", chunk, offset);
@@ -2545,6 +2577,8 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
       return ku_opslotdis(vm, "OP_CALL", chunk, offset);
     case OP_ARRAY:
       return ku_arraydis(vm, "OP_ARRAY", chunk, offset);
+    case OP_TABLE:
+      return ku_arraydis(vm, "OP_TABLE", chunk, offset);
     case OP_CLOSE_UPVAL:
       return ku_opdis(vm, "OP_CLOSE_UPVAL", offset);
     case OP_CLOSURE: {
