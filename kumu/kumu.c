@@ -1574,6 +1574,10 @@ static kuprule *ku_getrule(kuvm *vm, kutok_t optype) {
 void ku_reset(kuvm *vm) {
   vm->sp = vm->stack;
   vm->framecount = 0;
+#ifdef CHECK_UNDERFLOW
+  vm->underflow = 0;
+#endif
+
 }
 
 void ku_push(kuvm *vm, kuval val) {
@@ -1604,9 +1608,6 @@ kuvm *ku_new(void) {
   if (!vm) {
     return NULL;
   }
-#ifdef CHECK_UNDERFLOW
-  vm->underflow = 0;
-#endif
   vm->allocated = sizeof(kuvm);
   vm->max_params = 255;
   vm->max_const = UINT8_MAX;
