@@ -2220,6 +2220,7 @@ kures ku_run(kuvm *vm) {
           break;
         }
         
+        ku_push(vm, target); // See Issue #39
         if (!ku_bindmethod(vm, i->klass, name)) {
           return KVM_ERR_RUNTIME;
         }

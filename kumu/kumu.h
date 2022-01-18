@@ -12,11 +12,13 @@ extern "C" {
 
 // ********************** macros **********************
 #define KVM_MAJOR          0
-#define KVM_MINOR          85
+#define KVM_MINOR          88
 
 #define NAN_BOX
-//#define TRACE_ENABLED
-//#define TRACE_OBJ_COUNTS
+//#define TRACE_ENABLED 1
+//#define CHECK_UNDERFLOW 1
+//#define TRACE_OBJ_COUNTS 1
+
 #define UPSTACK_MAX (UINT8_MAX + 1)
 #define LOCALS_MAX    (UINT8_MAX + 1)
 #define FRAMES_MAX 64
