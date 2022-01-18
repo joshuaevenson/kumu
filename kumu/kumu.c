@@ -1447,7 +1447,11 @@ void ku_whilestmt(kuvm *vm, kuloop *loop) {
   ku_stmt(vm, &inner);
   ku_emitloop(vm, loop_start);
   ku_patchjump(vm, jump_exit);
-  uint16_t loop_end = ku_chunk(vm)->count;
+  
+  //       +----------------------+
+  //       |                      v See #37
+  // POP; JUMP ; .... LOOP; POP; NIL; RET;
+  uint16_t loop_end = ku_chunk(vm)->count - 1;
   ku_emitbyte(vm, OP_POP);
   ku_patchall(vm, &inner.continuepatch, loop_start, true);
   ku_patchall(vm, &inner.breakpatch, loop_end, false);
