@@ -1578,19 +1578,25 @@ static kuprule *ku_getrule(kuvm *vm, kutok_t optype) {
 void ku_reset(kuvm *vm) {
   vm->sp = vm->stack;
   vm->framecount = 0;
-#ifdef CHECK_UNDERFLOW
+#ifdef STACK_CHECK
   vm->underflow = 0;
 #endif
 
 }
 
 void ku_push(kuvm *vm, kuval val) {
+#ifdef STACK_CHECK
+  if (vm->sp >= vm->stack + vm->max_stack) {
+    assert(false);
+  }
+#endif
+
   *(vm->sp) = val;
   vm->sp++;
 }
 
 kuval ku_pop(kuvm *vm) {
-#ifdef CHECK_UNDERFLOW
+#ifdef STACK_CHECK
   if (vm->sp <= vm->stack) {
     vm->underflow++;
   }
@@ -1607,8 +1613,8 @@ kuval ku_peek(kuvm *vm, int distance) {
   return vm->sp[-1 - distance];
 }
 
-kuvm *ku_new(void) {
-  kuvm *vm = malloc(sizeof(kuvm));
+kuvm *ku_newvm(int stack_max) {
+  kuvm *vm = malloc(sizeof(kuvm) + stack_max*sizeof(kuval));
   if (!vm) {
     return NULL;
   }
@@ -1621,6 +1627,7 @@ kuvm *ku_new(void) {
   vm->max_frames = FRAMES_MAX;
   vm->max_locals = LOCALS_MAX;
   vm->max_patches = PATCH_MAX;
+  vm->max_stack = stack_max;
   
   vm->flags = 0;
   vm->curclass = NULL;

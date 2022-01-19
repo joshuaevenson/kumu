@@ -16,24 +16,14 @@ extern "C" {
 
 #define NAN_BOX
 //#define TRACE_ENABLED 1
-//#define CHECK_UNDERFLOW 1
+//#define STACK_CHECK 1
 //#define TRACE_OBJ_COUNTS 1
 
 #define UPSTACK_MAX (UINT8_MAX + 1)
 #define LOCALS_MAX    (UINT8_MAX + 1)
 #define FRAMES_MAX 64
 
-
-// Default is 64 frames with up to 255 values on the stack
-// which is 128k of data. This can be overridden with
-// a build flag similar to below to reduce the size of
-// each VM instance
-// #define STACK_MAX_OVERRIDE 512
-#ifdef STACK_MAX_OVERRIDE
-#define STACK_MAX STACK_MAX_OVERRIDE
-#else
 #define STACK_MAX (FRAMES_MAX * UPSTACK_MAX)
-#endif
 
 // ********************** includes **********************
 #include <stdbool.h>
@@ -539,6 +529,7 @@ typedef enum {
 typedef struct kuvm {
   uint64_t flags;
   
+  int max_stack;
   int max_params;
   int max_const;
   int max_closures;
@@ -559,10 +550,9 @@ typedef struct kuvm {
   kuframe frames[FRAMES_MAX];
   int framecount;
   int baseframe;      // used for native calls
-  kuval stack[STACK_MAX];
   kuval* sp;
 
-#ifdef CHECK_UNDERFLOW
+#ifdef STACK_CHECK
   int underflow;
 #endif
   
@@ -582,10 +572,12 @@ typedef struct kuvm {
   int gccount;      // gray object count
   int gccap;        // gray object capacity
   kuobj **gcstack;  // gray object stack
-  
+  kuval stack[0];
+
 } kuvm;
 
-kuvm* ku_new(void);
+#define ku_new()  ku_newvm(STACK_MAX)
+kuvm* ku_newvm(int stack_size);
 void ku_free(kuvm* vm);
 kures ku_run(kuvm* vm);
 kures ku_runfile(kuvm* vm, const char* file);
