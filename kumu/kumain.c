@@ -190,7 +190,14 @@ static void ku_printbuild(kuvm *vm) {
 #ifdef TRACE_OBJ_COUNTS
   printf("O");
 #endif
-  printf("] stack: %luk\n", STACK_MAX*sizeof(kuval)/1024);
+  
+#ifdef STACK_CHECK
+  printf("S");
+#endif
+  
+  double s = (double)(sizeof(kuvm)+vm->max_stack*sizeof(kuval))/1024.0;
+  printf("] vmsize=%.2fkb ", s);
+  printf(".quit to exit\n");
   
 }
 static void ku_repl(kuvm *vm) {
@@ -248,13 +255,26 @@ static void ku_repl(kuvm *vm) {
 }
 
 int ku_main(int argc, const char * argv[]) {
-  kuvm *vm = ku_new();
+  int stack = STACK_MAX;
+  const char *file = NULL;
+  
+  
+  for (int i = 1; i < argc; i++) {
+    const char *a = argv[i];
+    if (strncmp(a, "-s=", 3) == 0) {
+      stack = atoi(&a[3]);
+    } else {
+      file = a;
+    }
+  }
+  
+  kuvm *vm = ku_newvm(stack == 0 ? STACK_MAX : stack);
   
   ku_reglibs(vm);
-  if (argc == 1) {
+  if (file == NULL) {
     ku_repl(vm);
-  } else if (argc == 2) {
-    kures res = ku_runfile(vm, argv[1]);
+  } else {
+    kures res = ku_runfile(vm, file);
     if (res == KVM_ERR_RUNTIME) {
       ku_free(vm);
       exit(70);
@@ -268,11 +288,6 @@ int ku_main(int argc, const char * argv[]) {
       ku_free(vm);
       exit(74);
     }
-    
-  } else {
-    ku_free(vm);
-    fprintf(stderr, "usage kumu [file]\n");
-    exit(64);
   }
   ku_free(vm);
   return 0;
