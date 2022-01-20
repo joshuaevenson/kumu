@@ -225,6 +225,8 @@ static void ku_repl(kuvm *vm) {
 //      break;
 //    }
     
+    ku_saveline(vm, b);
+
     if (strcmp(b, ".quit") == 0) {
       break;
     }
@@ -249,7 +251,6 @@ static void ku_repl(kuvm *vm) {
       continue;;
     }
     ku_replexec(vm, b, under);
-    ku_saveline(vm, b);
     ku_freeline(vm, b);
   }
 }
