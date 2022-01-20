@@ -343,6 +343,7 @@
 					"DEBUG=1",
 					STACK_CHECK,
 					TRACE_ENABLED,
+					TRACE_OBJ_COUNTS,
 				);
 				PRODUCT_NAME = kumu;
 			};
