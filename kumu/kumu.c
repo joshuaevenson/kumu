@@ -2534,7 +2534,7 @@ static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name) {
 }
 
 static int ku_opdis(kuvm *vm, const char *name, int offset) {
-  ku_printf(vm, "%-16s", name);
+  ku_printf(vm, "%-16s %4s", name, "");
   return offset + 1;
 }
 
@@ -2629,9 +2629,9 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
     case OP_CLOSURE: {
       offset++;
       uint8_t con = chunk->code[offset++];
-      ku_printf(vm, "%-16s %4d", "OP_CLOSURE", con);
+      ku_printf(vm, "%-16s %4d ", "OP_CLOSURE", con);
       ku_printval(vm, chunk->constants.values[con]);
-      ku_printf(vm, "\n");
+//       ku_printf(vm, "\n");
       kufunc *fn = AS_FUNC(chunk->constants.values[con]);
       for (int j = 0; j < fn->upcount; j++) {
         int local = chunk->code[offset++];
