@@ -120,7 +120,8 @@ kuval nanovg_cons(kuvm *vm, int argc, kuval *args) {
   ku_push(vm, OBJ_VAL(no)); // for GC
   no->target = args[0];
   no->ctx = nvgContextFor(AS_STR(args[1])->chars, no);
-  no->method = ku_strfrom(vm, "render", 6);
+  no->render = ku_strfrom(vm, "render", 6);
+  no->touch = ku_strfrom(vm, "touch", 5);
   ku_pop(vm);
   return OBJ_VAL(no);
 }
@@ -394,9 +395,47 @@ void kuvg_render(kuvm *vm, kunvobj *obj, double width, double height, double sca
   ku_push(vm, NUM_VAL(scale));
   int oldbase = vm->baseframe;
   vm->baseframe = vm->framecount;
-  if (ku_invoke(vm, obj->method, 4, &native)) {
+  if (ku_invoke(vm, obj->render, 4, &native)) {
     ku_run(vm);
   }
   vm->baseframe = oldbase;
   vm->sp = oldsp;
+}
+
+void kuvg_touch(kuvm *vm, kunvobj *o, int event, double x0, double y0, double x1, double y1) {
+  if (o == NULL) {
+    return;
+  }
+  bool native;
+  kuval *oldsp = vm->sp;
+  ku_push(vm, o->target);
+  ku_push(vm, OBJ_VAL(o));
+  ku_push(vm, NUM_VAL(event));
+  ku_push(vm, NUM_VAL(x0));
+  ku_push(vm, NUM_VAL(y0));
+  ku_push(vm, NUM_VAL(x1));
+  ku_push(vm, NUM_VAL(y1));
+  int oldbase = vm->baseframe;
+  vm->baseframe = vm->framecount;
+  if (ku_invoke(vm, o->touch, 6, &native)) {
+    ku_run(vm);
+  }
+  vm->baseframe = oldbase;
+  vm->sp = oldsp;
+}
+
+void kuvg_touchesbegan(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1) {
+  kuvg_touch(vm, obj, 0, x0, y0, x1, y1);
+}
+
+void kuvg_touchesmoved(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1) {
+  kuvg_touch(vm, obj, 1, x0, y0, x1, y1);
+}
+
+void kuvg_touchesended(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1) {
+  kuvg_touch(vm, obj, 2, x0, y0, x1, y1);
+}
+
+void kuvg_touchescanceled(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1) {
+  kuvg_touch(vm, obj, 3, x0, y0, x1, y1);
 }

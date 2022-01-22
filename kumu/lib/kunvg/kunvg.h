@@ -14,11 +14,16 @@ typedef struct {
   kunobj base;
   kuval target;
   NVGcontext *ctx;
-  kustr *method;
+  kustr *render;
+  kustr *touch;
 } kunvobj;
 
 void kuvg_reg(kuvm *vm);
 void kuvg_render(kuvm *vm, kunvobj *obj, double width, double height, double scale);
+void kuvg_touchesbegan(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1);
+void kuvg_touchesmoved(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1);
+void kuvg_touchesended(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1);
+void kuvg_touchescanceled(kuvm *vm, kunvobj *obj, double x0, double y0, double x1, double y1);
 
 #ifdef __cplusplus
 }
