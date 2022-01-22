@@ -318,6 +318,30 @@ kuval nanovg_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *args) {
     NVGpaint paint = nvgImagePattern(no->ctx, N(0), N(1), N(2), N(3), N(4), (int)N(5), N(6));
     kuaobj *ao = AS_ARRAY(args[7]);
     NVGpaintToArray(vm, &paint, ao);
+  } else if (strcmp(m->chars, "textGlyphPositions") == 0 && argc == 6) {
+    double x = N(0);
+    double y = N(1);
+    const char *text = S(2);
+    int start = (int)N(3);
+    int end = (int)N(4);
+    kuaobj *ao = AS_ARRAY(args[5]);
+    
+    int maxpos = ao->elements.count;
+    NVGglyphPosition *positions = (NVGglyphPosition*)malloc(sizeof(NVGglyphPosition)*maxpos);
+    int nglypes = nvgTextGlyphPositions(no->ctx, x, y, text + start, text + end, positions, maxpos);
+    for (int i = 0; i < nglypes; i++) {
+      NVGglyphPosition p = positions[i];
+      kuval tab = ku_cinstance(vm, "table");
+      ku_push(vm, tab); // for GC
+      kuobj *o = AS_OBJ(tab);
+      table_iput(vm, o, ku_strfrom(vm, "start", 5), p.str - text);
+      table_iput(vm, o, ku_strfrom(vm, "minx", 4), NUM_VAL(p.minx));
+      table_iput(vm, o, ku_strfrom(vm, "maxx", 4), NUM_VAL(p.maxx));
+      table_iput(vm, o, ku_strfrom(vm, "x", 1), NUM_VAL(p.x));
+      ku_arrset(vm, ao, i, OBJ_VAL(tab));
+      ku_pop(vm);
+    }
+    return NUM_VAL(nglypes);
   }
   else {
     ku_err(vm, "unexpected method %s\n", m->chars);
