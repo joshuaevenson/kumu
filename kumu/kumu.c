@@ -3137,7 +3137,7 @@ static kuval ku_eval(kuvm *vm, int argc, kuval *argv) {
     kuvm *temp = ku_newvm(stack);
     temp->flags = KVM_F_QUIET;
     const char *line = AS_STR(argv[0])->chars;
-    size_t len = strlen(line) + 7;
+    size_t len = strlen(line) + 8;
     char *buffer = malloc(len);
     sprintf(buffer, "var _=%s;", line);
     kures res = ku_exec(temp, buffer);
