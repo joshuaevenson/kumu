@@ -1963,6 +1963,25 @@ void ku_test() {
   EXPECT_STR(vm, ku_get_global(vm, "f"), "josh", "db sort first name");
   kut_free(vm);
   
+  
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=eval(\"12/3\");");
+  EXPECT_INT(vm, res, KVM_OK, "eval res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(4), "eval ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=eval();");
+  EXPECT_INT(vm, res, KVM_OK, "eval arg res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "eval arg ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=eval(\"12/3\", 10);");
+  EXPECT_INT(vm, res, KVM_OK, "eval stack res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(4), "eval stack ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
