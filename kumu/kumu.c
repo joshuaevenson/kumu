@@ -3131,6 +3131,28 @@ static kuval ku_intf(kuvm *vm, int argc, kuval *argv) {
 }
 
 
+static kuval ku_eval(kuvm *vm, int argc, kuval *argv) {
+  if (argc > 0 && IS_STR(argv[0])) {
+    int stack = (argc > 1 && IS_NUM(argv[1])) ? (int)AS_NUM(argv[1]) : 128;
+    kuvm *temp = ku_newvm(stack);
+    temp->flags = KVM_F_QUIET;
+    const char *line = AS_STR(argv[0])->chars;
+    size_t len = strlen(line) + 7;
+    char *buffer = malloc(len);
+    sprintf(buffer, "var _=%s;", line);
+    kures res = ku_exec(temp, buffer);
+    kuval ret = NIL_VAL;
+    free(buffer);
+    if (res == KVM_OK) {
+      kustr *key = ku_strfrom(temp, "_", 1);
+      ku_tabget(temp, &temp->globals, key, &ret);
+    }
+    ku_free(temp);
+    return ret;
+  }
+  return NIL_VAL;
+}
+
 static kuval ku_clock(kuvm *vm, int argc, kuval *argv) {
   return NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
@@ -3326,6 +3348,7 @@ void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "int", ku_intf);
   ku_cfuncdef(vm, "printf", ku_print);
   ku_cfuncdef(vm, "array", ku_arraycons);
+  ku_cfuncdef(vm, "eval", ku_eval);
   
   kucclass *math = ku_cclassnew(vm, "math");
   math->sget = math_sget;
