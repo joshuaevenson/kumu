@@ -1982,6 +1982,42 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(4), "eval stack ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.substr();");
+  EXPECT_INT(vm, res, KVM_OK, "substr() res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "012345678", "substr() ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.substr(3);");
+  EXPECT_INT(vm, res, KVM_OK, "substr(3) res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "345678", "substr(3) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.substr(3,5);");
+  EXPECT_INT(vm, res, KVM_OK, "substr(3,5) res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "345", "substr(3,5) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.substr(-1,5);");
+  EXPECT_INT(vm, res, KVM_OK, "substr(3,5) res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "012345", "substr(3,5) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.substr(-1,55);");
+  EXPECT_INT(vm, res, KVM_OK, "substr(3,5) res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "012345678", "substr(3,5) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s.bogus(-1,55);");
+  EXPECT_INT(vm, res, KVM_OK, "string.bogus res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "string.bogus ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

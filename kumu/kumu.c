@@ -44,6 +44,7 @@ static void ku_chunkdump(kuvm *vm, kuchunk *chunk, const char * name);
 
 static void ku_function(kuvm *vm, kufunc_t type);
 kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop);
+kuval string_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv);
 bool array_invoke(kuvm *vm, kuval arr, kustr *method, int argc, kuval *argv);
 static void ku_markval(kuvm *vm, kuval v);
 void ku_markobj(kuvm *vm, kuobj *o);
@@ -1876,6 +1877,14 @@ bool ku_invoke(kuvm *vm, kustr *name, int argc, bool *native) {
     return false;
   }
   
+  if (IS_STR(receiver)) {
+    *native = true;
+    kuval v = string_icall(vm, AS_OBJ(receiver), name, argc,vm->sp - argc);
+    vm->sp -= argc + 1;
+    ku_push(vm, v);
+    return true;
+  }
+  
   if (IS_CINST(receiver)) {
     kunobj *no = AS_CINST(receiver);
     if (no->klass->icall) {
@@ -3332,6 +3341,35 @@ kuval string_iget(kuvm *vm, kuobj *obj, kustr *prop) {
   if (prop == vm->countstr) {
     kustr *str = (kustr*)obj;
     return NUM_VAL(str->len);
+  }
+  return NIL_VAL;
+}
+
+kuval string_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
+  if (m->len == 6 && strcmp(m->chars, "substr") == 0) {
+    kustr *s = (kustr*)o;
+    int start = 0;
+    int end = s->len;
+    if (argc > 0 && IS_NUM(argv[0])) {
+      start = (int)AS_NUM(argv[0]);
+    }
+    if (argc > 1 && IS_NUM(argv[1])) {
+      end = (int)AS_NUM(argv[1]);
+    }
+    if (start < 0 || start >= s->len)
+      start = 0;
+    if (end >= s->len || end < start)
+      end = s->len - 1;
+    
+    int len = end - start + 1;
+    char* buff = KALLOC(vm, char, len + 1);
+    for (int i = 0; i < len; i++) {
+      buff[i] = s->chars[start + i];
+    }
+    buff[len] = '\0';
+    kustr* res = ku_strtake(vm, buff, len);
+    return OBJ_VAL(res);
+
   }
   return NIL_VAL;
 }
