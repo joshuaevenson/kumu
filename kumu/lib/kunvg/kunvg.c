@@ -122,6 +122,7 @@ kuval nanovg_cons(kuvm *vm, int argc, kuval *args) {
   no->ctx = nvgContextFor(AS_STR(args[1])->chars, no);
   no->render = ku_strfrom(vm, "render", 6);
   no->touch = ku_strfrom(vm, "touch", 5);
+  no->keypress = ku_strfrom(vm, "keypress", 8);
   ku_pop(vm);
   return OBJ_VAL(no);
 }
@@ -404,6 +405,33 @@ void kuvg_reg(kuvm *vm) {
   cc->ifree = nanovg_ifree;
   cc->imark = nanovg_imark;
   ku_cclassdef(vm, cc);
+}
+
+
+void kuvg_keypress(kuvm *vm, kunvobj *obj, int event, int code) {
+  if (obj == NULL) {
+    return;
+  }
+  bool native;
+  kuval *oldsp = vm->sp;
+  ku_push(vm, obj->target);
+  ku_push(vm, NUM_VAL(event));
+  ku_push(vm, NUM_VAL(code));
+  int oldbase = vm->baseframe;
+  vm->baseframe = vm->framecount;
+  if (ku_invoke(vm, obj->keypress, 2, &native)) {
+    ku_run(vm);
+  }
+  vm->baseframe = oldbase;
+  vm->sp = oldsp;
+}
+
+void kuvg_keydown(kuvm *vm, kunvobj *obj, int code) {
+  kuvg_keypress(vm, obj, 0, code);
+}
+
+void kuvg_keyup(kuvm *vm, kunvobj *obj, int code) {
+  kuvg_keypress(vm, obj, 1, code);
 }
 
 void kuvg_render(kuvm *vm, kunvobj *obj, double width, double height, double scale) {
