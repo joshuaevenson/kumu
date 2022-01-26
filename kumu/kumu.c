@@ -3350,16 +3350,29 @@ kuval string_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     kustr *s = (kustr*)o;
     int start = 0;
     int end = s->len;
-    if (argc > 0 && IS_NUM(argv[0])) {
+    bool empty = false;
+    
+    
+    if (argc > 0 && IS_NUM(argv[0]))
       start = (int)AS_NUM(argv[0]);
-    }
-    if (argc > 1 && IS_NUM(argv[1])) {
+    
+    if (argc > 1 && IS_NUM(argv[1]))
       end = (int)AS_NUM(argv[1]);
-    }
-    if (start < 0 || start >= s->len)
+    
+    if (argc > 2 && IS_BOOL(argv[2]))
+      empty = AS_BOOL(argv[2]);
+    
+    if (start < 0) start = s->len + start;
+    if (end < 0) end = s->len + end;
+    
+    if (start < 0 || start >= s->len) {
+      if (empty) return OBJ_VAL(ku_strfrom(vm, "", 0));
       start = 0;
-    if (end >= s->len || end < start)
+    }
+    if (end >= s->len || end < start) {
+      if (empty) return OBJ_VAL(ku_strfrom(vm, "", 0));
       end = s->len - 1;
+    }
     
     int len = end - start + 1;
     char* buff = KALLOC(vm, char, len + 1);
