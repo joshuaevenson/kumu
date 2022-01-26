@@ -3362,8 +3362,8 @@ kuval string_icall(kuvm *vm, kuobj *o, kustr *m, int argc, kuval *argv) {
     if (argc > 2 && IS_BOOL(argv[2]))
       empty = AS_BOOL(argv[2]);
     
-    if (start < 0) start = s->len + start;
-    if (end < 0) end = s->len + end;
+    if (start < 0 && !empty) start = s->len + start;
+    if (end < 0  && !empty) end = s->len + end;
     
     if (start < 0 || start >= s->len) {
       if (empty) return OBJ_VAL(ku_strfrom(vm, "", 0));
