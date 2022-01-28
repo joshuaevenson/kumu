@@ -2030,6 +2030,27 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "string.bogus ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s[2];");
+  EXPECT_INT(vm, res, KVM_OK, "str[idx] res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "2", "str[idx] ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s[-1];");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "str[idx] bounds low res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s[22];");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "str[idx] bounds high res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var s=\"012345678\"; var x=s[true];");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "str[bool]  res");
+  kut_free(vm);
+
   ku_test_summary();
 
 }

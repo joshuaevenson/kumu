@@ -2137,6 +2137,19 @@ kures ku_run(kuvm *vm) {
         kuval ival = ku_pop(vm);
         kuval aval = ku_peek(vm, 0); // for GC
         
+        if (IS_STR(aval) && IS_NUM(ival)) {
+          kustr *st = AS_STR(aval);
+          int idx = (int)AS_NUM(ival);
+          if (idx >= 0 && idx < st->len) {
+            kustr *sr = ku_strfrom(vm, &st->chars[idx], 1);
+            ku_pop(vm);
+            ku_push(vm, OBJ_VAL(sr));
+            break;
+          } else {
+            ku_err(vm, "string index out of bounds");
+            return KVM_ERR_RUNTIME;
+          }
+        }
         if (!IS_ARRAY(aval)) {
           ku_err(vm, "array expected");
           return KVM_ERR_RUNTIME;
