@@ -3226,6 +3226,8 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
     if (d > 0)
       return NUM_VAL(1);
     return NUM_VAL(0);
+  } else if (strcmp(m->chars, "floor") == 0 && argc == 1) {
+    return NUM_VAL(floor(AS_NUM(argv[0])));
   } else if (M3(m, "pow") && argc == 2) {
     return NUM_VAL(pow(x,AS_NUM(argv[1])));
   }

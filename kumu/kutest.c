@@ -2076,6 +2076,12 @@ void ku_test() {
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0), "abs 0 ret");
   kut_free(vm);
 
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.floor(3.767);");
+  EXPECT_INT(vm, res, KVM_OK, "floor res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(floor(3.767)), "floor ret");
+  kut_free(vm);
+
   ku_test_summary();
 
 }
