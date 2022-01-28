@@ -3217,6 +3217,15 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
     int a = (int)AS_NUM(argv[0]);
     int b = (int)AS_NUM(argv[1]);
     return NUM_VAL(a % b);
+  } else if (strcmp(m->chars, "fmod") == 0 && argc == 2) {
+    return NUM_VAL(fmod(AS_NUM(argv[0]), AS_NUM(argv[1])));
+  } else if (strcmp(m->chars, "abs") == 0 && argc == 1) {
+    double d = AS_NUM(argv[0]);
+    if (d < 0)
+      return NUM_VAL(-1);
+    if (d > 0)
+      return NUM_VAL(1);
+    return NUM_VAL(0);
   } else if (M3(m, "pow") && argc == 2) {
     return NUM_VAL(pow(x,AS_NUM(argv[1])));
   }

@@ -7,6 +7,7 @@
 
 #include "kumu.h"
 #include "kutest.h"
+#include <math.h>
 
 static int ktest_pass = 0;
 int ktest_fail = 0;
@@ -2049,6 +2050,30 @@ void ku_test() {
   vm = kut_new(true);
   res = ku_exec(vm, "var s=\"012345678\"; var x=s[true];");
   EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "str[bool]  res");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.fmod(9,7);");
+  EXPECT_INT(vm, res, KVM_OK, "fmod res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(fmod(9,7)), "fmod ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.abs(-7);");
+  EXPECT_INT(vm, res, KVM_OK, "abs negative res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(-1), "abs negative ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.abs(7);");
+  EXPECT_INT(vm, res, KVM_OK, "abs positive res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(1), "abs positive ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = math.abs(0);");
+  EXPECT_INT(vm, res, KVM_OK, "abs 0 res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(0), "abs 0 ret");
   kut_free(vm);
 
   ku_test_summary();
