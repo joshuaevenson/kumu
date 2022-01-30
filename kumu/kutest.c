@@ -1380,6 +1380,17 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%f\", 123.456);");
+  EXPECT_INT(vm, res, KVM_OK, "string.format(%f) res");
+  EXPECT_STR(vm, ku_get_global(vm, "x"), "123.456000", "string.format(%f) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x=string.format(\"%f\", true);");
+  EXPECT_INT(vm, res, KVM_ERR_RUNTIME, "string.format(%f) invalid res");
+  kut_free(vm);
+
+  vm = kut_new(true);
   res = ku_exec(vm, "var x=string.format(\"%x\",0xfb1cfd);");
   EXPECT_STR(vm, ku_get_global(vm, "x"), "fb1cfd", "string.format %x");
   kut_free(vm);

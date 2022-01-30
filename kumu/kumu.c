@@ -3056,6 +3056,12 @@ static int arglen(kuvm *vm, const char *f, kuval arg) {
         return (int)strlen(buff);
       }
       return -1;
+    case 'f':
+      if (IS_NUM(arg)) {
+        sprintf(buff, "%f", AS_NUM(arg));
+        return (int)strlen(buff);
+      }
+      return -1;
     case 'x':
       if (IS_NUM(arg)) {
         sprintf(buff, "%x", (int)AS_NUM(arg));
@@ -3122,6 +3128,8 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
       sprintf(d, "%x", (int)AS_NUM(arg));
     } else if (esc == 'g') {
       sprintf(d, "%g", AS_NUM(arg));
+    } else if (esc == 'f') {
+      sprintf(d, "%f", AS_NUM(arg));
     } else if (esc == 's') {
       strcpy(d, AS_STR(arg)->chars);
     } else if (esc == 'b')  {
@@ -3789,7 +3797,7 @@ void ku_printval(kuvm *vm, kuval value) {
   } else if (IS_NIL(value)) {
     ku_printf(vm, "nil");
   } else if (IS_NUM(value)) {
-    ku_printf(vm, "%g", AS_NUM(value));
+    ku_printf(vm, "%f", AS_NUM(value));
   } else if (IS_OBJ(value)) {
     ku_printobj(vm, value);
   }
@@ -3802,7 +3810,7 @@ void ku_printval(kuvm *vm, kuval value) {
       ku_printf(vm, "nil");
       break;
     case VAL_NUM:
-      ku_printf(vm, "%g", value.as.dval);
+      ku_printf(vm, "%f", value.as.dval);
       break;
     case VAL_OBJ:
       ku_printobj(vm, value);
