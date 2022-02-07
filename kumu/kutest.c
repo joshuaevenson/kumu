@@ -1760,6 +1760,17 @@ void ku_test() {
   kut_free(vm);
 
   vm = kut_new(true);
+  res = ku_exec(vm, "var x = parseFloat(\"3.2\");");
+  EXPECT_INT(vm, res, KVM_OK, "parseFloat res");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(3.2), "parseFloat ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
+  res = ku_exec(vm, "var x = parseFloat(true);");
+  EXPECT_VAL(vm, ku_get_global(vm, "x"), NIL_VAL, "parseFloat(bool) ret");
+  kut_free(vm);
+
+  vm = kut_new(true);
   res = ku_exec(vm, "var x = 0xf7f1 | 0x9854;");
   EXPECT_INT(vm, res, KVM_OK, "bit or res");
   EXPECT_VAL(vm, ku_get_global(vm, "x"), NUM_VAL(65525), "bit or ret");

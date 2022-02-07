@@ -3160,6 +3160,15 @@ static kuval ku_intf(kuvm *vm, int argc, kuval *argv) {
   return NIL_VAL;
 }
 
+static kuval ku_parseFloat(kuvm *vm, int argc, kuval *argv) {
+  if (argc > 0 && IS_STR(argv[0])) {
+    kustr *s = AS_STR(argv[0]);
+    double d = atof(s->chars);
+    return NUM_VAL(d);
+  }
+  return NIL_VAL;
+}
+
 
 static kuval ku_eval(kuvm *vm, int argc, kuval *argv) {
   if (argc > 0 && IS_STR(argv[0])) {
@@ -3431,6 +3440,7 @@ kuval math_sget(kuvm *vm, kustr *p) {
 void ku_reglibs(kuvm *vm) {
   ku_cfuncdef(vm, "clock", ku_clock);
   ku_cfuncdef(vm, "int", ku_intf);
+  ku_cfuncdef(vm, "parseFloat", ku_parseFloat);
   ku_cfuncdef(vm, "printf", ku_print);
   ku_cfuncdef(vm, "array", ku_arraycons);
   ku_cfuncdef(vm, "eval", ku_eval);
