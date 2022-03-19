@@ -73,7 +73,6 @@ typedef struct {
   uint64_t mask;
 } ku_repl_flag;
 
-
 static ku_repl_flag ku_repl_flags[] = {
   { "trace", KVM_F_TRACE },
   { "list", KVM_F_LIST },
@@ -105,7 +104,6 @@ static bool ku_check_flag(kuvm *vm, char *line,
   }
   return false;
 }
-
 
 static bool ku_check_flags(kuvm *vm, char *line) {
   for (int i = 0; i < sizeof(ku_repl_flags)/sizeof(ku_repl_flag); i++) {
@@ -205,8 +203,6 @@ static void ku_repl(kuvm *vm) {
   kustr* under = ku_strfrom(vm, "_", 1);
   ku_tabset(vm, &vm->globals, under, NIL_VAL);
 
-  
-
   ku_initreadline(vm);
   while(true) {
     char line[KU_MAXINPUT];
@@ -258,8 +254,7 @@ static void ku_repl(kuvm *vm) {
 int ku_main(int argc, const char * argv[]) {
   int stack = STACK_MAX;
   const char *file = NULL;
-  
-  
+
   for (int i = 1; i < argc; i++) {
     const char *a = argv[i];
     if (strncmp(a, "-s=", 3) == 0) {
@@ -268,9 +263,9 @@ int ku_main(int argc, const char * argv[]) {
       file = a;
     }
   }
-  
+
   kuvm *vm = ku_newvm(stack == 0 ? STACK_MAX : stack);
-  
+
   ku_reglibs(vm);
   if (file == NULL) {
     ku_repl(vm);

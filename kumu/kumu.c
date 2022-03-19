@@ -91,6 +91,7 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
       FREE(vm, kuaobj, obj);
       break;
     }
+
     case OBJ_CCLASS: {
       kucclass *cc = (kucclass*)obj;
       if (cc->sfree) {
@@ -107,6 +108,7 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
       }
       break;
     }
+    
     case OBJ_CFUNC:
       FREE(vm, kucfunc, obj);
       break;
@@ -137,16 +139,17 @@ void ku_objfree(kuvm* vm, kuobj* obj) {
       break;
     }
       
-  case OBJ_STR: {
-    kustr* str = (kustr*)obj;
-    ARRAY_FREE(vm, char, str->chars, str->len + 1);
-    FREE(vm, kustr, obj);
-    break;
+    case OBJ_STR: {
+      kustr* str = (kustr*)obj;
+      ARRAY_FREE(vm, char, str->chars, str->len + 1);
+      FREE(vm, kustr, obj);
+      break;
+    }
     
-  case OBJ_UPVAL:
-    FREE(vm, kuxobj, obj);
-    break;
-  }
+    case OBJ_UPVAL: {
+      FREE(vm, kuxobj, obj);
+      break;
+    }
   }
 }
 
@@ -175,7 +178,6 @@ static kustr* ku_stralloc(kuvm* vm, char* chars, int len, uint32_t hash) {
   ku_pop(vm);
   return str;
 }
-
 
 kustr* ku_strfrom(kuvm* vm, const char* chars, int len) {
   uint32_t hash = ku_strhash(chars, len);
@@ -392,7 +394,6 @@ static char ku_advance(kuvm *vm) {
   vm->scanner.curr++;
   return vm->scanner.curr[-1];
 }
-
 
 void ku_lexinit(kuvm *vm, const char *source) {
   vm->scanner.start = source;
@@ -724,7 +725,6 @@ static void ku_emitbytes(kuvm *vm, uint8_t b1, uint8_t b2) {
   ku_emitbyte(vm, b2);
 }
 
-
 static uint8_t ku_pconst(kuvm *vm, kuval val) {
   int cons = ku_chunkconst(vm, ku_chunk(vm), val);
   if (cons > vm->max_const) {
@@ -797,7 +797,6 @@ static void ku_prec(kuvm *vm, kup_precedence prec) {
   }
 }
 
-
 static void ku_lit(kuvm *vm, bool lhs) {
   switch (vm->parser.prev.type) {
     case TOK_FALSE: ku_emitbyte(vm, OP_FALSE); break;
@@ -843,6 +842,7 @@ static void ku_xstring(kuvm* vm, bool lhs) {
   ku_emitconst(vm, OBJ_VAL(ku_strfrom(vm, encoded, esclen)));
   ku_alloc(vm, encoded, len, 0);
 }
+
 static void ku_string(kuvm* vm, bool lhs) {
   const char *chars = vm->parser.prev.start + 1;
   int len = vm->parser.prev.len - 2;
@@ -1056,7 +1056,6 @@ static void ku_vardef(kuvm* vm, uint8_t index) {
 }
 
 static void ku_vardecl(kuvm* vm) {
-  
   do {
     uint8_t g = ku_var(vm, "name expected");
     if (ku_pmatch(vm, TOK_EQ)) {
@@ -1142,7 +1141,6 @@ static void ku_function(kuvm *vm, kufunc_t type) {
   ku_block(vm, NULL);
   ku_functail(vm, &compiler, false);
 }
-
 
 static void ku_funcdecl(kuvm *vm) {
   uint8_t global = ku_var(vm, "function name expected");
@@ -1276,7 +1274,6 @@ static void ku_lambda(kuvm *vm, kutok name) {
   ku_lbody(vm, &compiler);
   compiler.function->arity = 1;
 }
-
 
 static void ku_namedvar(kuvm* vm, kutok name, bool lhs) {
   int arg = ku_resolvelocal(vm, vm->compiler, &name);
@@ -1521,6 +1518,7 @@ void ku_or(kuvm *vm, bool lhs) {
   ku_prec(vm, P_OR);
   ku_patchjump(vm, end_jump);
 }
+
 kuprule ku_rules[] = {
   [TOK_LPAR] =        { ku_grouping, ku_call,  P_CALL },
   [TOK_RPAR] =        { NULL,        NULL,     P_NONE },
@@ -1582,7 +1580,6 @@ void ku_reset(kuvm *vm) {
 #ifdef STACK_CHECK
   vm->underflow = 0;
 #endif
-
 }
 
 void ku_push(kuvm *vm, kuval val) {
@@ -2424,7 +2421,6 @@ kufunc *ku_compile(kuvm *vm, char *source) {
 
   kufunc *fn = ku_pend(vm, false);
   
-
   return vm->parser.err ? NULL : fn;
 }
 
@@ -2669,7 +2665,6 @@ int ku_bytedis(kuvm *vm, kuchunk *chunk, int offset) {
   }
 #undef OP_DEF1
 }
-
 
 // ------------------------------------------------------------
 // Locals
@@ -3108,7 +3103,7 @@ char *format_core(kuvm *vm, int argc, kuval *argv, int *count) {
       needed++;
     }
   }
-    
+  
   char *chars = ku_alloc(vm, NULL, 0, (size_t)needed+1);
   
   iarg = 0;
@@ -3168,7 +3163,6 @@ static kuval ku_parseFloat(kuvm *vm, int argc, kuval *argv) {
   }
   return NIL_VAL;
 }
-
 
 static kuval ku_eval(kuvm *vm, int argc, kuval *argv) {
   if (argc > 0 && IS_STR(argv[0])) {
@@ -3252,7 +3246,6 @@ kuval math_scall(kuvm *vm, kustr *m, int argc, kuval *argv) {
   }
   return NIL_VAL;
 }
-
 
 // ********************** table **********************
 kuval table_cons(kuvm *vm, int argc, kuval *argv) {
@@ -3500,7 +3493,6 @@ static void ku_markarray(kuvm *vm, kuarr *array) {
 }
 
 static void ku_traceobj(kuvm *vm, kuobj *o) {
-  
   if (vm->flags & KVM_F_GCLOG) {
     ku_printf(vm, "%p trace ", (void*)o);
     ku_printval(vm, OBJ_VAL(o));
@@ -3511,7 +3503,6 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_STR:
     case OBJ_CFUNC:
       break;
-      
     case OBJ_ARRAY: {
       kuaobj *ao = (kuaobj*)o;
       ku_markarray(vm, &ao->elements);
@@ -3528,14 +3519,12 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
     case OBJ_UPVAL:
       ku_markval(vm, ((kuxobj*)o)->closed);
       break;
-      
     case OBJ_FUNC: {
       kufunc *fn = (kufunc*)o;
       ku_markobj(vm, (kuobj*)fn->name);
       ku_markarray(vm, &fn->chunk.constants);
       break;
     }
-      
     case OBJ_CCLASS: {
       kucclass *cc = (kucclass*)o;
       ku_markobj(vm, (kuobj*)cc->name);
@@ -3550,14 +3539,12 @@ static void ku_traceobj(kuvm *vm, kuobj *o) {
       ku_marktable(vm, &c->methods);
       break;
     }
-      
     case OBJ_INSTANCE: {
       kuiobj *i = (kuiobj*)o;
       ku_markobj(vm, (kuobj*)i->klass);
       ku_marktable(vm, &i->fields);
       break;
     }
-      
     case OBJ_BOUND_METHOD: {
       kubound *bm = (kubound*)o;
       ku_markval(vm, bm->receiver);
@@ -3718,7 +3705,6 @@ kuiobj *ku_instnew(kuvm *vm, kuclass *klass) {
   return i;
 }
 
-
 // ********************** bound method **********************
 kubound *ku_boundnew(kuvm *vm, kuval receiver, kuclosure *method) {
   kubound *bm = KALLOC_OBJ(vm, kubound, OBJ_BOUND_METHOD);
@@ -3781,9 +3767,9 @@ static void ku_printobj(kuvm* vm, kuval val) {
     case OBJ_CLOSURE:
       ku_printfunc(vm, AS_CLOSURE(val)->func);
       break;
-  case OBJ_STR:
-    ku_printf(vm, "%s", AS_CSTR(val));
-    break;
+    case OBJ_STR:
+      ku_printf(vm, "%s", AS_CSTR(val));
+      break;
     case OBJ_CLASS:
       ku_printf(vm, "%s", AS_CLASS(val)->name->chars);
       break;
@@ -3829,7 +3815,6 @@ void ku_printval(kuvm *vm, kuval value) {
 #endif
 }
 
-
 static void ku_printfunc(kuvm *vm, kufunc *fn) {
   if (fn->name) {
     ku_printf(vm, "<fn %.*s>", fn->name->len, fn->name);
@@ -3872,7 +3857,6 @@ void ku_patchall(kuvm *vm, kupatch *patch, uint16_t to, bool rev) {
     c->code[patch->offset[i]+1] = delta & 0xff;
   }
 }
-
 
 // ********************** native class **********************
 kucclass *ku_cclassnew(kuvm *vm, const char *name) {

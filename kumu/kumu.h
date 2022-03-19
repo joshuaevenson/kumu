@@ -450,7 +450,6 @@ void ku_lexdump(kuvm *vm);
 kutok ku_scan(kuvm *vm);
 
 // ********************** locals **********************
-
 typedef struct {
   kutok name;
   int depth;
